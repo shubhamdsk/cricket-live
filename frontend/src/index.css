@@ -2,6 +2,39 @@
 
 @theme {
   --font-sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  --color-pitch: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f1f5f9;
+
+  --color-line: #e2e8f0;
+  --color-line-strong: #94a3b8;
+
+  --color-ink: #0f172a;
+  --color-ink-muted: #475569;
+  --color-ink-subtle: #64748b;
+
+  --color-brand: #059669;
+  --color-brand-strong: #047857;
+  --color-brand-soft: #ecfdf5;
+  --color-brand-line: #a7f3d0;
+
+  --color-live: #dc2626;
+  --color-live-soft: #fef2f2;
+  --color-live-line: #fecaca;
+
+  --color-upcoming: #0369a1;
+  --color-upcoming-soft: #f0f9ff;
+  --color-upcoming-line: #bae6fd;
+
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fef2f2;
+  --color-danger-line: #fecaca;
+
+  --radius-card: 0.75rem;
+  --radius-panel: 1rem;
+
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.05);
 }
 
 html {
@@ -9,5 +42,20 @@ html {
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-pitch text-ink antialiased;
+}
+
+/* Scores change while someone is looking at them; tabular figures keep them from shifting. */
+.score-figures {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

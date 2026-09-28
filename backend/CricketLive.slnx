@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CricketLive.Api/CricketLive.Api.csproj" />
+    <Project Path="src/CricketLive.Application/CricketLive.Application.csproj" />
+    <Project Path="src/CricketLive.Domain/CricketLive.Domain.csproj" />
+    <Project Path="src/CricketLive.Infrastructure/CricketLive.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CricketLive.Api.Tests/CricketLive.Api.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -4,6 +4,7 @@ This document turns the sprints defined in [`project-plan.md`](../project-plan.m
 
 `project-plan.md` remains the source of truth for **architecture and requirements**.
 This document is the source of truth for **what we build, in what order, and when a sprint is finished**.
+[`engineering-standards.md`](./engineering-standards.md) is the source of truth for **how** — it is binding for every sprint listed below.
 
 ---
 
@@ -433,7 +434,7 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | Sprint | Status |
 | ------ | ------ |
 | 1 — Foundation | ✅ Complete |
-| 2 — UI Foundation | ⬜ Not Started |
+| 2 — UI Foundation | ✅ Complete |
 | 3 — SportScore Integration | ⬜ Not Started |
 | 4 — Home + Match | ⬜ Not Started |
 | 5 — Live Engine | ⬜ Not Started |
@@ -441,8 +442,19 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | 7 — Cricket Ecosystem | ⬜ Not Started |
 | 8 — Production Hardening | ⬜ Not Started |
 
-**Current sprint:** Sprint 2 — UI Foundation
-**Next action:** `2.1` — define the Tailwind theme
+**Current sprint:** Sprint 3 — SportScore Integration
+**Next action:** `3.1` — obtain an API key and confirm the free-tier request limit
+
+Reasoning behind the choices below is recorded in [decisions.md](./decisions.md).
+
+### Sprint 2 notes
+
+* The `docs/` set was rewritten for Cricket Live from another project's documentation ([D-011](./decisions.md)). `engineering-standards.md` is now binding for every remaining sprint.
+* Design tokens are semantic (`surface`, `ink`, `line`, `brand`, `live`) and defined once in `index.css`. No component hardcodes a colour.
+* Mock data is served through the real API function signatures ([D-009](./decisions.md)), so Sprint 4 changes function bodies rather than components. `features/matches/types.ts` is the contract Sprint 3 has to meet.
+* `/matches` renders all three match lists rather than a placeholder, because the home page links to it. Filtering still arrives in Sprint 7.
+* The Sprint 1 health banner was removed from the frontend. With mock data it would have reported the API as unreachable, which is misleading; the endpoint and its test remain on the backend.
+* Verified at 360px: no horizontal overflow on any page, score tables fit inside their cards, tab keyboard navigation moves selection and focus, and the mobile menu toggles `aria-expanded` correctly.
 
 ### Sprint 1 notes
 

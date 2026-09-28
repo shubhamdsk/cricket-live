@@ -1,8 +1,22 @@
+import { MatchListSection } from '@/features/matches/components/MatchListSection'
+import { useLiveMatches } from '@/features/matches/hooks/useMatches'
+
 export function LivePage() {
+  const liveQuery = useLiveMatches()
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Live</h1>
-      <p className="text-slate-600">Live matches arrive in Sprint 2.</p>
+      <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">
+        Live matches
+      </h1>
+
+      <MatchListSection
+        title="Live now"
+        query={liveQuery}
+        emptyTitle="No live matches"
+        emptyDescription="Nothing is in play at the moment. Upcoming fixtures are on the home page."
+        skeletonCount={4}
+      />
     </div>
   )
 }

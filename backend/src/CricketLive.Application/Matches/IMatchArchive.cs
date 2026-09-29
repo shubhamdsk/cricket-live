@@ -28,11 +28,30 @@ public interface IMatchArchive
     Task SaveFinishedAsync(IReadOnlyList<MatchDetailsDto> window, CancellationToken cancellationToken);
 
     /// <summary>Finished matches, most recently started first.</summary>
-    Task<IReadOnlyList<MatchDto>> GetFinishedAsync(int skip, int take, CancellationToken cancellationToken);
+    /// <remarks>
+    /// Filtering happens in the store rather than over the returned page, because a page filtered
+    /// after the fact is a page with holes in it: asking for twenty and discarding nine leaves
+    /// eleven, and the count no longer agrees with what came back.
+    /// </remarks>
+    Task<IReadOnlyList<MatchDto>> GetFinishedAsync(
+        MatchFilter filter,
+        int skip,
+        int take,
+        CancellationToken cancellationToken);
 
     /// <summary>A single archived match, or <see langword="null"/> when it was never recorded.</summary>
     Task<MatchDetailsDto?> GetAsync(string matchId, CancellationToken cancellationToken);
 
-    /// <summary>How many finished matches are held, so a client knows whether more exist.</summary>
-    Task<int> CountFinishedAsync(CancellationToken cancellationToken);
+    /// <summary>How many finished matches match, so a client knows whether more exist.</summary>
+    Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every distinct series the archive holds a match for.
+    /// </summary>
+    /// <remarks>
+    /// Read from the rows rather than kept as a list, so the filter can only ever offer series
+    /// that really have matches behind them. A fixed list would go stale the first time a
+    /// tournament ended, and would offer selections that return nothing.
+    /// </remarks>
+    Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken);
 }

@@ -16,7 +16,10 @@ internal sealed class CricketLiveDbContext(DbContextOptions<CricketLiveDbContext
 
         match.Property(entity => entity.Id).HasMaxLength(64);
         match.Property(entity => entity.Slug).HasMaxLength(256);
-        match.Property(entity => entity.SeriesName).HasMaxLength(256);
+        // NOCASE so filtering by series is case-insensitive in SQL the same way it is in memory,
+        // and stays index-backed while being so. This is the one provider-specific line in the
+        // model: PostgreSQL spells the same idea as a citext column or a lower() index.
+        match.Property(entity => entity.SeriesName).HasMaxLength(256).UseCollation("NOCASE");
         match.Property(entity => entity.Payload).IsRequired();
 
         // The results list is "most recently played first" and nothing else, so this one index is

@@ -404,10 +404,11 @@ is worth watching.
 * [ ] `7.9` Series page: overview, matches, points table, teams, results
 * [ ] `7.10` Team page: overview, players, matches, statistics
 * [ ] `7.11` Player page: profile, batting, bowling, recent matches
-* [ ] `7.12` `/matches` with filters for status, date, and series
+* [x] `7.12` `/matches` with filters for status, date, and series
 * [ ] `7.13` Search UI with debounced input
 * [ ] `7.14` Cross-entity navigation: match to team to player
 * [x] `7.16` "Load more" on completed matches, with a count of what is held
+* [x] `7.17` `GET /api/matches/series`, read from the matches that exist
 
 ### Sprint 7 notes (in progress)
 
@@ -435,6 +436,13 @@ breaking API change so far. `docs/api.md` has the new shape.
 **Route and paging constants were pulled into one place each** while the endpoint changed shape:
 `ApiRoutes` on the backend, `services/endpoints.ts` on the frontend, `PageRequest` for the page
 bounds the controller and the service both used to declare.
+
+**`7.12` filters apply to all three lists at once.** One `MatchFilter` described in the Application
+layer, applied in memory to the provider's window and in SQL to the archive — two implementations
+because filtering a page after reading it leaves holes in it, but one description so the two cannot
+drift apart. Dates cross the wire as instants rather than as a date, because only the browser knows
+which timezone's day the reader meant. Filter state lives in the URL, so a filtered view is
+something you can send someone. Reasoning in [D-018](./decisions.md).
 
 ### Exit criteria
 

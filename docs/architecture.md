@@ -16,7 +16,7 @@ React (Vite dev server, :5173)
         ▼
 ASP.NET Core API (:5140)
         │   ├── GET /api/health
-        │   ├── GET /api/matches/{live,upcoming,recent,{matchId}}
+        │   ├── GET /api/matches/{live,upcoming,recent,series,{matchId}}
         │   └── GET /api/matches/{matchId}/stream   ← SSE
         │
         │   LiveMatchPoller ──► IMatchBroadcaster ──► connected clients
@@ -39,6 +39,11 @@ anything, "recent results" would mean "since the day before yesterday" and a fin
 would stop resolving. An `ICricketDataProvider` decorator writes every completed match it sees to
 the archive on the way past, which is why `recent` is the one paged endpoint and why the archive
 fills whether or not anyone is watching live cricket.
+
+**One filter reaches both stores.** `MatchFilter` describes status, a UTC range and a series once;
+the window is narrowed in memory and the archive in SQL. Two implementations are unavoidable —
+filtering a page after reading it leaves holes in it, and the count stops agreeing with the page —
+but one description keeps them from drifting apart ([D-018](./decisions.md)).
 
 **Two loops, and only one of them costs anything.** Browsers attach over SSE, which never touches
 the provider, so a thousand connected clients cost exactly what one does. The provider is reached

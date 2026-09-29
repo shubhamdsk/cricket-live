@@ -18,7 +18,7 @@ public sealed class MatchServiceResultsTests
         var match = Finished("a", Day(1));
         var service = Build(window: [match], archive: [match]);
 
-        var (matches, total) = await service.GetResultsAsync(PageRequest.From(1, 20), default);
+        var (matches, total) = await service.GetResultsAsync(MatchFilter.None, PageRequest.From(1, 20), default);
 
         Assert.Equal(["a"], matches.Select(result => result.Id));
         Assert.Equal(1, total);
@@ -31,7 +31,7 @@ public sealed class MatchServiceResultsTests
         // vanish from results despite the provider having just told us it finished.
         var service = Build(window: [Finished("fresh", Day(2))], archive: [Finished("old", Day(1))]);
 
-        var (matches, total) = await service.GetResultsAsync(PageRequest.From(1, 20), default);
+        var (matches, total) = await service.GetResultsAsync(MatchFilter.None, PageRequest.From(1, 20), default);
 
         Assert.Equal(["fresh", "old"], matches.Select(result => result.Id));
         Assert.Equal(2, total);
@@ -44,7 +44,7 @@ public sealed class MatchServiceResultsTests
             window: [Finished("done", Day(2)), Live("playing", Day(3)), Upcoming("later", Day(4))],
             archive: []);
 
-        var (matches, _) = await service.GetResultsAsync(PageRequest.From(1, 20), default);
+        var (matches, _) = await service.GetResultsAsync(MatchFilter.None, PageRequest.From(1, 20), default);
 
         Assert.Equal(["done"], matches.Select(result => result.Id));
     }
@@ -57,7 +57,7 @@ public sealed class MatchServiceResultsTests
         var archived = Enumerable.Range(1, 3).Select(day => Finished($"a{day}", Day(day))).ToArray();
         var service = Build(window: [Finished("fresh", Day(9))], archive: archived);
 
-        var (matches, total) = await service.GetResultsAsync(PageRequest.From(2, 2), default);
+        var (matches, total) = await service.GetResultsAsync(MatchFilter.None, PageRequest.From(2, 2), default);
 
         Assert.Equal(["a1"], matches.Select(result => result.Id));
         Assert.Equal(3, total);
@@ -69,10 +69,81 @@ public sealed class MatchServiceResultsTests
         var archived = Enumerable.Range(1, 3).Select(day => Finished($"a{day}", Day(day))).ToArray();
         var service = Build(window: [Finished("fresh", Day(9))], archive: archived);
 
-        var (matches, _) = await service.GetResultsAsync(PageRequest.From(1, 3), default);
+        var (matches, _) = await service.GetResultsAsync(MatchFilter.None, PageRequest.From(1, 3), default);
 
         Assert.Equal(3, matches.Count);
         Assert.Equal(["fresh", "a3", "a2"], matches.Select(result => result.Id));
+    }
+
+    [Fact]
+    public async Task A_filter_narrows_the_window_and_the_archive_together()
+    {
+        var service = Build(
+            window: [Finished("fresh", Day(9), "Kept")],
+            archive: [Finished("old", Day(1), "Kept"), Finished("other", Day(2), "Discarded")]);
+
+        var (matches, total) = await service.GetResultsAsync(
+            new MatchFilter(SeriesName: "Kept"),
+            PageRequest.From(1, 20),
+            default);
+
+        // "other" is excluded by the archive, and "fresh" survives the same filter on the window.
+        Assert.Equal(["fresh", "old"], matches.Select(match => match.Id));
+        Assert.Equal(2, total);
+    }
+
+    [Fact]
+    public async Task Asking_results_for_a_non_completed_status_answers_empty()
+    {
+        var service = Build(window: [Live("playing", Day(2))], archive: [Finished("old", Day(1))]);
+
+        var (matches, total) = await service.GetResultsAsync(
+            new MatchFilter(Status: MatchStatus.Live),
+            PageRequest.From(1, 20),
+            default);
+
+        Assert.Empty(matches);
+        Assert.Equal(0, total);
+    }
+
+    [Fact]
+    public async Task A_status_filter_that_contradicts_the_list_answers_without_asking_the_provider()
+    {
+        // The saving here is a provider call, which is the scarce thing. A client sending one
+        // filter to all three lists should not spend an API call on the two it excluded.
+        var provider = new StubProvider([Live("playing", Day(2))]);
+        var service = new MatchService(provider, new NoEnrichment(), new StubArchive([]));
+
+        var upcoming = await service.GetUpcomingAsync(new MatchFilter(Status: MatchStatus.Live), default);
+
+        Assert.Empty(upcoming);
+        Assert.Equal(0, provider.WindowCalls);
+    }
+
+    [Fact]
+    public async Task Live_and_upcoming_honour_a_series_filter()
+    {
+        var service = Build(
+            window: [Live("a", Day(1), "Kept"), Live("b", Day(2), "Discarded")],
+            archive: []);
+
+        var live = await service.GetLiveAsync(new MatchFilter(SeriesName: "Kept"), default);
+
+        Assert.Equal(["a"], live.Select(match => match.Id));
+    }
+
+    [Fact]
+    public async Task Series_names_come_from_both_the_window_and_the_archive()
+    {
+        // Neither source is a superset: the window has not heard of a tournament that ended last
+        // week, and the archive has not heard of one that started this morning.
+        var service = Build(
+            window: [Live("a", Day(9), "Started this morning")],
+            archive: [Finished("b", Day(1), "Ended last week")]);
+
+        var series = await service.GetSeriesNamesAsync(default);
+
+        Assert.Equal(["Ended last week", "Started this morning"], series);
     }
 
     private static MatchService Build(
@@ -82,16 +153,20 @@ public sealed class MatchServiceResultsTests
 
     private static DateTimeOffset Day(int day) => new(2026, 1, day, 9, 0, 0, TimeSpan.Zero);
 
-    private static MatchDetailsDto Finished(string id, DateTimeOffset start)
-        => Match(id, MatchStatus.Completed, start);
+    private static MatchDetailsDto Finished(string id, DateTimeOffset start, string series = "A series")
+        => Match(id, MatchStatus.Completed, start, series);
 
-    private static MatchDetailsDto Live(string id, DateTimeOffset start)
-        => Match(id, MatchStatus.Live, start);
+    private static MatchDetailsDto Live(string id, DateTimeOffset start, string series = "A series")
+        => Match(id, MatchStatus.Live, start, series);
 
     private static MatchDetailsDto Upcoming(string id, DateTimeOffset start)
         => Match(id, MatchStatus.Upcoming, start);
 
-    private static MatchDetailsDto Match(string id, MatchStatus status, DateTimeOffset start)
+    private static MatchDetailsDto Match(
+        string id,
+        MatchStatus status,
+        DateTimeOffset start,
+        string series = "A series")
     {
         var team = new TeamInningsDto(new TeamDto("india", "India", "IND", null), []);
 
@@ -101,7 +176,7 @@ public sealed class MatchServiceResultsTests
             Slug = id,
             Status = status,
             Format = MatchFormat.Odi,
-            SeriesName = "A series",
+            SeriesName = series,
             MatchTitle = "1st ODI",
             Venue = "Somewhere",
             StartTimeUtc = start,
@@ -115,27 +190,51 @@ public sealed class MatchServiceResultsTests
 
     private sealed class StubProvider(IReadOnlyList<MatchDetailsDto> window) : ICricketDataProvider
     {
+        /// <summary>Counted because a provider call is the scarce resource, not just a detail.</summary>
+        public int WindowCalls { get; private set; }
+
         public Task<IReadOnlyList<MatchDetailsDto>> GetCurrentMatchesAsync(CancellationToken cancellationToken)
-            => Task.FromResult(window);
+        {
+            WindowCalls++;
+            return Task.FromResult(window);
+        }
 
         public Task<MatchDetailsDto?> GetMatchAsync(string matchId, CancellationToken cancellationToken)
             => Task.FromResult(window.FirstOrDefault(match => match.Id == matchId));
     }
 
+    /// <summary>
+    /// An in-memory archive that applies the filter through <see cref="MatchFilter.Matches"/>.
+    /// </summary>
+    /// <remarks>
+    /// Using the real predicate rather than a second copy of the rules is the point: a stub that
+    /// filtered its own way would pass these tests while the SQL diverged.
+    /// </remarks>
     private sealed class StubArchive(IReadOnlyList<MatchDetailsDto> held) : IMatchArchive
     {
         public Task SaveFinishedAsync(IReadOnlyList<MatchDetailsDto> window, CancellationToken cancellationToken)
             => Task.CompletedTask;
 
-        public Task<IReadOnlyList<MatchDto>> GetFinishedAsync(int skip, int take, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<MatchDto>> GetFinishedAsync(
+            MatchFilter filter,
+            int skip,
+            int take,
+            CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<MatchDto>>(
-                [.. held.OrderByDescending(match => match.StartTimeUtc).Skip(skip).Take(take)]);
+                [.. Filtered(filter).OrderByDescending(match => match.StartTimeUtc).Skip(skip).Take(take)]);
 
         public Task<MatchDetailsDto?> GetAsync(string matchId, CancellationToken cancellationToken)
             => Task.FromResult(held.FirstOrDefault(match => match.Id == matchId));
 
-        public Task<int> CountFinishedAsync(CancellationToken cancellationToken)
-            => Task.FromResult(held.Count);
+        public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
+            => Task.FromResult(Filtered(filter).Count());
+
+        public Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<string>>(
+                [.. held.Select(match => match.SeriesName).Distinct()]);
+
+        private IEnumerable<MatchDetailsDto> Filtered(MatchFilter filter)
+            => held.Where(filter.Matches);
     }
 
     private sealed class NoEnrichment : IMatchEnrichmentProvider

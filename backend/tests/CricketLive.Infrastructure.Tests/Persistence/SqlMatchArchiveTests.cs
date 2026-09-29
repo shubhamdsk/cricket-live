@@ -38,7 +38,7 @@ public sealed class SqlMatchArchiveTests : IDisposable
             [Match("done", MatchStatus.Completed), Match("playing", MatchStatus.Live)],
             default);
 
-        var stored = await archive.GetFinishedAsync(0, 20, default);
+        var stored = await archive.GetFinishedAsync(MatchFilter.None, 0, 20, default);
 
         Assert.Equal(["done"], stored.Select(match => match.Id));
     }
@@ -75,7 +75,7 @@ public sealed class SqlMatchArchiveTests : IDisposable
         var corrected = Match("a", MatchStatus.Completed) with { StatusText = "Something else" };
         await archive.SaveFinishedAsync([corrected], default);
 
-        Assert.Equal(1, await archive.CountFinishedAsync(default));
+        Assert.Equal(1, await archive.CountFinishedAsync(MatchFilter.None, default));
         Assert.Equal(string.Empty, (await archive.GetAsync("a", default))?.StatusText);
     }
 
@@ -92,7 +92,7 @@ public sealed class SqlMatchArchiveTests : IDisposable
             ],
             default);
 
-        var stored = await archive.GetFinishedAsync(0, 20, default);
+        var stored = await archive.GetFinishedAsync(MatchFilter.None, 0, 20, default);
 
         Assert.Equal(["third", "second", "first"], stored.Select(match => match.Id));
     }
@@ -106,14 +106,14 @@ public sealed class SqlMatchArchiveTests : IDisposable
             [.. Enumerable.Range(1, 5).Select(day => Match($"m{day}", MatchStatus.Completed, Day(day)))],
             default);
 
-        var first = await archive.GetFinishedAsync(0, 2, default);
-        var second = await archive.GetFinishedAsync(2, 2, default);
-        var third = await archive.GetFinishedAsync(4, 2, default);
+        var first = await archive.GetFinishedAsync(MatchFilter.None, 0, 2, default);
+        var second = await archive.GetFinishedAsync(MatchFilter.None, 2, 2, default);
+        var third = await archive.GetFinishedAsync(MatchFilter.None, 4, 2, default);
 
         Assert.Equal(["m5", "m4"], first.Select(match => match.Id));
         Assert.Equal(["m3", "m2"], second.Select(match => match.Id));
         Assert.Equal(["m1"], third.Select(match => match.Id));
-        Assert.Equal(5, await archive.CountFinishedAsync(default));
+        Assert.Equal(5, await archive.CountFinishedAsync(MatchFilter.None, default));
     }
 
     [Fact]
@@ -145,15 +145,128 @@ public sealed class SqlMatchArchiveTests : IDisposable
         var archive = Build();
         await archive.SaveFinishedAsync([Match("fine", MatchStatus.Completed, Day(1))], default);
 
-        var stored = await archive.GetFinishedAsync(0, 20, default);
+        var stored = await archive.GetFinishedAsync(MatchFilter.None, 0, 20, default);
 
         Assert.Equal(["fine"], stored.Select(match => match.Id));
+    }
+
+    [Fact]
+    public async Task A_series_filter_is_matched_whole_and_case_insensitively()
+    {
+        var archive = Build();
+
+        await archive.SaveFinishedAsync(
+            [
+                Match("a", MatchStatus.Completed, Day(1), "West Indies tour of India, 2026"),
+                Match("b", MatchStatus.Completed, Day(2), "Australia A tour of India, 2026"),
+            ],
+            default);
+
+        var exact = await Ids(archive, new MatchFilter(SeriesName: "West Indies tour of India, 2026"));
+        var lowered = await Ids(archive, new MatchFilter(SeriesName: "west indies tour of india, 2026"));
+        var partial = await Ids(archive, new MatchFilter(SeriesName: "tour of India, 2026"));
+
+        Assert.Equal(["a"], exact);
+        // The collation, not the comparison, is what makes this work in SQL.
+        Assert.Equal(["a"], lowered);
+        // A substring would have matched both series, which is a filter quietly becoming a search.
+        Assert.Empty(partial);
+    }
+
+    [Fact]
+    public async Task A_series_containing_a_wildcard_character_is_not_a_wildcard()
+    {
+        // The reason this is equality and not LIKE. A real series name is unlikely to contain %,
+        // but a filter that treats one as "match anything" is wrong in a way nobody would guess.
+        var archive = Build();
+
+        await archive.SaveFinishedAsync(
+            [
+                Match("a", MatchStatus.Completed, Day(1), "100% Cricket League"),
+                Match("b", MatchStatus.Completed, Day(2), "Another series"),
+            ],
+            default);
+
+        Assert.Equal(["a"], await Ids(archive, new MatchFilter(SeriesName: "100% Cricket League")));
+        Assert.Empty(await Ids(archive, new MatchFilter(SeriesName: "%")));
+    }
+
+    [Fact]
+    public async Task A_date_range_is_inclusive_at_the_start_and_exclusive_at_the_end()
+    {
+        var archive = Build();
+
+        await archive.SaveFinishedAsync(
+            [.. Enumerable.Range(1, 4).Select(day => Match($"m{day}", MatchStatus.Completed, Day(day)))],
+            default);
+
+        // Day(2) starts at 09:00, so a range from Day(2) to Day(4) holds m2 and m3 and not m4.
+        var window = await Ids(archive, new MatchFilter(FromUtc: Day(2), ToUtc: Day(4)));
+
+        Assert.Equal(["m3", "m2"], window);
+    }
+
+    [Fact]
+    public async Task The_count_agrees_with_the_filtered_page()
+    {
+        // The pair that matters most: a count taken over everything while the page is filtered
+        // makes "load more" offer a page that does not exist.
+        var archive = Build();
+
+        await archive.SaveFinishedAsync(
+            [
+                Match("a", MatchStatus.Completed, Day(1), "Kept"),
+                Match("b", MatchStatus.Completed, Day(2), "Kept"),
+                Match("c", MatchStatus.Completed, Day(3), "Other"),
+            ],
+            default);
+
+        var filter = new MatchFilter(SeriesName: "Kept");
+
+        Assert.Equal(["b", "a"], await Ids(archive, filter));
+        Assert.Equal(2, await archive.CountFinishedAsync(filter, default));
+    }
+
+    [Fact]
+    public async Task Asking_the_archive_for_live_matches_answers_empty()
+    {
+        // A coherent question with an empty answer, not a mistake: the archive only holds
+        // finished matches. Ignoring the clause and returning completed ones would be a lie.
+        var archive = Build();
+        await archive.SaveFinishedAsync([Match("a", MatchStatus.Completed)], default);
+
+        var filter = new MatchFilter(Status: MatchStatus.Live);
+
+        Assert.Empty(await Ids(archive, filter));
+        Assert.Equal(0, await archive.CountFinishedAsync(filter, default));
+    }
+
+    [Fact]
+    public async Task Series_names_come_from_the_rows_and_are_distinct()
+    {
+        var archive = Build();
+
+        await archive.SaveFinishedAsync(
+            [
+                Match("a", MatchStatus.Completed, Day(1), "Zimbabwe tri-series"),
+                Match("b", MatchStatus.Completed, Day(2), "Ashes"),
+                Match("c", MatchStatus.Completed, Day(3), "Ashes"),
+            ],
+            default);
+
+        Assert.Equal(["Ashes", "Zimbabwe tri-series"], await archive.GetSeriesNamesAsync(default));
     }
 
     public void Dispose()
     {
         database.Dispose();
         connection.Dispose();
+    }
+
+    private static async Task<string[]> Ids(SqlMatchArchive archive, MatchFilter filter)
+    {
+        var page = await archive.GetFinishedAsync(filter, 0, 50, default);
+        return [.. page.Select(match => match.Id)];
     }
 
     private SqlMatchArchive Build()
@@ -167,7 +280,11 @@ public sealed class SqlMatchArchiveTests : IDisposable
     private static MatchDetailsDto Match(string id, MatchStatus status)
         => Match(id, status, Day(1));
 
-    private static MatchDetailsDto Match(string id, MatchStatus status, DateTimeOffset start)
+    private static MatchDetailsDto Match(
+        string id,
+        MatchStatus status,
+        DateTimeOffset start,
+        string series = "A series")
     {
         var team = new TeamInningsDto(new TeamDto("india", "India", "IND", null), []);
 
@@ -177,7 +294,7 @@ public sealed class SqlMatchArchiveTests : IDisposable
             Slug = $"india-vs-australia-{id}",
             Status = status,
             Format = MatchFormat.Odi,
-            SeriesName = "A series",
+            SeriesName = series,
             MatchTitle = "1st ODI",
             Venue = "Somewhere",
             StartTimeUtc = start,

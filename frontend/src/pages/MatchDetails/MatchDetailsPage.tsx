@@ -6,7 +6,9 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { Skeleton } from '@/components/common/Skeleton'
 import { focusRing } from '@/components/common/focusRing'
 import { MatchHeader } from '@/components/match/MatchHeader'
+import { LiveStreamIndicator } from '@/features/matches/components/LiveStreamIndicator'
 import { useMatchDetails } from '@/features/matches/hooks/useMatches'
+import { useMatchLiveStream } from '@/features/matches/hooks/useMatchLiveStream'
 import type { MatchDetails, TeamInnings } from '@/features/matches/types'
 import {
   formatInnings,
@@ -26,6 +28,10 @@ const formatLabels: Record<MatchDetails['format'], string> = {
 export function MatchDetailsPage() {
   const { slug } = useParams<{ slug: string }>()
   const { data, isPending, isError, error, refetch } = useMatchDetails(slug)
+
+  // Only a match in progress has anything to stream, and holding a connection open for one that
+  // does not would keep the server's poller awake for no reason.
+  const stream = useMatchLiveStream(slug, data?.status === 'live')
 
   if (isPending) {
     return (
@@ -70,6 +76,7 @@ export function MatchDetailsPage() {
   return (
     <div className="space-y-4">
       <MatchHeader match={data} />
+      <LiveStreamIndicator {...stream} />
       <InningsBreakdown match={data} />
       <MatchInformation match={data} />
     </div>

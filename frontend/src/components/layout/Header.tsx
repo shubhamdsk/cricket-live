@@ -66,7 +66,11 @@ export function Header() {
       </Container>
 
       {isMobileNavOpen && (
-        <nav id="mobile-nav" aria-label="Mobile" className="border-t border-line sm:hidden">
+        <nav
+          id="mobile-nav"
+          aria-label="Mobile"
+          className="animate-drop border-t border-line sm:hidden"
+        >
           <Container className="flex flex-col gap-1 py-2">
             {navItems.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClasses}>

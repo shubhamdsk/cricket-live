@@ -5,6 +5,37 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-014 — Live state stays in process; Redis waits for a second instance
+
+**Status:** accepted
+**Amends:** D-003, which assigned live state to Redis
+**Applies:** D-006, which provisions infrastructure in the sprint that needs it
+
+Sprint 5 was planned as Redis plus a poller plus SSE. It shipped the poller and SSE, and no Redis.
+
+Redis earns its place when there is something to share between processes. There is one API
+instance, nothing is deployed, and the sprint's own hardest exit criterion — one live match
+produces one provider poll regardless of how many clients are connected — is met by a background
+service and an in-memory subscriber list. Adding Redis today would introduce a network hop, a
+serialization format, a connection to supervise and a service to run, in exchange for nothing
+observable.
+
+The seam is where it needs to be. `IMatchBroadcaster` is the only thing the poller and the stream
+endpoint know about, so the day a second instance exists, a Redis-backed implementation replaces
+`MatchBroadcaster` and nothing else changes.
+
+**Reopen this when any of these becomes true:**
+
+- more than one API instance runs, so a client connected to A must see a poll made by B
+- live state has to survive a restart rather than being re-fetched
+- the subscriber list outgrows what one process should hold in memory
+
+**Cost:** a restart drops every open stream. Clients reconnect with backoff and the endpoint sends
+current state on connect, so the visible effect is a brief "Reconnecting…" rather than a blank
+page. Nothing durable is lost, because nothing here is the system of record.
+
+---
+
 ## D-013 — A section the data cannot support is removed, not stubbed
 
 **Status:** accepted

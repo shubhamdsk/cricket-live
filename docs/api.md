@@ -140,6 +140,51 @@ allowance as much as it validates the input.
 
 ---
 
+## Live stream
+
+```http
+GET /api/matches/{matchId}/stream
+```
+
+Server-Sent Events for one match. Accepts the same identifier as `GET /api/matches/{matchId}` —
+either the slug or the bare id. Returns `404` with an empty body when the match is unknown, which
+happens before any streaming begins so a client can tell the two cases apart.
+
+**This endpoint does not use the response envelope.** The body is a sequence of frames, not a JSON
+document, so `ApiResponse<T>` has nowhere to live. It is the only endpoint in the API like this.
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `match` | the same `MatchDetails` object `GET /api/matches/{matchId}` returns | once on connect, then on every change |
+| `end` | `{ "reason": "completed" }` | the match is over; the client should close and not reconnect |
+| *(comment)* | `: keepalive` | every 20s of silence, so proxies do not close an idle response |
+
+```text
+event: match
+data: {"id":"90ae280c-…","status":"live","home":{…},"away":{…},"statusText":"India need 5 runs"}
+
+: keepalive
+
+event: end
+data: {"reason":"completed"}
+```
+
+A frame is sent only when something a watcher would notice has changed — a run, a wicket, a ball,
+the result sentence, or a new innings. Cosmetic differences in the upstream response do not
+produce one.
+
+### What this does and does not promise
+
+Connecting costs the server nothing upstream. One provider call serves every connected client,
+which is the reason the endpoint exists. But the underlying data still refreshes about every five
+minutes, because the free plan allows a hundred calls a day and the provider states its free data
+runs a few minutes behind play regardless. **A client must not present this as ball-by-ball.**
+
+The server only polls the provider while at least one client is connected, so the browser is
+expected to close its stream when the tab is hidden. `useMatchLiveStream` does this.
+
+---
+
 ## Not implemented yet
 
 These are specified in `project-plan.md` and land in the sprint shown. They are listed so nobody
@@ -147,7 +192,6 @@ implements a client against a guess.
 
 | Endpoint | Sprint |
 | --- | --- |
-| `GET /api/matches/{matchId}/stream` | 5 |
 | `GET /api/matches/{matchId}/scorecard` | 6 |
 | `GET /api/matches/{matchId}/commentary` | 6 |
 | `GET /api/matches/{matchId}/stats` | 6 |

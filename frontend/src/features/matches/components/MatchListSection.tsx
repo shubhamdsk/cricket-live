@@ -20,6 +20,15 @@ interface MatchListSectionProps {
 
 const gridClasses = 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'
 
+/**
+ * Cards arrive in sequence rather than together, which reads as a list filling in. The cap matters
+ * more than the step: a busy day can return dozens of matches, and without it the last card would
+ * wait seconds while the page looks half-loaded.
+ */
+function staggerDelayMs(index: number): number {
+  return Math.min(index, 7) * 40
+}
+
 export function MatchListSection({
   title,
   query,
@@ -67,8 +76,14 @@ export function MatchListSection({
           <EmptyState title={emptyTitle} description={emptyDescription} />
         ) : (
           <div className={gridClasses}>
-            {query.data.map((match) => (
-              <MatchCard key={match.id} match={match} />
+            {query.data.map((match, index) => (
+              <div
+                key={match.id}
+                className="animate-rise"
+                style={{ animationDelay: `${staggerDelayMs(index)}ms` }}
+              >
+                <MatchCard match={match} />
+              </div>
             ))}
           </div>
         ))}

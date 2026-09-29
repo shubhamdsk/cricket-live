@@ -35,14 +35,64 @@
   --radius-panel: 1rem;
 
   --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --shadow-lift: 0 6px 16px -6px rgb(15 23 42 / 0.12);
+
+  /* One easing for everything, so nothing feels like it belongs to a different app. It decelerates
+     hard, which reads as "settling into place" rather than "sliding". */
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-rise: rise 360ms var(--ease-settle) both;
+  --animate-drop: drop 200ms var(--ease-settle) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* For things that hang off something above them, such as the mobile nav under the header. */
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 html {
   -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
   @apply bg-pitch text-ink antialiased;
+}
+
+/*
+ * The scrollbar is hidden, the scrolling is not. Wheel, trackpad, touch, keyboard, and anchor
+ * navigation all behave exactly as before; what goes away is the chrome and the drag handle.
+ *
+ * A useful side effect: because the bar never reserves width, the page no longer shifts sideways
+ * by its thickness when moving between a short route and a long one.
+ *
+ * Applied to every element rather than just the document, so a scroll container added later — the
+ * Sprint 6 scorecard is the obvious candidate — does not reintroduce one by accident.
+ */
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
 }
 
 /* Scores change while someone is looking at them; tabular figures keep them from shifting. */
@@ -51,6 +101,12 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  /* Every entrance animation uses `both`, so collapsing the duration lands on the final frame
+     rather than skipping the element. Nothing here is load-bearing for meaning. */
   *,
   *::before,
   *::after {

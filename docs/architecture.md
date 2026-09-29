@@ -4,24 +4,28 @@ How the code is laid out **today**. The intended end state is in
 [system-design.md](./system-design.md) and [`project-plan.md`](../project-plan.md); this document
 describes what exists, and grows as each sprint lands.
 
-Last updated: Sprint 2.
+Last updated: Sprint 3.
 
 ---
 
 ## System shape today
 
 ```text
-React (Vite dev server, :5173)
+React (Vite dev server, :5173)          ← still on mock data until Sprint 4
         │  HTTP, CORS allow-list
         ▼
 ASP.NET Core API (:5140)
+        │   ├── GET /api/health
+        │   └── GET /api/matches/{live,upcoming,recent,{matchId}}
         │
-        └── GET /api/health
+        │  one call per refresh, in-memory cache, daily budget guard
+        ▼
+api.cricapi.com (CricketData)
 ```
 
-No cricket provider, no Redis, no PostgreSQL, no background service, no SSE. Those arrive in
-Sprints 3, 5, and 7. The frontend currently renders mock cricket data served through the function
-signatures the API layer will keep (see [D-009](./decisions.md)).
+No Redis, no PostgreSQL, no background service, no SSE — those arrive in Sprints 5 and 7. The
+frontend still renders mock cricket data through the function signatures the API layer will keep
+([D-009](./decisions.md)); connecting it to the endpoints above is Sprint 4.
 
 ### Ports
 
@@ -48,17 +52,33 @@ backend/
 │   ├── CricketLive.Api              controllers, middleware, DI wiring
 │   ├── CricketLive.Application      DTOs, abstractions, the response envelope
 │   ├── CricketLive.Domain           entities — empty until there is something to own
-│   └── CricketLive.Infrastructure   provider, cache, persistence — empty until Sprint 3
+│   └── CricketLive.Infrastructure   CricketData/ — client, models, mapper, budget, DI
 └── tests/
-    └── CricketLive.Api.Tests        xUnit
+    ├── CricketLive.Api.Tests             xUnit
+    └── CricketLive.Infrastructure.Tests  xUnit — mapper tests over captured fixtures
 ```
 
 Dependencies point inward: `Api` → `Application` and `Infrastructure`; `Infrastructure` →
 `Application`; `Application` → `Domain`.
 
-`Domain` and `Infrastructure` are deliberately empty. They exist because the shape is known and
-adding a project later means touching every reference; they stay empty rather than being filled with
-speculative types.
+`Domain` is still deliberately empty. It exists because the shape is known and adding a project
+later means touching every reference; it stays empty rather than being filled with speculative types.
+
+### Provider isolation
+
+```text
+backend/src/CricketLive.Infrastructure/CricketData/
+├── Models/CricketDataModels.cs   internal — the provider's vocabulary, never ours
+├── CricketDataClient.cs          the one place an HTTP request leaves for the provider
+├── CricketDataMatchMapper.cs     absorbs everything the provider gets wrong or omits
+├── InningsLabel.cs               reads the batting side out of a free-text innings label
+├── CricketDataHitBudget.cs       keeps us inside 100 calls a day
+├── CricketDataProvider.cs        ICricketDataProvider, caching, single-flight
+└── CricketDataOptions.cs         bound and validated at startup
+```
+
+Every provider model is `internal`, so `Api` cannot name one even by accident.
+`InternalsVisibleTo` opens them to `CricketLive.Infrastructure.Tests` and nothing else.
 
 ### Pipeline
 
@@ -98,7 +118,7 @@ points at `src/`. Details in [frontend.md](./frontend.md).
 
 | Sprint | Added |
 | --- | --- |
-| 3 | `Infrastructure/SportScore`, `ICricketDataProvider`, DTOs, mappers, match endpoints |
+| 4 | Frontend calls the real endpoints; UI sections the provider cannot fill are removed |
 | 5 | Redis, `LiveMatchBackgroundService`, SSE endpoint, `useMatchLiveStream` |
 | 6 | Scorecard, commentary, and stats endpoints |
 | 7 | PostgreSQL, EF Core, migrations, series/teams/players/search |
@@ -107,6 +127,9 @@ points at `src/`. Details in [frontend.md](./frontend.md).
 ---
 
 ## Local development
+
+The API needs a CricketData key before it will start; see the README. A missing key fails options
+validation at startup rather than surfacing as a 500 later.
 
 ```powershell
 # Backend

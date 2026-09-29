@@ -28,3 +28,6 @@ artifacts/
 # OS
 .DS_Store
 Thumbs.db
+
+# Captured provider responses from the Sprint 3 spike
+.spike/

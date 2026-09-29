@@ -7,5 +7,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CricketLive.Api.Tests/CricketLive.Api.Tests.csproj" />
+    <Project Path="tests/CricketLive.Infrastructure.Tests/CricketLive.Infrastructure.Tests.csproj" />
   </Folder>
 </Solution>

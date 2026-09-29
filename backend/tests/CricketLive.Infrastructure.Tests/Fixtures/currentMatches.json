@@ -1,0 +1,163 @@
+﻿{
+    "status":  "success",
+    "data":  [
+                 {
+                     "id":  "7b304e3b-c522-4917-b247-76e1ce3d5633",
+                     "name":  "Middlesex vs Northamptonshire, 54th Match, County Championship Division Two 2026",
+                     "matchType":  "test",
+                     "status":  "Middlesex won by 7 wkts",
+                     "venue":  "Lord\u0027s, London",
+                     "date":  "2026-09-24",
+                     "dateTimeGMT":  "2026-09-24T10:00:00",
+                     "teams":  [
+                                   "Middlesex",
+                                   "Northamptonshire"
+                               ],
+                     "teamInfo":  [
+                                      {
+                                          "name":  "Middlesex",
+                                          "shortname":  "MDX",
+                                          "img":  "https://g.cricapi.com/iapi/1127-637889091340507643.webp?w=48"
+                                      },
+                                      {
+                                          "name":  "Northamptonshire",
+                                          "shortname":  "NOR",
+                                          "img":  "https://g.cricapi.com/iapi/1129-637885551856435418.webp?w=48"
+                                      }
+                                  ],
+                     "score":  [
+                                   {
+                                       "r":  103,
+                                       "w":  10,
+                                       "o":  37,
+                                       "inning":  "northamptonshire Inning 1"
+                                   },
+                                   {
+                                       "r":  255,
+                                       "w":  10,
+                                       "o":  54.5,
+                                       "inning":  "Middlesex,Northamptonshire Inning 1"
+                                   },
+                                   {
+                                       "r":  285,
+                                       "w":  10,
+                                       "o":  105.3,
+                                       "inning":  "northamptonshire Inning 2"
+                                   },
+                                   {
+                                       "r":  134,
+                                       "w":  3,
+                                       "o":  41.3,
+                                       "inning":  "Middlesex,Northamptonshire Inning 2"
+                                   }
+                               ],
+                     "series_id":  "dfe730c5-873d-44ce-955c-00d82716749b",
+                     "fantasyEnabled":  false,
+                     "bbbEnabled":  false,
+                     "hasSquad":  true,
+                     "matchStarted":  true,
+                     "matchEnded":  true
+                 },
+                 {
+                     "id":  "68e5d7d2-06ce-41b5-be0c-4f25240eade9",
+                     "name":  "Warwickshire vs Leicestershire, 66th Match, County Championship Division One 2026",
+                     "matchType":  "test",
+                     "status":  "Warwickshire won by an innings and 79 runs",
+                     "venue":  "Edgbaston, Birmingham",
+                     "date":  "2026-09-24",
+                     "dateTimeGMT":  "2026-09-24T10:00:00",
+                     "teams":  [
+                                   "Warwickshire",
+                                   "Leicestershire"
+                               ],
+                     "teamInfo":  [
+                                      {
+                                          "name":  "Leicestershire",
+                                          "shortname":  "LECS",
+                                          "img":  "https://g.cricapi.com/iapi/1126-637889090878436462.webp?w=48"
+                                      },
+                                      {
+                                          "name":  "Warwickshire",
+                                          "shortname":  "WRKS",
+                                          "img":  "https://g.cricapi.com/iapi/1137-637885552592685258.webp?w=48"
+                                      }
+                                  ],
+                     "score":  [
+                                   {
+                                       "r":  125,
+                                       "w":  10,
+                                       "o":  47,
+                                       "inning":  "leicestershire Inning 1"
+                                   },
+                                   {
+                                       "r":  372,
+                                       "w":  10,
+                                       "o":  113.3,
+                                       "inning":  "Warwickshire,Leicestershire Inning 1"
+                                   },
+                                   {
+                                       "r":  168,
+                                       "w":  10,
+                                       "o":  56.1,
+                                       "inning":  "leicestershire Inning 2"
+                                   }
+                               ],
+                     "series_id":  "fc9cfc65-4ff6-47c4-baa2-05cc39830e5a",
+                     "fantasyEnabled":  false,
+                     "bbbEnabled":  false,
+                     "hasSquad":  true,
+                     "matchStarted":  true,
+                     "matchEnded":  true
+                 },
+                 {
+                     "id":  "90ae280c-cb10-4d58-9bcc-ec95294819e6",
+                     "name":  "India vs West Indies, 1st ODI, West Indies tour of India, 2026",
+                     "matchType":  "odi",
+                     "status":  "India won by 8 wkts",
+                     "venue":  "Greenfield International Stadium, Thiruvananthapuram",
+                     "date":  "2026-09-27",
+                     "dateTimeGMT":  "2026-09-27T08:30:00",
+                     "teams":  [
+                                   "India",
+                                   "West Indies"
+                               ],
+                     "teamInfo":  [
+                                      {
+                                          "name":  "India",
+                                          "shortname":  "IND",
+                                          "img":  "https://g.cricapi.com/iapi/31-637877061080567215.webp?w=48"
+                                      },
+                                      {
+                                          "name":  "West Indies",
+                                          "shortname":  "WI",
+                                          "img":  "https://g.cricapi.com/iapi/100-637877077978319234.webp?w=48"
+                                      }
+                                  ],
+                     "score":  [
+                                   {
+                                       "r":  295,
+                                       "w":  7,
+                                       "o":  50,
+                                       "inning":  "West Indies Inning 1"
+                                   },
+                                   {
+                                       "r":  300,
+                                       "w":  2,
+                                       "o":  41.4,
+                                       "inning":  "India Inning 1"
+                                   }
+                               ],
+                     "series_id":  "702ce6cb-a551-4aab-961e-0ed1548a3c74",
+                     "fantasyEnabled":  false,
+                     "bbbEnabled":  false,
+                     "hasSquad":  false,
+                     "matchStarted":  true,
+                     "matchEnded":  true
+                 }
+             ],
+    "info":  {
+                 "hitsToday":  1,
+                 "hitsLimit":  100,
+                 "totalRows":  3
+             }
+}

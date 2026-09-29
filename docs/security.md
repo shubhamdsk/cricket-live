@@ -3,7 +3,7 @@
 Binding alongside [engineering-standards.md](./engineering-standards.md). It records the controls
 in place today and the gaps we are carrying, and grows as each sprint lands.
 
-Last updated: Sprint 2.
+Last updated: Sprint 3.
 
 ---
 
@@ -17,7 +17,7 @@ a credential that is ours.**
 
 The realistic bad outcomes are, in order:
 
-1. Our SportScore key is exposed and used by someone else.
+1. Our CricketData key is exposed and used by someone else.
 2. Our API is hammered until the daily provider budget is exhausted, and the product goes dark for
    everyone.
 3. Provider data or internal errors leak detail that helps someone attack the host.
@@ -40,17 +40,38 @@ Nothing here risks a person's data. Everything here risks availability and a bil
 
 ## 3. Controls in place today
 
-**Secrets.** No API key exists yet. When it arrives in Sprint 3 it comes from configuration and the
-environment, never from the repository. `.gitignore` covers `.env`; the only committed environment
-file is `frontend/.env.development`, which holds a localhost URL and nothing else.
+**Secrets.** The CricketData key comes from .NET user secrets in development and the
+`CricketData__ApiKey` environment variable elsewhere. It is not in `appsettings.json`, and there is
+deliberately no empty `"ApiKey": ""` placeholder there either — an empty slot in a tracked file is
+an invitation to fill it in and commit it. A missing key fails options validation at startup with a
+message pointing at the README, rather than surfacing as a 500 on the first request.
+
+`.gitignore` covers `.env` and the `.spike/` folder of captured provider responses; the only
+committed environment file is `frontend/.env.development`, which holds a localhost URL and nothing
+else.
+
+**The provider key travels in the query string.** CricketData authenticates with `?apikey=`, not a
+header, which is their design and not ours. Three things contain it:
+
+- Requests are made only from the server. The browser never sees the key, because React only ever
+  talks to our own API.
+- .NET's `HttpClient` logging redacts query strings by default, so the log reads
+  `GET https://api.cricapi.com/v1/currentMatches?*`. This was confirmed by inspecting real logs, not
+  assumed.
+- Nothing in our code logs the constructed URI. Only the path is ever logged.
 
 **CORS.** An explicit allow-list bound from `Cors:AllowedOrigins`. Development allows the Vite dev
 server; the default elsewhere is empty, so a misconfigured deployment fails closed rather than
 allowing everyone.
 
-**Error handling.** A global exception middleware logs the detail and returns a fixed
-`"An unexpected error occurred."` in the standard envelope. No stack trace, no exception type, no
-provider text reaches a caller.
+**Error handling.** A global exception middleware logs the detail and returns a fixed message in the
+standard envelope — `"An unexpected error occurred."` for anything unhandled, and a 503 saying
+cricket data is temporarily unavailable when the provider fails. No stack trace, no exception type,
+and no provider text reaches a caller: the provider's own reason strings are logged and discarded.
+
+**Input validation.** A match identifier must be a GUID, or one of our slugs ending in one, before
+any provider call is made. That is a budget control as much as a validation rule — without it a
+stream of junk identifiers would spend a daily allowance that is only a hundred calls wide.
 
 **Transport.** HTTPS redirection is on outside Development ([D-008](./decisions.md)).
 
@@ -64,9 +85,7 @@ provider text reaches a caller.
 | --- | --- | --- |
 | No rate limiting | One client can exhaust the provider budget for everyone | Sprint 8 |
 | No security headers | Clickjacking, sniffing, referrer leakage | Sprint 8 |
-| No input validation layer | Malformed identifiers reach the provider call | Sprint 3, with the first parameterised endpoint |
 | No request size limit | Trivially large bodies accepted | Sprint 8 |
-| Provider key handling unproven | Key could be logged or echoed | Sprint 3 |
 | No dependency scanning in CI | A vulnerable package lands unnoticed | Sprint 8 |
 
 These are accepted for now because nothing is deployed and nothing is public. **None of them may
@@ -76,8 +95,9 @@ still be open when the application is first exposed to the internet.**
 
 ## 5. Rules for every sprint
 
-- The provider key is never logged, never returned, and never placed in a URL where a proxy or log
-  would keep it.
+- The provider key is never logged, never returned to a caller, and never reaches the browser. It
+  does travel in the provider's query string because that provider offers no alternative; see
+  section 3 for what contains that.
 - Provider responses are untrusted input: mapped into our DTOs, never passed through, and never
   echoed in an error message.
 - Every route parameter is validated before it reaches a provider call or a database query.
@@ -99,7 +119,7 @@ still be open when the application is first exposed to the internet.**
 [ ] Request size limits set
 [ ] Health endpoint reports dependencies without leaking their addresses
 [ ] Provider terms reviewed: usage limits, attribution, redistribution, commercial use
-[ ] SportScore attribution visible in the UI
+[ ] CricketData attribution visible in the UI
 ```
 
 The last two are legal rather than technical, and they gate a launch just as firmly.

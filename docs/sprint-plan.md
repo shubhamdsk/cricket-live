@@ -27,7 +27,7 @@ Estimates are effort, not calendar time. Adjust the sprint length rather than th
 | ------ | --------------------- | ---------------------------------------------- | ---- | ---------- |
 | 1      | Foundation            | React and .NET run and talk to each other      | 5d   | —          |
 | 2      | UI Foundation         | Design system + mocked pages                   | 5d   | 1          |
-| 3      | SportScore Integration| Real cricket data behind our own DTOs          | 5d   | 1          |
+| 3      | Cricket Data Integration | Real cricket data behind our own DTOs       | 5d   | 1          |
 | 4      | Home + Match          | Real data rendered in real pages               | 5d   | 2, 3       |
 | 5      | Live Engine           | Scores update without refresh                  | 6d   | 4          |
 | 6      | Scorecard + Commentary| Deep match detail                              | 5d   | 4          |
@@ -45,9 +45,9 @@ Per the project plan's First Development Target, each sprint must end with somet
 ```text
 Sprint 1   React → .NET → health endpoint
 Sprint 2   React → mock data → responsive UI
-Sprint 3   .NET → SportScore → our DTOs
-Sprint 4   React → .NET → SportScore → Home + Match
-Sprint 5   SportScore → BackgroundService → Redis → SSE → React
+Sprint 3   .NET → CricketData → our DTOs
+Sprint 4   React → .NET → CricketData → Home + Match
+Sprint 5   CricketData → BackgroundService → Redis → SSE → React
 ```
 
 ---
@@ -103,7 +103,7 @@ Sprint 5   SportScore → BackgroundService → Redis → SSE → React
 [ ] CI is green on develop
 ```
 
-**Not in this sprint:** PostgreSQL, Redis, SportScore, real UI design.
+**Not in this sprint:** PostgreSQL, Redis, the cricket provider, real UI design.
 
 > The plan's Sprint 1 lists PostgreSQL and Redis setup. Both are deferred: Redis to Sprint 5 where it is first needed, PostgreSQL to Sprint 7 where persisted entities first appear. Standing up infrastructure we do not yet read from adds failure modes without adding value.
 
@@ -149,52 +149,54 @@ Agreeing the mock data shape in `2.9` is what lets Sprint 4 be a swap rather tha
 
 ---
 
-# 🔌 Sprint 3 — SportScore Integration
+# 🔌 Sprint 3 — Cricket Data Integration
 
 **Goal:** real cricket data reaching our API, normalized into our own DTOs.
 
+> Renamed from "SportScore Integration". The spike rejected SportScore and chose CricketData — see [D-012](./decisions.md).
+
 ### Provider spike (do this first)
 
-* [ ] `3.1` Obtain an API key and confirm the free-tier request limit
-* [ ] `3.2` Capture real cricket responses for live, upcoming, recent, and match detail
-* [ ] `3.3` Document which fields actually exist: scorecard, commentary, batsmen, bowler, standings
-* [ ] `3.4` Measure live update frequency — this sets the Sprint 5 polling interval
-* [ ] `3.5` Record attribution requirements in `docs/`
+* [x] `3.1` Obtain an API key and confirm the free-tier request limit
+* [x] `3.2` Capture real cricket responses for live, upcoming, recent, and match detail
+* [x] `3.3` Document which fields actually exist: scorecard, commentary, batsmen, bowler, standings
+* [x] `3.4` Measure live update frequency — this sets the Sprint 5 polling interval
+* [x] `3.5` Record attribution requirements in `docs/`
 
 `3.3` and `3.4` are gating. Sprints 5 and 6 are scoped from their findings, since we can only display what the provider returns.
 
 ### Abstraction
 
-* [ ] `3.6` Define `ICricketDataProvider` in `Application`
-* [ ] `3.7` Implement `SportScoreProvider` in `Infrastructure/SportScore`
-* [ ] `3.8` Typed `HttpClient` with base URL, auth header, and timeout
-* [ ] `3.9` SportScore response models, kept internal to `Infrastructure`
-* [ ] `3.10` Mappers from provider models to application DTOs
-* [ ] `3.11` Application DTOs: `MatchDto`, `MatchDetailsDto`, `TeamDto`, `PlayerDto`, `SeriesDto`
+* [x] `3.6` Define `ICricketDataProvider` in `Application`
+* [x] `3.7` Implement `CricketDataProvider` in `Infrastructure/CricketData`
+* [x] `3.8` Typed `HttpClient` with base URL, credential, and timeout
+* [x] `3.9` Provider response models, kept internal to `Infrastructure`
+* [x] `3.10` Mappers from provider models to application DTOs
+* [x] `3.11` Application DTOs: `MatchDto`, `MatchDetailsDto`, `TeamDto`, `TeamInningsDto`, `InningsScoreDto`
 
 ### Endpoints
 
-* [ ] `3.12` `GET /api/matches/live`
-* [ ] `3.13` `GET /api/matches/upcoming`
-* [ ] `3.14` `GET /api/matches/recent`
-* [ ] `3.15` `GET /api/matches/{matchId}`
+* [x] `3.12` `GET /api/matches/live`
+* [x] `3.13` `GET /api/matches/upcoming`
+* [x] `3.14` `GET /api/matches/recent`
+* [x] `3.15` `GET /api/matches/{matchId}`
 
 ### Resilience
 
-* [ ] `3.16` In-memory response caching to stay within the request budget
-* [ ] `3.17` Retry with backoff and timeout handling
-* [ ] `3.18` Provider failures map to our error envelope, never a 500 leak
-* [ ] `3.19` Unit tests for mappers using the captured fixtures from `3.2`
+* [x] `3.16` In-memory response caching to stay within the request budget
+* [x] `3.17` Retry with backoff and timeout handling
+* [x] `3.18` Provider failures map to our error envelope, never a 500 leak
+* [x] `3.19` Unit tests for mappers using the captured fixtures from `3.2`
 
 ### Exit criteria
 
 ```text
-[ ] All four match endpoints return real cricket data
-[ ] No SportScore model is reachable from the API surface
-[ ] All provider code lives under Infrastructure/SportScore
-[ ] Provider errors produce our standard error response
-[ ] Mapper tests pass against captured fixtures
-[ ] Request volume per page view is understood and bounded
+[x] All four match endpoints return real cricket data
+[x] No provider model is reachable from the API surface
+[x] All provider code lives under Infrastructure/CricketData
+[x] Provider errors produce our standard error response
+[x] Mapper tests pass against captured fixtures
+[x] Request volume per page view is understood and bounded
 ```
 
 ---
@@ -392,7 +394,7 @@ The second-to-last criterion is the whole point of the architecture and should b
 * [ ] `8.24` Provision managed PostgreSQL and Redis
 * [ ] `8.25` Production environment variables
 * [ ] `8.26` Verify SSE survives the production proxy — the most likely deployment failure
-* [ ] `8.27` SportScore attribution visible in the UI
+* [ ] `8.27` Provider attribution visible in the UI, and its terms re-read before going public
 * [ ] `8.28` Smoke test the full live path in production
 
 ### Exit criteria
@@ -415,8 +417,9 @@ The second-to-last criterion is the whole point of the architecture and should b
 
 | Risk | Sprint | Mitigation |
 | ---- | ------ | ---------- |
-| SportScore lacks ball-by-ball commentary or full scorecards | 3 | Spike `3.3` before committing Sprint 6 scope |
-| Free-tier request limit exhausted by polling | 5 | Change detection, adaptive interval, Redis fan-out |
+| ~~Provider lacks ball-by-ball commentary or full scorecards~~ **Confirmed in `3.3`** | 6 | Sprint 6 scope must be re-planned; `bbbEnabled` was `false` on every match observed |
+| Free-tier request limit exhausted by polling | 5 | Change detection, adaptive interval, Redis fan-out, and the budget guard built in `3.16` |
+| Provider's current-matches window is small and volatile | 4 | Ten matches one day and one the next; `/upcoming` and `/live` can legitimately be empty, so empty states are not edge cases |
 | Host buffers or drops SSE connections | 8 | Test on the real host during Sprint 5 |
 | Provider update frequency slower than expected | 5 | Set UI expectations from `3.4`; never imply sub-second data |
 | Provider terms change | any | `ICricketDataProvider` keeps the swap cheap |
@@ -435,17 +438,50 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | ------ | ------ |
 | 1 — Foundation | ✅ Complete |
 | 2 — UI Foundation | ✅ Complete |
-| 3 — SportScore Integration | ⬜ Not Started |
+| 3 — Cricket Data Integration | ✅ Complete |
 | 4 — Home + Match | ⬜ Not Started |
 | 5 — Live Engine | ⬜ Not Started |
 | 6 — Scorecard + Commentary | ⬜ Not Started |
 | 7 — Cricket Ecosystem | ⬜ Not Started |
 | 8 — Production Hardening | ⬜ Not Started |
 
-**Current sprint:** Sprint 3 — SportScore Integration
-**Next action:** `3.1` — obtain an API key and confirm the free-tier request limit
+**Current sprint:** Sprint 4 — Home + Match Experience
+**Next action:** `4.1` — replace the mock API functions with calls to our own endpoints
 
 Reasoning behind the choices below is recorded in [decisions.md](./decisions.md).
+
+### Sprint 3 notes — what the provider spike actually found
+
+**`3.1` The provider changed.** SportScore was measured and rejected; CricketData was chosen. Five providers were compared against real responses rather than landing pages, and three of the five advertised a free tier they did not have. Full comparison in [D-012](./decisions.md). The free plan is 100 calls a day, permanent, no card.
+
+**`3.2` Captured responses** live in `.spike/` locally, with three real matches committed as test fixtures at `backend/tests/CricketLive.Infrastructure.Tests/Fixtures/currentMatches.json`.
+
+**`3.3` What exists, and what does not.** This is the gating finding.
+
+| We wanted | Provider gives |
+| --- | --- |
+| Match id, venue, format, start time | yes — `id`, `venue`, `matchType`, `dateTimeGMT` |
+| Per-innings runs, wickets, overs | yes — `score[]` as `r` / `w` / `o`, one entry per innings |
+| Team short names and logos | yes, for teams it has a profile for; domestic sides arrive without one |
+| Result sentence | yes — `status`, shown verbatim |
+| Scorecard, batters, bowler, commentary | **no** — gated behind `bbbEnabled`, `false` on every match observed |
+| Toss, match summary | no |
+
+Two data-quality problems had to be absorbed in the mapper. The `score[]` entries have an empty `team` field, so the batting side has to be read out of a free-text `inning` label — and the provider writes that label two different ways inside a single match, `"northamptonshire Inning 1"` alongside `"Middlesex,Northamptonshire Inning 1"`. And the match `name` packs teams, match description and series into one comma-separated string.
+
+**`3.4` Update frequency could not be measured directly** — the provider's window held no live matches on either day of the spike. It matters less than expected, because CricketData state that free data is "always a few minutes behind real-time" regardless of plan. The binding constraint is our 100-call budget, not their refresh rate: **Sprint 5 should poll no faster than every five minutes**, which is roughly 96 calls across an eight-hour window of cricket.
+
+**`3.5` Attribution** is not demanded by CricketData's published terms the way SportScore's badge is, but the terms have not been read in full and this is a licensing question rather than a technical one. Task `8.27` now requires re-reading them before anything is public.
+
+### Sprint 3 notes — what was built
+
+* One upstream call serves all three lists. `/api/matches/live`, `/upcoming` and `/recent` are partitions of a single `currentMatches` response, which is the property that makes 100 calls a day workable.
+* A match already in that window costs nothing extra to open — the detail endpoint is only called for matches outside it.
+* `CricketDataHitBudget` claims a call before each request, reconciles against the provider's own `hitsToday`, and refunds a claim when the resilience pipeline rejects the call without sending it.
+* Concurrent cache misses share one in-flight request rather than each spending a call.
+* Retry is capped at one attempt, not the standard three, because every attempt costs a call. A circuit breaker stops us spending the day's allowance on a dead endpoint.
+* A match id must be a GUID before any provider call is made, which is validation and budget protection at once.
+* 33 mapper tests run against the captured fixtures, including one that reconciles the attributed innings totals against the provider's own "won by an innings and 79 runs" sentence — independent evidence that the attribution is right rather than merely self-consistent.
 
 ### Sprint 2 notes
 

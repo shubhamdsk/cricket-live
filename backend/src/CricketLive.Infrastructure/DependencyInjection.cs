@@ -1,0 +1,65 @@
+using CricketLive.Application.Matches;
+using CricketLive.Infrastructure.CricketData;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+
+namespace CricketLive.Infrastructure;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Read once here as well, because the resilience handler is configured at registration time
+        // and has no access to the service provider.
+        var settings = configuration
+            .GetSection(CricketDataOptions.SectionName)
+            .Get<CricketDataOptions>() ?? new CricketDataOptions();
+
+        services
+            .AddOptions<CricketDataOptions>()
+            .Bind(configuration.GetSection(CricketDataOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddMemoryCache();
+
+        services.AddSingleton<CricketDataHitBudget>();
+        services.AddSingleton<CricketDataMatchMapper>();
+
+        services.AddHttpClient<CricketDataClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<IOptions<CricketDataOptions>>().Value;
+
+            client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + '/');
+
+            // The resilience pipeline below owns every timeout, so the handler must not impose its own.
+            client.Timeout = Timeout.InfiniteTimeSpan;
+        })
+        .AddStandardResilienceHandler(resilience =>
+        {
+            var attempt = TimeSpan.FromSeconds(settings.TimeoutSeconds);
+
+            // Every attempt costs one of a hundred daily calls, so we retry once and no more.
+            resilience.Retry.MaxRetryAttempts = 1;
+            resilience.Retry.Delay = TimeSpan.FromSeconds(1);
+
+            // Fail fast while the provider is down rather than spending the day's allowance on it.
+            resilience.CircuitBreaker.MinimumThroughput = 2;
+            resilience.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(1);
+            resilience.CircuitBreaker.BreakDuration = TimeSpan.FromMinutes(1);
+
+            resilience.AttemptTimeout.Timeout = attempt;
+            resilience.TotalRequestTimeout.Timeout = (attempt * 2) + TimeSpan.FromSeconds(2);
+        });
+
+        services.AddScoped<ICricketDataProvider, CricketDataProvider>();
+        services.AddScoped<IMatchService, MatchService>();
+
+        return services;
+    }
+}

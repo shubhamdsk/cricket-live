@@ -23,14 +23,19 @@ Where they disagree on *how*, the standards win.
 
 ## Where we are
 
-Sprint 1 is complete and merged: the repository, the React application shell, the ASP.NET Core API
-split into four projects, the response envelope, CORS, global exception handling, `GET /api/health`,
-and CI for both halves. Sprint 2, the design system and mocked pages, is in progress on
-`feature/ui-foundation`.
+Sprints 1 to 3 are complete and merged. The API is split into four projects with a shared response
+envelope, CORS, global exception handling and CI on both halves; the frontend has its design system
+and all four pages; and real cricket data now reaches our own DTOs through
+`GET /api/matches/live`, `/upcoming`, `/recent` and `/{matchId}`.
 
-No cricket data provider is connected yet, and neither Redis nor PostgreSQL is provisioned. Both
-arrive in the sprint that first needs them — Redis in Sprint 5, PostgreSQL in Sprint 7. Current
-status always lives in [sprint-plan.md](./sprint-plan.md).
+Two things are worth knowing before reading further. The provider is **CricketData, not SportScore**
+as `project-plan.md` says — the Sprint 3 spike rejected SportScore and the reasoning is in
+[D-012](./decisions.md). And the **frontend is still on mock data**; wiring it to these endpoints is
+Sprint 4.
+
+Neither Redis nor PostgreSQL is provisioned. Both arrive in the sprint that first needs them — Redis
+in Sprint 5, PostgreSQL in Sprint 7. Current status always lives in
+[sprint-plan.md](./sprint-plan.md).
 
 ## Documents that do not exist yet
 

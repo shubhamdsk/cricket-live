@@ -1,8 +1,9 @@
-﻿using CricketLive.Application.Common;
+using CricketLive.Application.Common;
 using CricketLive.Application.Enrichment;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Application.Series;
+using CricketLive.Application.Teams;
 
 namespace CricketLive.Application.Tests.Matches;
 
@@ -231,10 +232,13 @@ public sealed class MatchServiceResultsTests
         public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
             => Task.FromResult(Filtered(filter).Count());
 
-        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken)
+        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(
+            IReadOnlyCollection<string> excluding,
+            CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<SeriesTally>>(
             [
                 .. held
+                    .Where(match => !excluding.Contains(match.Id))
                     .GroupBy(match => new { match.SeriesId, match.SeriesName })
                     .Select(group => new SeriesTally
                     {
@@ -250,6 +254,14 @@ public sealed class MatchServiceResultsTests
         public Task<IReadOnlyList<MatchDto>> GetBySeriesAsync(string seriesId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<MatchDto>>(
                 [.. held.Where(match => match.SeriesId == seriesId).OrderBy(match => match.StartTimeUtc)]);
+
+        public Task<IReadOnlyList<TeamTally>> GetTeamTalliesAsync(
+            IReadOnlyCollection<string> excluding,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<TeamTally>>([]);
+
+        public Task<IReadOnlyList<MatchDto>> GetByTeamAsync(string teamId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<MatchDto>>([]);
 
         private IEnumerable<MatchDetailsDto> Filtered(MatchFilter filter)
             => held.Where(filter.Matches);

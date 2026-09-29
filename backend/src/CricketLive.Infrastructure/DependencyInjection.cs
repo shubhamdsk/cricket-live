@@ -1,7 +1,9 @@
 using CricketLive.Application.Enrichment;
 using CricketLive.Application.Live;
 using CricketLive.Application.Matches;
+using CricketLive.Application.Search;
 using CricketLive.Application.Series;
+using CricketLive.Application.Teams;
 using CricketLive.Infrastructure.Cricbuzz;
 using CricketLive.Infrastructure.CricketData;
 using CricketLive.Infrastructure.Live;
@@ -77,6 +79,8 @@ public static class DependencyInjection
 
         services.AddScoped<IMatchService, MatchService>();
         services.AddScoped<ISeriesService, SeriesService>();
+        services.AddScoped<ITeamService, TeamService>();
+        services.AddScoped<ISearchService, SearchService>();
 
         services
             .AddOptions<LiveOptions>()

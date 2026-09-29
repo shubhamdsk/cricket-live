@@ -1,5 +1,6 @@
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Application.Series;
+using CricketLive.Application.Teams;
 
 namespace CricketLive.Application.Matches;
 
@@ -61,8 +62,27 @@ public interface IMatchArchive
     /// contains, and answering them separately would mean two definitions of "a series we have".
     /// </para>
     /// </remarks>
-    Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken);
+    /// <param name="excluding">
+    /// Match ids the caller is already counting from the provider window. A match that finished
+    /// minutes ago sits in both places, and without this the tally counts it twice and a series
+    /// claims more matches than it has.
+    /// </param>
+    Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(
+        IReadOnlyCollection<string> excluding,
+        CancellationToken cancellationToken);
 
     /// <summary>Archived matches belonging to one series, earliest first.</summary>
     Task<IReadOnlyList<MatchDto>> GetBySeriesAsync(string seriesId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every team the archive holds a match for, read from the rows for the same reasons series
+    /// are: a team is only offered when matches stand behind it, and no payload is read to say so.
+    /// </summary>
+    /// <param name="excluding">Match ids already counted from the window, as above.</param>
+    Task<IReadOnlyList<TeamTally>> GetTeamTalliesAsync(
+        IReadOnlyCollection<string> excluding,
+        CancellationToken cancellationToken);
+
+    /// <summary>Archived matches either side of which was this team, earliest first.</summary>
+    Task<IReadOnlyList<MatchDto>> GetByTeamAsync(string teamId, CancellationToken cancellationToken);
 }

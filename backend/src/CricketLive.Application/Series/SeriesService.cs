@@ -91,7 +91,12 @@ public sealed class SeriesService(
     private async Task<Dictionary<string, SeriesTally>> GatherAsync(CancellationToken cancellationToken)
     {
         var window = await provider.GetCurrentMatchesAsync(cancellationToken);
-        var archived = await archive.GetSeriesTalliesAsync(cancellationToken);
+
+        // The window's matches are counted here, so the archive must not count them again: one
+        // that finished minutes ago is in both, and a series would claim a match more than it has.
+        var archived = await archive.GetSeriesTalliesAsync(
+            [.. window.Select(match => match.Id)],
+            cancellationToken);
 
         var fromWindow = window
             .Where(match => !string.IsNullOrWhiteSpace(match.SeriesId))

@@ -2,6 +2,7 @@ using System.Text.Json;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Application.Series;
+using CricketLive.Application.Teams;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -52,6 +53,10 @@ internal sealed class SqlMatchArchive(
                 StartTimeUtc = match.StartTimeUtc.UtcDateTime,
                 SeriesId = match.SeriesId,
                 SeriesName = match.SeriesName,
+                HomeTeamId = match.Home.Team.Id,
+                AwayTeamId = match.Away.Team.Id,
+                HomeTeamName = match.Home.Team.Name,
+                AwayTeamName = match.Away.Team.Name,
                 Payload = JsonSerializer.Serialize(match, Format),
                 ArchivedAtUtc = timeProvider.GetUtcNow().UtcDateTime,
             })
@@ -102,9 +107,11 @@ internal sealed class SqlMatchArchive(
     /// only ever holds finished matches, which is why <see cref="SeriesTally.HasUnfinished"/> is
     /// flatly false here rather than computed.
     /// </remarks>
-    public async Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(
+        IReadOnlyCollection<string> excluding,
+        CancellationToken cancellationToken)
     {
-        var rows = await database.ArchivedMatches
+        var rows = await Counting(excluding)
             .GroupBy(archived => new { archived.SeriesId, archived.SeriesName })
             .Select(group => new
             {
@@ -149,6 +156,97 @@ internal sealed class SqlMatchArchive(
 
         return [.. payloads.Select(Deserialize).OfType<MatchDetailsDto>()];
     }
+
+    /// <remarks>
+    /// <para>
+    /// A side sits in the home column or the away one, so the two are unioned before being
+    /// grouped — one query, still index-backed, and no payload read.
+    /// </para>
+    /// <para>
+    /// Grouped by id with the name taken as an aggregate, the same way series are: the id is the
+    /// identity and the name is only what we display, so two spellings of one side must not
+    /// become two teams.
+    /// </para>
+    /// </remarks>
+    public async Task<IReadOnlyList<TeamTally>> GetTeamTalliesAsync(
+        IReadOnlyCollection<string> excluding,
+        CancellationToken cancellationToken)
+    {
+        var counting = Counting(excluding);
+
+        var sides = counting
+            .Select(archived => new
+            {
+                Id = archived.HomeTeamId,
+                Name = archived.HomeTeamName,
+                archived.StartTimeUtc,
+            })
+            .Concat(counting
+                .Select(archived => new
+                {
+                    Id = archived.AwayTeamId,
+                    Name = archived.AwayTeamName,
+                    archived.StartTimeUtc,
+                }));
+
+        var rows = await sides
+            .Where(side => side.Id != string.Empty)
+            .GroupBy(side => side.Id)
+            .Select(group => new
+            {
+                TeamId = group.Key,
+                Name = group.Max(side => side.Name),
+                Count = group.Count(),
+                First = group.Min(side => side.StartTimeUtc),
+                Last = group.Max(side => side.StartTimeUtc),
+            })
+            .ToListAsync(cancellationToken);
+
+        return
+        [
+            .. rows.Select(row => new TeamTally
+            {
+                TeamId = row.TeamId,
+                TeamName = row.Name ?? string.Empty,
+                MatchCount = row.Count,
+                FirstMatchUtc = new DateTimeOffset(row.First, TimeSpan.Zero),
+                LastMatchUtc = new DateTimeOffset(row.Last, TimeSpan.Zero),
+                HasUnfinished = false,
+            })
+        ];
+    }
+
+    public async Task<IReadOnlyList<MatchDto>> GetByTeamAsync(
+        string teamId,
+        CancellationToken cancellationToken)
+    {
+        // As with an empty series id: no id means no team page, so there is nothing to look up.
+        if (string.IsNullOrWhiteSpace(teamId))
+        {
+            return [];
+        }
+
+        var payloads = await database.ArchivedMatches
+            .Where(archived => archived.HomeTeamId == teamId || archived.AwayTeamId == teamId)
+            .OrderBy(archived => archived.StartTimeUtc)
+            .Select(archived => archived.Payload)
+            .ToListAsync(cancellationToken);
+
+        return [.. payloads.Select(Deserialize).OfType<MatchDetailsDto>()];
+    }
+
+    /// <summary>
+    /// The rows a tally should count: everything except what the caller already has in hand.
+    /// </summary>
+    /// <remarks>
+    /// The exclusion list is the provider's window, a few dozen ids at most, so this is a short
+    /// <c>NOT IN</c> rather than anything that needs a temporary table. An empty list adds no
+    /// clause at all, which is the common case once the window and the archive stop overlapping.
+    /// </remarks>
+    private IQueryable<ArchivedMatch> Counting(IReadOnlyCollection<string> excluding)
+        => excluding.Count == 0
+            ? database.ArchivedMatches
+            : database.ArchivedMatches.Where(archived => !excluding.Contains(archived.Id));
 
     /// <summary>
     /// Narrows the query before it runs, so a filtered page is a full page.

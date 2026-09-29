@@ -12,6 +12,8 @@
 const root = '/api'
 const matches = `${root}/matches`
 const series = `${root}/series`
+const teams = `${root}/teams`
+const search = `${root}/search`
 
 type QueryValue = string | number | undefined
 
@@ -70,4 +72,15 @@ export const endpoints = {
     /** `idOrSlug` accepts either; the API resolves both. */
     details: (idOrSlug: string) => `${series}/${encodeURIComponent(idOrSlug)}`,
   },
+
+  teams: {
+    /** Every team we hold a match of. There is no team endpoint upstream to call instead. */
+    all: () => teams,
+
+    /** A slug such as `india`. Teams have no provider id, so the slug is the identifier. */
+    details: (slug: string) => `${teams}/${encodeURIComponent(slug)}`,
+  },
+
+  /** Matches, teams and series whose names contain the term. Two characters minimum. */
+  search: (term: string) => withQuery(search, { q: term }),
 } as const

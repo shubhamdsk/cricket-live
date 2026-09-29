@@ -11,6 +11,7 @@ const navItems = [
   { to: '/', label: 'Home', end: true },
   { to: '/live', label: 'Live', end: false },
   { to: '/matches', label: 'Matches', end: false },
+  { to: '/series', label: 'Series', end: false },
 ]
 
 function navLinkClasses({ isActive }: { isActive: boolean }) {

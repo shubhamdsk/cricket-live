@@ -1,4 +1,5 @@
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Series;
 
 namespace CricketLive.Application.Matches;
 
@@ -46,12 +47,22 @@ public interface IMatchArchive
     Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Every distinct series the archive holds a match for.
+    /// Every series the archive holds a match for, with what the rows say about each.
     /// </summary>
     /// <remarks>
-    /// Read from the rows rather than kept as a list, so the filter can only ever offer series
-    /// that really have matches behind them. A fixed list would go stale the first time a
-    /// tournament ended, and would offer selections that return nothing.
+    /// <para>
+    /// Read from the rows rather than kept as a list, so a series can only be offered when it
+    /// really has matches behind it. A fixed list would go stale the first time a tournament
+    /// ended, and would offer selections that return nothing.
+    /// </para>
+    /// <para>
+    /// Aggregated in SQL over the indexed columns, so this reads no payloads. It answers both the
+    /// filter's question — which series exist — and the series list's, which is what each one
+    /// contains, and answering them separately would mean two definitions of "a series we have".
+    /// </para>
     /// </remarks>
-    Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken);
+
+    /// <summary>Archived matches belonging to one series, earliest first.</summary>
+    Task<IReadOnlyList<MatchDto>> GetBySeriesAsync(string seriesId, CancellationToken cancellationToken);
 }

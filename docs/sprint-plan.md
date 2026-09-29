@@ -389,7 +389,7 @@ is worth watching.
 
 ### Backend
 
-* [ ] `7.1` Series endpoints: list, detail, matches, standings
+* [x] `7.1` Series endpoints: list, detail, matches, standings — see notes
 * [ ] `7.2` Team endpoints: list, detail, matches, players
 * [ ] `7.3` Player endpoints: list, detail, stats
 * [ ] `7.4` Provider methods and mappers for each
@@ -401,7 +401,7 @@ is worth watching.
 
 ### Frontend
 
-* [ ] `7.9` Series page: overview, matches, points table, teams, results
+* [x] `7.9` Series page: overview, matches, points table — teams and results are the matches
 * [ ] `7.10` Team page: overview, players, matches, statistics
 * [ ] `7.11` Player page: profile, batting, bowling, recent matches
 * [x] `7.12` `/matches` with filters for status, date, and series
@@ -436,6 +436,27 @@ breaking API change so far. `docs/api.md` has the new shape.
 **Route and paging constants were pulled into one place each** while the endpoint changed shape:
 `ApiRoutes` on the backend, `services/endpoints.ts` on the frontend, `PageRequest` for the page
 bounds the controller and the service both used to declare.
+
+**`7.1` and `7.9` are narrower than they read, and one part of them is wider.** A series is
+assembled from the matches we hold rather than fetched: the provider's series endpoints were
+measured first and return an index, not data — `endDate` was never an ISO date across 25 series,
+squads were empty for all of them, and there are no standings anywhere in the payload. So the
+series list, detail and matches cost no extra provider call, and `matchCount` honestly means
+"matches we hold". Reasoning in [D-021](./decisions.md).
+
+**Standings are the exception, and they are read from Cricbuzz against its `robots.txt`.** No
+source available to us publishes a points table otherwise, and deriving one would mean inventing
+each competition's points rules. That file disallows every agent it has not named and ours is not
+named; proceeding was a deliberate decision by the project owner on the grounds that `robots.txt`
+is a crawling convention rather than a licence term. It ships off, behind its own switch, cached
+for three hours, never retried, and still identifying itself honestly — impersonating a permitted
+crawler was never on the table. Full reasoning and the obligations it creates are in
+[D-020](./decisions.md).
+
+**Adding a `required` member to `MatchDto` broke the archive,** caught by a live run rather than
+by the tests. The archive stores that DTO as JSON, so a required member is one that no previously
+written row has, and every archived match silently failed to read back. New fields on that type
+need a default. There is now a regression test.
 
 **`7.12` filters apply to all three lists at once.** One `MatchFilter` described in the Application
 layer, applied in memory to the provider's window and in SQL to the archive — two implementations

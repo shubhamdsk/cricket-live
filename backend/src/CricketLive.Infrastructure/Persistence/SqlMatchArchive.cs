@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Series;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -49,6 +50,7 @@ internal sealed class SqlMatchArchive(
                 Id = match.Id,
                 Slug = match.Slug,
                 StartTimeUtc = match.StartTimeUtc.UtcDateTime,
+                SeriesId = match.SeriesId,
                 SeriesName = match.SeriesName,
                 Payload = JsonSerializer.Serialize(match, Format),
                 ArchivedAtUtc = timeProvider.GetUtcNow().UtcDateTime,
@@ -95,12 +97,58 @@ internal sealed class SqlMatchArchive(
     public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
         => Apply(filter).CountAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
-        => await database.ArchivedMatches
-            .Select(archived => archived.SeriesName)
-            .Distinct()
-            .OrderBy(name => name)
+    /// <remarks>
+    /// Grouped in SQL over the indexed columns, so no payload is read to answer this. The archive
+    /// only ever holds finished matches, which is why <see cref="SeriesTally.HasUnfinished"/> is
+    /// flatly false here rather than computed.
+    /// </remarks>
+    public async Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken)
+    {
+        var rows = await database.ArchivedMatches
+            .GroupBy(archived => new { archived.SeriesId, archived.SeriesName })
+            .Select(group => new
+            {
+                group.Key.SeriesId,
+                group.Key.SeriesName,
+                Count = group.Count(),
+                First = group.Min(archived => archived.StartTimeUtc),
+                Last = group.Max(archived => archived.StartTimeUtc),
+            })
             .ToListAsync(cancellationToken);
+
+        return
+        [
+            .. rows.Select(row => new SeriesTally
+            {
+                SeriesId = row.SeriesId,
+                SeriesName = row.SeriesName,
+                MatchCount = row.Count,
+                FirstMatchUtc = new DateTimeOffset(row.First, TimeSpan.Zero),
+                LastMatchUtc = new DateTimeOffset(row.Last, TimeSpan.Zero),
+                HasUnfinished = false,
+            })
+        ];
+    }
+
+    public async Task<IReadOnlyList<MatchDto>> GetBySeriesAsync(
+        string seriesId,
+        CancellationToken cancellationToken)
+    {
+        // An empty id would otherwise collect every match archived before the column existed into
+        // one nonsense series. No id means no series page, so there is nothing to look up.
+        if (string.IsNullOrWhiteSpace(seriesId))
+        {
+            return [];
+        }
+
+        var payloads = await database.ArchivedMatches
+            .Where(archived => archived.SeriesId == seriesId)
+            .OrderBy(archived => archived.StartTimeUtc)
+            .Select(archived => archived.Payload)
+            .ToListAsync(cancellationToken);
+
+        return [.. payloads.Select(Deserialize).OfType<MatchDetailsDto>()];
+    }
 
     /// <summary>
     /// Narrows the query before it runs, so a filtered page is a full page.

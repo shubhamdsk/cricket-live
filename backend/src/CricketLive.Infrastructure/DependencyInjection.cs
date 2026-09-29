@@ -1,6 +1,7 @@
 using CricketLive.Application.Enrichment;
 using CricketLive.Application.Live;
 using CricketLive.Application.Matches;
+using CricketLive.Application.Series;
 using CricketLive.Infrastructure.Cricbuzz;
 using CricketLive.Infrastructure.CricketData;
 using CricketLive.Infrastructure.Live;
@@ -75,6 +76,7 @@ public static class DependencyInjection
             provider.GetRequiredService<ILogger<ArchivingCricketDataProvider>>()));
 
         services.AddScoped<IMatchService, MatchService>();
+        services.AddScoped<ISeriesService, SeriesService>();
 
         services
             .AddOptions<LiveOptions>()
@@ -88,6 +90,7 @@ public static class DependencyInjection
         services.AddHostedService<LiveMatchPoller>();
 
         AddCricbuzzEnrichment(services, configuration);
+        AddStandings(services);
 
         return services;
     }
@@ -162,5 +165,34 @@ public static class DependencyInjection
 
         // Deliberately no retry. This reads someone else's website, and a page that did not answer
         // is not an invitation to ask again — the caller loses two player names, which is nothing.
+    }
+
+    /// <summary>
+    /// Registers whatever can supply a points table, which by default is nothing.
+    /// </summary>
+    /// <remarks>
+    /// The only source we found publishes one behind a <c>robots.txt</c> that disallows us, so
+    /// unlike the other registrations here this one is conditional: when the switch is off, the
+    /// Cricbuzz reader is not in the graph at all rather than present and dormant. Configuration
+    /// should not be the only thing standing between a deployment and traffic it did not intend
+    /// to send.
+    /// </remarks>
+    private static void AddStandings(IServiceCollection services)
+    {
+        services.AddSingleton<NoSeriesStandingsProvider>();
+
+        services.AddHttpClient<CricbuzzStandingsProvider>((provider, client) =>
+        {
+            var cricbuzz = provider.GetRequiredService<IOptions<CricbuzzOptions>>().Value;
+
+            client.BaseAddress = new Uri(cricbuzz.BaseUrl.TrimEnd('/') + '/');
+            client.Timeout = TimeSpan.FromSeconds(cricbuzz.TimeoutSeconds);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(cricbuzz.UserAgent);
+        });
+
+        services.AddScoped<ISeriesStandingsProvider>(provider =>
+            provider.GetRequiredService<IOptions<CricbuzzOptions>>().Value.StandingsEnabled
+                ? provider.GetRequiredService<CricbuzzStandingsProvider>()
+                : provider.GetRequiredService<NoSeriesStandingsProvider>());
     }
 }

@@ -1,3 +1,4 @@
+using CricketLive.Application.Common;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Infrastructure.CricketData.Models;
@@ -160,27 +161,6 @@ internal sealed class CricketDataProvider(
         ? TimeSpan.FromHours(options.Value.FinishedMatchCacheHours)
         : TimeSpan.FromSeconds(options.Value.CurrentMatchesCacheSeconds);
 
-    /// <summary>
-    /// Accepts either a bare provider id or one of our slugs, which end in that id.
-    /// Provider ids are GUIDs, so anything else cannot identify a match and is rejected without a call.
-    /// </summary>
     private static bool TryExtractId(string? idOrSlug, out string id)
-    {
-        var value = idOrSlug?.Trim() ?? string.Empty;
-
-        if (Guid.TryParse(value, out var bare))
-        {
-            id = bare.ToString();
-            return true;
-        }
-
-        if (value.Length > 36 && Guid.TryParse(value[^36..], out var fromSlug))
-        {
-            id = fromSlug.ToString();
-            return true;
-        }
-
-        id = string.Empty;
-        return false;
-    }
+        => Slug.TryExtractId(idOrSlug, out id);
 }

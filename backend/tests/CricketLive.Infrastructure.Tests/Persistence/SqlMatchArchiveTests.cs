@@ -1,6 +1,8 @@
-using System.Text.Json;
+﻿using System.Text.Json;
+using CricketLive.Application.Common;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Series;
 using CricketLive.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -135,6 +137,7 @@ public sealed class SqlMatchArchiveTests : IDisposable
             Id = "broken",
             Slug = "broken",
             StartTimeUtc = Day(9).UtcDateTime,
+            SeriesId = "series-a",
             SeriesName = "A series",
             Payload = "{ this is not json",
             ArchivedAtUtc = clock.GetUtcNow().UtcDateTime,
@@ -242,7 +245,47 @@ public sealed class SqlMatchArchiveTests : IDisposable
     }
 
     [Fact]
-    public async Task Series_names_come_from_the_rows_and_are_distinct()
+    public async Task A_match_archived_before_a_field_existed_still_reads_back()
+    {
+        // This is not hypothetical: adding SeriesId as a `required` member made every row already
+        // in the archive fail to deserialise, and the results page quietly lost its history. The
+        // payload is the durable format, so a new field has to be optional with a default.
+        var archive = Build();
+
+        var payload = JsonSerializer.Serialize(
+            Match("older", MatchStatus.Completed, Day(1)),
+            JsonSerializerOptions.Web);
+
+        using var document = JsonDocument.Parse(payload);
+
+        var withoutSeriesId = new Dictionary<string, JsonElement>(
+            document.RootElement
+                .EnumerateObject()
+                .Where(property => property.Name != "seriesId")
+                .Select(property => KeyValuePair.Create(property.Name, property.Value)));
+
+        database.ArchivedMatches.Add(new ArchivedMatch
+        {
+            Id = "older",
+            Slug = "older",
+            StartTimeUtc = Day(1).UtcDateTime,
+            SeriesId = string.Empty,
+            SeriesName = "A series",
+            Payload = JsonSerializer.Serialize(withoutSeriesId, JsonSerializerOptions.Web),
+            ArchivedAtUtc = Day(1).UtcDateTime,
+        });
+
+        await database.SaveChangesAsync();
+
+        var page = await archive.GetFinishedAsync(MatchFilter.None, 0, 20, default);
+
+        var match = Assert.Single(page);
+        Assert.Equal("older", match.Id);
+        Assert.Equal(string.Empty, match.SeriesId);
+    }
+
+    [Fact]
+    public async Task Series_are_tallied_from_the_rows_rather_than_listed()
     {
         var archive = Build();
 
@@ -254,7 +297,51 @@ public sealed class SqlMatchArchiveTests : IDisposable
             ],
             default);
 
-        Assert.Equal(["Ashes", "Zimbabwe tri-series"], await archive.GetSeriesNamesAsync(default));
+        var tallies = await archive.GetSeriesTalliesAsync(default);
+
+        Assert.Equal(
+            ["ashes", "zimbabwe-tri-series"],
+            tallies.Select(tally => tally.SeriesId).OrderBy(id => id));
+
+        var ashes = tallies.Single(tally => tally.SeriesId == "ashes");
+
+        Assert.Equal(2, ashes.MatchCount);
+        Assert.Equal(Day(2), ashes.FirstMatchUtc);
+        Assert.Equal(Day(3), ashes.LastMatchUtc);
+
+        // The archive holds finished matches and nothing else, so it can never report otherwise.
+        Assert.False(ashes.HasUnfinished);
+    }
+
+    [Fact]
+    public async Task A_series_reads_back_only_its_own_matches_in_playing_order()
+    {
+        var archive = Build();
+
+        await archive.SaveFinishedAsync(
+            [
+                Match("b", MatchStatus.Completed, Day(3), "Ashes"),
+                Match("a", MatchStatus.Completed, Day(1), "Ashes"),
+                Match("other", MatchStatus.Completed, Day(2), "Zimbabwe tri-series"),
+            ],
+            default);
+
+        var ashes = await archive.GetBySeriesAsync("ashes", default);
+
+        Assert.Equal(["a", "b"], ashes.Select(match => match.Id));
+    }
+
+    [Fact]
+    public async Task An_empty_series_id_collects_nothing_rather_than_everything()
+    {
+        var archive = Build();
+
+        // Matches archived before the column existed have no series id. Treating that as a series
+        // would gather unrelated matches under one page.
+        await archive.SaveFinishedAsync([Match("a", MatchStatus.Completed, Day(1), string.Empty)], default);
+
+        Assert.Empty(await archive.GetBySeriesAsync(string.Empty, default));
+        Assert.Empty(await archive.GetBySeriesAsync("   ", default));
     }
 
     public void Dispose()
@@ -294,6 +381,7 @@ public sealed class SqlMatchArchiveTests : IDisposable
             Slug = $"india-vs-australia-{id}",
             Status = status,
             Format = MatchFormat.Odi,
+            SeriesId = Slug.Kebab(series),
             SeriesName = series,
             MatchTitle = "1st ODI",
             Venue = "Somewhere",

@@ -16,4 +16,6 @@ internal static class ApiRoutes
     public const string Health = $"{Root}/health";
 
     public const string Matches = $"{Root}/matches";
+
+    public const string Series = $"{Root}/series";
 }

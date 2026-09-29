@@ -393,10 +393,11 @@ is worth watching.
 * [ ] `7.2` Team endpoints: list, detail, matches, players
 * [ ] `7.3` Player endpoints: list, detail, stats
 * [ ] `7.4` Provider methods and mappers for each
-* [ ] `7.5` PostgreSQL and EF Core setup
+* [x] `7.5` ~~PostgreSQL~~ SQLite and EF Core setup — see notes
 * [ ] `7.6` Entities and migrations for teams, players, competitions, matches, venues
-* [ ] `7.7` Persist provider entities to reduce repeat external calls
+* [x] `7.7` Persist provider entities to reduce repeat external calls — finished matches only
 * [ ] `7.8` Search endpoint across matches, teams, players, and series
+* [x] `7.15` Paged `GET /api/matches/recent` reading the archive
 
 ### Frontend
 
@@ -406,6 +407,34 @@ is worth watching.
 * [ ] `7.12` `/matches` with filters for status, date, and series
 * [ ] `7.13` Search UI with debounced input
 * [ ] `7.14` Cross-entity navigation: match to team to player
+* [x] `7.16` "Load more" on completed matches, with a count of what is held
+
+### Sprint 7 notes (in progress)
+
+**Started early, out of order.** Old completed matches disappearing was a visible gap rather than
+a planned feature, so the persistence tasks were pulled forward ahead of the series, team and
+player work they were written for.
+
+**SQLite, not PostgreSQL yet.** A file rather than a service: nothing to install and nothing to run
+alongside the API, which is the right size for the one table that exists. `IMatchArchive` is the
+seam, so the swap at deployment changes a registration and the migration. Reasoning in
+[D-017](./decisions.md).
+
+**`7.7` is narrower than it reads.** Only finished matches are persisted, because a finished match
+cannot change. Caching live data in the database would be a second cache with a harder invalidation
+problem than the five-minute in-memory one already solves.
+
+**The archive accumulates forward and cannot be backfilled.** No source available to us can supply
+completed matches with results — CricketData's `recent-matches` returns the same short window under
+another name, and Cricbuzz's listing carries no result sentence and only relative dates. History
+therefore starts the day this shipped, which the results page states rather than hides.
+
+**`GET /api/matches/recent` is now paged and returns an envelope instead of a bare array.** The one
+breaking API change so far. `docs/api.md` has the new shape.
+
+**Route and paging constants were pulled into one place each** while the endpoint changed shape:
+`ApiRoutes` on the backend, `services/endpoints.ts` on the frontend, `PageRequest` for the page
+bounds the controller and the service both used to declare.
 
 ### Exit criteria
 
@@ -512,11 +541,11 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | 4 — Home + Match | ✅ Complete |
 | 5 — Live Engine | ✅ Complete (Redis deferred, [D-014](./decisions.md)) |
 | 6 — Scorecard + Commentary | ⬜ Not Started |
-| 7 — Cricket Ecosystem | ⬜ Not Started |
+| 7 — Cricket Ecosystem | 🟡 In Progress (persistence started early) |
 | 8 — Production Hardening | ⬜ Not Started |
 
-**Current sprint:** Sprint 6 — Scorecard + Commentary
-**Next action:** re-scope Sprint 6 before starting it. `bbbEnabled` was `false` on every match observed in the Sprint 3 spike, so ball-by-ball commentary has no evidence behind it yet.
+**Current sprint:** Sprint 7 — Cricket Ecosystem, persistence first
+**Next action:** finish what the archive opened up — filters on `/matches` (`7.12`) now that there is a list long enough to need them. Sprint 6 is still unscheduled: `bbbEnabled` was `false` on every match observed in the Sprint 3 spike, so ball-by-ball commentary has no evidence behind it yet and re-scoping it comes before starting it.
 
 Reasoning behind the choices below is recorded in [decisions.md](./decisions.md).
 

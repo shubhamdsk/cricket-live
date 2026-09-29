@@ -10,7 +10,8 @@ import {
 export function HomePage() {
   const liveQuery = useLiveMatches()
   const upcomingQuery = useUpcomingMatches()
-  const recentQuery = useRecentMatches()
+  // A single row of results here; the matches page is where the rest of the archive lives.
+  const recentQuery = useRecentMatches(3)
 
   const featuredMatch = liveQuery.data?.[0]
 

@@ -19,6 +19,11 @@ obj/
 *.suo
 artifacts/
 
+# The match archive is a local file built up from live data, not source
+*.db
+*.db-shm
+*.db-wal
+
 # Editors
 .vs/
 .vscode/*

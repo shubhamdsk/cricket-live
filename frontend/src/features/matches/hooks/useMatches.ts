@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
 import {
   getLiveMatches,
@@ -20,7 +20,7 @@ export const matchKeys = {
   all: ['matches'] as const,
   live: () => [...matchKeys.all, 'live'] as const,
   upcoming: () => [...matchKeys.all, 'upcoming'] as const,
-  recent: () => [...matchKeys.all, 'recent'] as const,
+  recent: (pageSize: number) => [...matchKeys.all, 'recent', pageSize] as const,
   details: (slug: string) => [...matchKeys.all, 'details', slug] as const,
 }
 
@@ -44,10 +44,22 @@ export function useUpcomingMatches() {
   })
 }
 
-export function useRecentMatches() {
-  return useQuery({
-    queryKey: matchKeys.recent(),
-    queryFn: ({ signal }) => getRecentMatches(signal),
+/**
+ * Completed matches, newest first, in pages.
+ *
+ * Results are the one list that grows without bound: unlike live and upcoming, they come from what
+ * the API kept rather than from the provider's few-day window, so there is no point at which the
+ * list is naturally short. Infinite rather than numbered pages because nobody navigates results by
+ * page number — they scroll until they find the match they remember.
+ */
+export function useRecentMatches(pageSize = 12) {
+  return useInfiniteQuery({
+    queryKey: matchKeys.recent(pageSize),
+    queryFn: ({ pageParam, signal }) => getRecentMatches(pageParam, pageSize, signal),
+    initialPageParam: 1,
+    // hasMore comes from the API, which knows the total; guessing from a short page would stop
+    // early the moment an unreadable row is dropped from one.
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     staleTime: 5 * MINUTE,
   })
 }

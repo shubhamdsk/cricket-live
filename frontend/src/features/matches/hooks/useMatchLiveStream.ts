@@ -1,10 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
+import { matchStreamUrl } from '@/features/matches/api/matchesApi'
 import { matchKeys } from '@/features/matches/hooks/useMatches'
 import type { MatchDetails } from '@/features/matches/types'
-
-const baseUrl = import.meta.env.VITE_API_BASE_URL
 
 const FIRST_RETRY_MS = 1_000
 const MAX_RETRY_MS = 30_000
@@ -59,7 +58,7 @@ export function useMatchLiveStream(slug: string | undefined, enabled: boolean): 
       if (finished) return
 
       setStatus(attempt === 0 ? 'connecting' : 'reconnecting')
-      source = new EventSource(`${baseUrl}/api/matches/${encodeURIComponent(slug!)}/stream`)
+      source = new EventSource(matchStreamUrl(slug!))
 
       source.onopen = () => {
         attempt = 0

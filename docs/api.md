@@ -73,13 +73,13 @@ endpoint answers only "the process is up and serving".
 
 ## Matches
 
-### `GET /api/matches/live` · `GET /api/matches/upcoming` · `GET /api/matches/recent`
+### `GET /api/matches/live` · `GET /api/matches/upcoming`
 
-Three lists, no parameters, each returning `data` as an array of matches. They are partitions of a
-single upstream response, so asking for all three costs one provider call rather than three — see
+Two lists, no parameters, each returning `data` as an array of matches. They are partitions of a
+single upstream response, so asking for both costs one provider call rather than two — see
 [D-012](./decisions.md).
 
-**Any of them can legitimately return an empty array.** The provider's current-matches window held
+**Either can legitimately return an empty array.** The provider's current-matches window held
 ten matches one day and one the next, and no live matches at all across two days of the Sprint 3
 spike. An empty list means no cricket in the window, not a failure.
 
@@ -122,6 +122,39 @@ Field notes worth knowing before building against this:
 - `logoUrl` is nullable. The provider only has images for teams it holds a profile for.
 - `slug` always ends in `id`, so a pretty URL resolves without a lookup.
 
+### `GET /api/matches/recent`
+
+Completed matches, newest first. **This is the one list that is paged**, because it is the one list
+that grows: live and upcoming come from the provider's few-day window, while results come from what
+we kept as that window moved on — see [D-017](./decisions.md).
+
+| Parameter | Default | Notes |
+| --- | --- | --- |
+| `page` | `1` | 1-based. Anything below 1 is treated as 1. |
+| `pageSize` | `20` | Clamped to 1–50. |
+
+`data` is an envelope rather than a bare array. The matches inside `items` are exactly the objects
+the two lists above return.
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [{ "id": "90ae280c-…", "status": "completed", "statusText": "India won by 8 wkts" }],
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "hasMore": false
+  },
+  "message": "Success"
+}
+```
+
+`total` is what the archive currently holds, and it grows as matches finish. **It is not the number
+of matches ever played.** The archive accumulates forward from the day it was switched on, so an
+early `total` being small is expected rather than a sign of missing data. Page through with
+`hasMore` rather than by comparing counts.
+
 ### `GET /api/matches/{matchId}`
 
 Accepts either the bare id or the full slug. Returns one match with two extra fields:
@@ -134,9 +167,12 @@ These report what the provider claims to hold for this match rather than what we
 every match observed during the spike `hasBallByBall` was `false`, which is why scorecard and
 commentary are not yet buildable.
 
-Returns **404** when the identifier is not a GUID, or is a well-formed GUID the provider does not
-know. A malformed identifier is rejected without any provider call, which protects the daily
-allowance as much as it validates the input.
+Returns **404** when the identifier is not a GUID, or is a well-formed GUID that neither the
+provider nor the archive knows. A malformed identifier is rejected without any provider call, which
+protects the daily allowance as much as it validates the input.
+
+A match the provider's window has dropped is still answered from the archive if we kept it, so a
+link to a finished match does not rot the moment the window moves past it.
 
 ---
 

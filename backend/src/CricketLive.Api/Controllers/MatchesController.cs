@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CricketLive.Api.Controllers;
 
 [ApiController]
-[Route("api/matches")]
+[Route(ApiRoutes.Matches)]
 [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status503ServiceUnavailable)]
 public sealed class MatchesController(IMatchService matches) : ControllerBase
 {
@@ -30,14 +30,24 @@ public sealed class MatchesController(IMatchService matches) : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<MatchDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// Finished matches, reaching back past the provider's window into what we have kept.
+    /// </summary>
+    /// <param name="page">1-based. Values below 1 are treated as the first page.</param>
+    /// <param name="pageSize">Clamped, because the caller does not get to decide how much we read.</param>
     [HttpGet("recent")]
-    [ProducesResponseType<ApiResponse<IReadOnlyList<MatchDto>>>(StatusCodes.Status200OK)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<MatchDto>>>> GetRecent(
-        CancellationToken cancellationToken)
+    [ProducesResponseType<ApiResponse<PagedResult<MatchDto>>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<PagedResult<MatchDto>>>> GetRecent(
+        CancellationToken cancellationToken,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = PageRequest.DefaultSize)
     {
-        var result = await matches.GetRecentAsync(cancellationToken);
+        var requested = PageRequest.From(page, pageSize);
 
-        return Ok(ApiResponse<IReadOnlyList<MatchDto>>.Ok(result));
+        var (result, total) = await matches.GetResultsAsync(requested, cancellationToken);
+
+        return Ok(ApiResponse<PagedResult<MatchDto>>.Ok(
+            PagedResult<MatchDto>.For(result, requested, total)));
     }
 
     /// <param name="matchId">Either the provider id or one of our slugs, which end in that id.</param>

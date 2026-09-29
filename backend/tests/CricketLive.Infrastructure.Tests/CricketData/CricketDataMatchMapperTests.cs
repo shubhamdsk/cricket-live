@@ -234,7 +234,7 @@ public class CricketDataMatchMapperTests
 
         var envelope = JsonSerializer.Deserialize<CricketDataEnvelope<List<CricketDataMatch>>>(
             stream,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            JsonSerializerOptions.Web);
 
         var mapper = new CricketDataMatchMapper(NullLogger<CricketDataMatchMapper>.Instance);
 

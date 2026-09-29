@@ -116,13 +116,13 @@ public sealed class MatchService(
     public async Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
     {
         var window = await provider.GetCurrentMatchesAsync(cancellationToken);
-        var archived = await archive.GetSeriesNamesAsync(cancellationToken);
+        var archived = await archive.GetSeriesTalliesAsync(cancellationToken);
 
         return
         [
             .. window
                 .Select(match => match.SeriesName)
-                .Concat(archived)
+                .Concat(archived.Select(tally => tally.SeriesName))
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)

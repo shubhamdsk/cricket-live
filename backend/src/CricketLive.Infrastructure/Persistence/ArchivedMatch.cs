@@ -32,7 +32,17 @@ internal sealed class ArchivedMatch
     /// </remarks>
     public required DateTime StartTimeUtc { get; set; }
 
-    /// <summary>Indexed so a series page can find its matches without reading every payload.</summary>
+    /// <summary>
+    /// The provider's series identifier, indexed so a series page can find its matches without
+    /// reading every payload. Empty for matches archived before this column existed, and for any
+    /// the provider sent without one.
+    /// </summary>
+    public required string SeriesId { get; set; }
+
+    /// <summary>
+    /// Indexed too, because filtering by series name predates the id and still has to work for
+    /// rows that have no id.
+    /// </summary>
     public required string SeriesName { get; set; }
 
     /// <summary>The serialised <c>MatchDetailsDto</c>. The archive's actual content.</summary>

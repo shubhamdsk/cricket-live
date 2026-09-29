@@ -69,6 +69,17 @@ internal sealed class CricketDataMatch
     [JsonPropertyName("score")]
     public List<CricketDataScore>? Score { get; set; }
 
+    /// <summary>
+    /// The provider's own identifier for the series this match belongs to.
+    /// </summary>
+    /// <remarks>
+    /// Worth more than the series name, which reaches us only as the tail of the free-text
+    /// <see cref="Name"/> and therefore carries every inconsistency in that string. Two matches in
+    /// one series always agree on this value even when their names do not.
+    /// </remarks>
+    [JsonPropertyName("series_id")]
+    public string? SeriesId { get; set; }
+
     [JsonPropertyName("bbbEnabled")]
     public bool BallByBallEnabled { get; set; }
 

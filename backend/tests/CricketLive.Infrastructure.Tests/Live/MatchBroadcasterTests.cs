@@ -1,4 +1,4 @@
-using CricketLive.Application.Matches;
+﻿using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Infrastructure.Live;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -156,6 +156,7 @@ public class MatchBroadcasterTests
         Slug = $"india-vs-west-indies-{id}",
         Status = MatchStatus.Live,
         Format = MatchFormat.Odi,
+        SeriesId = "series-wi-ind",
         SeriesName = "West Indies tour of India, 2026",
         MatchTitle = "1st ODI",
         Venue = "Greenfield International Stadium",

@@ -38,6 +38,14 @@ export interface Match {
   slug: string
   status: MatchStatus
   format: MatchFormat
+  /**
+   * The provider's series id, or empty when it sent none.
+   *
+   * What a series link is built from. `seriesName` is what a reader sees, but it is parsed out of
+   * a free-text field and two matches of one series do not always spell it identically, so it is
+   * not safe to key on. Empty means this match has no series page to link to.
+   */
+  seriesId: string
   seriesName: string
   matchTitle: string
   venue: string

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Card } from '@/components/common/Card'
@@ -155,9 +156,23 @@ function renderSide(side: TeamInnings) {
 }
 
 function MatchInformation({ match }: { match: MatchDetails }) {
-  const rows: Array<[string, string]> = [
+  // Linked only when the provider gave an id. The name alone cannot address a series page, and a
+  // link built from it would sometimes lead nowhere.
+  const series =
+    match.seriesId && match.seriesName ? (
+      <Link
+        to={`/series/${match.seriesId}`}
+        className={cn('font-medium text-brand-strong hover:underline', focusRing)}
+      >
+        {match.seriesName}
+      </Link>
+    ) : (
+      match.seriesName || 'Not published'
+    )
+
+  const rows: Array<[string, ReactNode]> = [
     ['Format', formatLabels[match.format]],
-    ['Series', match.seriesName || 'Not published'],
+    ['Series', series],
     ['Venue', match.venue || 'Not published'],
     ['Start', formatStartTime(match.startTimeUtc)],
   ]

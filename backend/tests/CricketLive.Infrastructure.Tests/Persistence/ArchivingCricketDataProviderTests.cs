@@ -1,5 +1,6 @@
-using CricketLive.Application.Matches;
+﻿using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Series;
 using CricketLive.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -84,6 +85,7 @@ public sealed class ArchivingCricketDataProviderTests
             Slug = id,
             Status = MatchStatus.Completed,
             Format = MatchFormat.Odi,
+            SeriesId = "series-a",
             SeriesName = "A series",
             MatchTitle = "1st ODI",
             Venue = "Somewhere",
@@ -130,8 +132,11 @@ public sealed class ArchivingCricketDataProviderTests
         public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
             => Task.FromResult(0);
 
-        public Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SeriesTally>>([]);
+
+        public Task<IReadOnlyList<MatchDto>> GetBySeriesAsync(string seriesId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<MatchDto>>([]);
     }
 
     private sealed class ThrowingArchive : IMatchArchive
@@ -155,7 +160,10 @@ public sealed class ArchivingCricketDataProviderTests
         public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
             => Task.FromResult(0);
 
-        public Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<string>>([]);
+        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SeriesTally>>([]);
+
+        public Task<IReadOnlyList<MatchDto>> GetBySeriesAsync(string seriesId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<MatchDto>>([]);
     }
 }

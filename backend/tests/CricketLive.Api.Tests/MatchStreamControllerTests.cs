@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Threading.Channels;
 using CricketLive.Api.Controllers;
 using CricketLive.Application.Common;
@@ -162,7 +162,7 @@ public sealed class MatchStreamControllerTests
 
     /// <summary>
     /// A stand-in rather than the real <c>MatchBroadcaster</c>, which is internal to Infrastructure
-    /// and should stay that way — the API only ever sees the interface. The real fan-out has its own
+    /// and should stay that way â€” the API only ever sees the interface. The real fan-out has its own
     /// tests next to it; what these tests are about is what the controller writes down the wire.
     /// </summary>
     private sealed class TestBroadcaster : IMatchBroadcaster
@@ -252,6 +252,7 @@ public sealed class MatchStreamControllerTests
         Slug = $"india-vs-west-indies-{MatchId}",
         Status = status,
         Format = MatchFormat.Odi,
+        SeriesId = "series-wi-ind",
         SeriesName = "West Indies tour of India, 2026",
         MatchTitle = "1st ODI",
         Venue = "Greenfield International Stadium",

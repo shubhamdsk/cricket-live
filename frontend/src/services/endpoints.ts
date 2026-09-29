@@ -11,6 +11,7 @@
 
 const root = '/api'
 const matches = `${root}/matches`
+const series = `${root}/series`
 
 type QueryValue = string | number | undefined
 
@@ -60,5 +61,13 @@ export const endpoints = {
 
     /** Server-Sent Events for one match. Opened with `EventSource`, not `fetch`. */
     stream: (idOrSlug: string) => `${matches}/${encodeURIComponent(idOrSlug)}/stream`,
+  },
+
+  series: {
+    /** Every series we hold a match of, assembled from those matches rather than fetched. */
+    all: () => series,
+
+    /** `idOrSlug` accepts either; the API resolves both. */
+    details: (idOrSlug: string) => `${series}/${encodeURIComponent(idOrSlug)}`,
   },
 } as const

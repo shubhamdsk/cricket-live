@@ -1,7 +1,8 @@
-using CricketLive.Application.Common;
+﻿using CricketLive.Application.Common;
 using CricketLive.Application.Enrichment;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Series;
 
 namespace CricketLive.Application.Tests.Matches;
 
@@ -176,6 +177,7 @@ public sealed class MatchServiceResultsTests
             Slug = id,
             Status = status,
             Format = MatchFormat.Odi,
+            SeriesId = Slug.Kebab(series),
             SeriesName = series,
             MatchTitle = "1st ODI",
             Venue = "Somewhere",
@@ -229,9 +231,25 @@ public sealed class MatchServiceResultsTests
         public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
             => Task.FromResult(Filtered(filter).Count());
 
-        public Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<string>>(
-                [.. held.Select(match => match.SeriesName).Distinct()]);
+        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<SeriesTally>>(
+            [
+                .. held
+                    .GroupBy(match => new { match.SeriesId, match.SeriesName })
+                    .Select(group => new SeriesTally
+                    {
+                        SeriesId = group.Key.SeriesId,
+                        SeriesName = group.Key.SeriesName,
+                        MatchCount = group.Count(),
+                        FirstMatchUtc = group.Min(match => match.StartTimeUtc),
+                        LastMatchUtc = group.Max(match => match.StartTimeUtc),
+                        HasUnfinished = false,
+                    })
+            ]);
+
+        public Task<IReadOnlyList<MatchDto>> GetBySeriesAsync(string seriesId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<MatchDto>>(
+                [.. held.Where(match => match.SeriesId == seriesId).OrderBy(match => match.StartTimeUtc)]);
 
         private IEnumerable<MatchDetailsDto> Filtered(MatchFilter filter)
             => held.Where(filter.Matches);

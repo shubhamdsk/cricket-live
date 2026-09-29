@@ -221,6 +221,93 @@ protects the daily allowance as much as it validates the input.
 A match the provider's window has dropped is still answered from the archive if we kept it, so a
 link to a finished match does not rot the moment the window moves past it.
 
+Every match also carries `seriesId`, the provider's own identifier for the series it belongs to.
+It is **empty when the provider sent none**, and such a match has no series page to link to. Build
+series links from this rather than from `seriesName`, which is parsed from a free-text field and
+is not a reliable key.
+
+---
+
+## Series
+
+Series are **assembled from the matches we hold**, in both places matches live, rather than
+fetched as entities. The provider's own series endpoints were measured and are an index rather
+than data — no standings at all, `endDate` never an ISO date, squads empty for every series
+sampled. Reasoning in [D-021](./decisions.md).
+
+The practical consequence is that a series describes what we have, not what was played.
+
+### `GET /api/series`
+
+Every series with a match behind it. Ongoing first, then most recently played.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "702ce6cb-a551-4aab-961e-0ed1548a3c74",
+      "slug": "west-indies-tour-of-india-2026-702ce6cb-a551-4aab-961e-0ed1548a3c74",
+      "name": "West Indies tour of India, 2026",
+      "startTimeUtc": "2026-09-27T08:30:00+00:00",
+      "lastMatchUtc": "2026-09-27T08:30:00+00:00",
+      "matchCount": 1,
+      "isOngoing": false
+    }
+  ],
+  "message": "Success"
+}
+```
+
+`matchCount` is **how many matches of this series we can show**, not how many it contains. A
+tournament that began before this site started recording will report far fewer than it played.
+`lastMatchUtc` is when the latest match we hold began — not when the series ends, which we have no
+way of knowing.
+
+### `GET /api/series/{seriesId}`
+
+Accepts either the bare id or the full slug.
+
+```json
+{
+  "success": true,
+  "data": {
+    "series": { "...": "as above" },
+    "matches": ["...match objects, in playing order..."],
+    "standings": []
+  },
+  "message": "Success"
+}
+```
+
+Returns **404** when the identifier is not a GUID, or when no match we hold belongs to it. A
+series we have nothing of cannot be told apart from one that never existed, so claiming it exists
+but is empty would be a claim we cannot support.
+
+**`standings` is empty unless a source supplied a table, which is the normal case.** A bilateral
+tour has no points table at all, and the only source that publishes one for the tournaments that
+do is read behind a switch that is off by default — see [D-020](./decisions.md) for what that
+switch means and why it exists. Empty means *no table available*, never *this series has no
+table*; those are different claims and only the first is ours to make, so render absence as no
+section rather than as an empty table.
+
+A standings row is published exactly as its source wrote it. Nothing is computed:
+
+```json
+{
+  "group": "Elite Group A",
+  "teamName": "MUM",
+  "played": 5, "won": 3, "lost": 1, "tied": 0, "noResult": 1,
+  "points": 16,
+  "netRunRate": "0.512"
+}
+```
+
+`group` is empty for a competition with one table. `teamName` is whatever the table printed,
+usually an abbreviation, and is not expanded into a full name because that expansion would be a
+guess. `netRunRate` is a string: it is signed and published to three places, and is shown as
+given rather than reformatted.
+
 ---
 
 ## Live stream

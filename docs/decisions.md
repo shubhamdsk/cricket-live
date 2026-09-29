@@ -5,6 +5,108 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-021 — A series is assembled from matches, not fetched
+
+**Status:** accepted
+
+`/api/series` is derived from the matches already in hand — the provider's current window plus the
+archive — and costs no call beyond the one every other list already shares.
+
+**The provider's series endpoints were measured first, and they are an index rather than data.**
+Four calls, spent deliberately:
+
+| Endpoint | Returned |
+| --- | --- |
+| `series` | 25 per page: id, name, start/end, format counts |
+| `series_info` | an info block and an empty `matchList` |
+| `series_squad` | `data: []` |
+| `players` | id, name, country, and nothing else |
+
+Three findings decided it. **`endDate` was never an ISO date** — 0 of 25, always `"Apr 11"` with
+no year, and in the 7 cases where `startDate` was ISO the two fields disagreed on format *inside
+the same object*, so the year would have to be inferred from the series name. **`squads` was 0 for
+all 25**, which is why `series_squad` came back empty. And 18 of 25 declared ODI, T20 or Test
+counts while reporting `matches: 0`. Reading any of this would spend from a hundred-a-day budget
+to learn less than the matches already in memory can say.
+
+**`series_id` is the one field worth taking, and it arrives free** on every match. It is what
+makes a series identifiable: the name reaches us as the tail of a free-text field, and two matches
+of one series do not reliably spell it the same way, so grouping by name would split a series in
+half. Ids group; names display.
+
+**`matchCount` means matches we hold, and the UI says "held" rather than implying completeness.**
+A tournament that started before the archive did will show a fraction of what it played. That is
+the same limitation the results page already states about its own history.
+
+**Adding `SeriesId` as a `required` member broke every row already archived,** which a live run
+caught before this shipped: `MatchDetailsDto` is what the archive stores as JSON, and a required
+member is one that no previously written payload has. Every archived match failed to deserialise
+and silently vanished from results. The field is now optional with a default, and a regression
+test writes a payload without it. **Anything added to `MatchDto` from now on needs a default for
+the same reason** — the archive's durability is the whole point of it.
+
+---
+
+## D-020 — Standings are read from Cricbuzz, against its robots.txt
+
+**Status:** accepted, deliberately and with the cost understood
+**Supersedes part of:** D-015
+
+A points table is read from Cricbuzz series pages. Off by default, behind its own switch.
+
+**Standings cannot be derived and cannot be bought.** CricketData publishes no table at all — the
+full `series_info` payload was searched for `points`, `standing`, `table`, `nrr`, `wins` and
+`losses`, and matched none of them. Computing one from results would mean encoding each
+competition's points rules, and the County Championship alone awards bonus points for batting and
+bowling. A derived table is a guess presented as a standing, which this project does not do.
+Cricbuzz publishes one: the Ranji Trophy Elite table is 740 KB of server-rendered HTML, four
+groups, no JavaScript assembly.
+
+**Cricbuzz's `robots.txt` disallows us, and we are proceeding anyway.** The file reads:
+
+```
+User-agent: *
+Allow: /ads.txt
+Disallow: /
+```
+
+It then grants broad access to roughly eighteen *named* agents — Googlebot, Bingbot, Applebot,
+Twitterbot, AmazonAdBot and others. Ours is not among them. This is not a site that failed to
+consider automated readers; it is one that decided which ones it wants. The judgement taken here
+is that `robots.txt` is a crawling convention rather than a licence term, and the project owner
+made that call with the file in front of them.
+
+**What is not on the table is sending a user agent the file permits.** Declining a stated
+preference and impersonating someone granted an exception are different acts, and only the first
+is being done. We identify ourselves as `cricket-live/1.0` with no `Referer` and no `Origin`,
+exactly as D-015 established, and a test asserts it.
+
+**The obligations this creates are in the code, not in good intentions:**
+
+- **Off by default,** under `Cricbuzz:StandingsEnabled`, separate from the switch that governs
+  batters because it is a separate and larger decision. When off, the reader is not registered at
+  all rather than registered and dormant.
+- **Cached for three hours,** not seconds. A table changes when a match finishes.
+- **No retry, ever.** A page that did not answer is not an invitation to ask again.
+- **One listing read serves every series**, so resolution is a request per cache period rather
+  than per page view.
+- **The live test is opt-in** behind `CRICKET_LIVE_LIVE_TESTS=1`, so CI does not send this traffic
+  from every branch on every push.
+
+**A wrong table is worse than no table,** so the parser is built to decline. It reads the header
+rather than assuming column positions, because competitions differ — Ranji publishes P, W, L, NR,
+Pts and NRR with no tie column, and a fixed layout would shift every value after the missing one.
+A row whose numbers do not parse is dropped rather than defaulted to zero, since a zero is a claim
+about a result. Anything unreadable becomes an empty list, which renders as no section at all.
+
+**Cost:** this reads a presentation detail of someone else's HTML and will break without warning.
+The tests against a captured page are the alarm.
+
+**Reopen this when:** Cricbuzz blocks an honest agent — in which case stop, per D-015 — or a
+source appears that publishes standings under terms that permit it.
+
+---
+
 ## D-019 — Routes live in the fragment
 
 **Status:** accepted

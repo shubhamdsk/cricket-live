@@ -1,4 +1,4 @@
-using CricketLive.Application.Matches;
+﻿using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 
 namespace CricketLive.Application.Tests.Matches;
@@ -113,6 +113,7 @@ public sealed class MatchFilterTests
             Slug = "a",
             Status = status,
             Format = MatchFormat.Odi,
+            SeriesId = "series-1",
             SeriesName = series,
             MatchTitle = "1st ODI",
             Venue = "Somewhere",

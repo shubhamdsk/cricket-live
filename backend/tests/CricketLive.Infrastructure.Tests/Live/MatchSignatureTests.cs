@@ -1,4 +1,4 @@
-using CricketLive.Application.Enrichment;
+﻿using CricketLive.Application.Enrichment;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Infrastructure.Live;
@@ -117,6 +117,7 @@ public class MatchSignatureTests
             Slug = "india-vs-west-indies-90ae280c-cb10-4d58-9bcc-ec95294819e6",
             Status = MatchStatus.Live,
             Format = MatchFormat.Odi,
+            SeriesId = "series-wi-ind",
             SeriesName = "West Indies tour of India, 2026",
             MatchTitle = "1st ODI",
             Venue = "Greenfield International Stadium",

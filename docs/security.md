@@ -60,6 +60,21 @@ header, which is their design and not ours. Three things contain it:
   assumed.
 - Nothing in our code logs the constructed URI. Only the path is ever logged.
 
+**CricketData echoes the key back in every response body.** The first field of a `currentMatches`
+payload is `"apikey":"<the key you sent>"`. This means a saved provider response is a secret-bearing
+file, which is not obvious from looking at one — it reads as match data. Two consequences:
+
+- `.spike/` is gitignored for this reason and not only to keep noise out of the repository. The
+  captured responses in there do contain the live key.
+- **Test fixtures are stripped of `apikey` before being committed.** The files under
+  `backend/tests/CricketLive.Infrastructure.Tests/Fixtures/` have the field removed, and the mapper
+  never reads it, so nothing depends on it being there. Any fixture captured in a later sprint gets
+  the same treatment.
+
+Verified on 2026-09-29 that no object anywhere in the repository's history contains the key, that
+GitHub secret scanning reports no alerts, and that the only occurrences of the string `apikey` in
+tracked files are the query-parameter name in `CricketDataClient` and this document.
+
 **CORS.** An explicit allow-list bound from `Cors:AllowedOrigins`. Development allows the Vite dev
 server; the default elsewhere is empty, so a misconfigured deployment fails closed rather than
 allowing everyone.
@@ -87,9 +102,27 @@ stream of junk identifiers would spend a daily allowance that is only a hundred 
 | No security headers | Clickjacking, sniffing, referrer leakage | Sprint 8 |
 | No request size limit | Trivially large bodies accepted | Sprint 8 |
 | No dependency scanning in CI | A vulnerable package lands unnoticed | Sprint 8 |
+| Key not in a GitHub Actions secret | — none today | Sprint 8 (`8.16`) |
 
 These are accepted for now because nothing is deployed and nothing is public. **None of them may
 still be open when the application is first exposed to the internet.**
+
+The last row is a deliberate non-action rather than an oversight. No workflow needs the provider
+key: the mapper tests run against committed fixtures, and CI never calls the provider. Storing a
+credential that nothing consumes adds a place for it to leak without removing one, so it waits for
+the deployment workflow in `8.16` that will actually read it.
+
+**The repository is public.** That raises the cost of a leaked secret from "rotate it quietly" to
+"assume it was harvested within minutes", which is why the scan below is a merge gate rather than
+advice.
+
+**A CI secret scan runs on every push and pull request** (`.github/workflows/secrets.yml`). It
+looks for the two shapes a CricketData key can take — `"apikey":"<guid>"` and `apikey=<guid>` —
+across tracked files only. It deliberately does not look for bare GUIDs: match ids are GUIDs and
+fill this repository legitimately, so a generic secret scanner would either drown in false
+positives or be tuned until it caught nothing. GitHub's own secret scanning cannot help here for
+the same reason, and reports no alerts precisely because a bare GUID matches no known provider
+pattern. Absence of an alert from it is not evidence of absence of a key.
 
 ---
 

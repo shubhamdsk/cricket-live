@@ -11,6 +11,16 @@ export function formatTeamScore(side: TeamInnings): string | null {
   return side.innings.map(formatInnings).join(' & ')
 }
 
+/** "1st innings", "2nd innings" — cricket never says "innings 2". */
+export function formatInningsLabel(number: number): string {
+  const suffix =
+    number % 100 >= 11 && number % 100 <= 13
+      ? 'th'
+      : ({ 1: 'st', 2: 'nd', 3: 'rd' }[number % 10] ?? 'th')
+
+  return `${number}${suffix} innings`
+}
+
 const startTimeFormatter = new Intl.DateTimeFormat(undefined, {
   weekday: 'short',
   day: 'numeric',

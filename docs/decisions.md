@@ -5,6 +5,33 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-013 — A section the data cannot support is removed, not stubbed
+
+**Status:** accepted
+**Follows from:** D-012
+
+The Sprint 3 spike found that the provider carries no toss, no editorial summary, and no batters or
+bowler at the crease. Sprint 2 had built all four, because Sprint 1 assumed a provider would supply
+them. The choice was to keep them behind empty states or delete them.
+
+They are deleted, along with the Scorecard, Commentary and Stats tabs that had never held anything.
+An empty state is a promise that content belongs there and is temporarily absent. When it is
+permanently absent, the promise is false, and a page that keeps making it reads as broken rather
+than as finished. A match page with a header, an innings breakdown and match information is
+complete; the same page with three tabs saying "arrives in Sprint 6" is the same content with a
+notice that it is not.
+
+This applies to real gaps too, not just permanent ones. If the provider has no venue for a match we
+show nothing in that line rather than "Venue: unknown", and a team with no crest gets no
+placeholder shape — the row reads the same either way.
+
+**Cost:** UI gets deleted and later rebuilt. The Sprint 6 scorecard work now starts from nothing
+instead of from a tab that already existed. That is the right trade: the tab cost about an hour and
+was misleading every day it shipped. It also means a screen cannot be built more than a sprint
+ahead of the data behind it, which is a constraint on planning, not just on code.
+
+---
+
 ## D-012 — CricketData replaces SportScore as the cricket provider
 
 **Status:** accepted

@@ -38,9 +38,8 @@ export function MatchHeader({ match }: { match: MatchDetails }) {
       <div className="space-y-1 border-t border-line pt-3 text-sm text-ink-subtle">
         <p className="flex items-center gap-1.5">
           <MapPin className="size-4 shrink-0" aria-hidden />
-          <span>{match.venue}</span>
+          <span>{match.venue || 'Venue not published'}</span>
         </p>
-        {match.tossText && <p>{match.tossText}</p>}
       </div>
     </Card>
   )

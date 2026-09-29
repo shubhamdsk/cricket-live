@@ -11,7 +11,7 @@ Last updated: Sprint 3.
 ## System shape today
 
 ```text
-React (Vite dev server, :5173)          ← still on mock data until Sprint 4
+React (Vite dev server, :5173)
         │  HTTP, CORS allow-list
         ▼
 ASP.NET Core API (:5140)
@@ -23,9 +23,13 @@ ASP.NET Core API (:5140)
 api.cricapi.com (CricketData)
 ```
 
-No Redis, no PostgreSQL, no background service, no SSE — those arrive in Sprints 5 and 7. The
-frontend still renders mock cricket data through the function signatures the API layer will keep
-([D-009](./decisions.md)); connecting it to the endpoints above is Sprint 4.
+No Redis, no PostgreSQL, no background service, no SSE — those arrive in Sprints 5 and 7. Every
+screen now renders provider data end to end; no mock data remains anywhere in the frontend.
+
+The browser polls, which is the honest description of Sprint 4's freshness story. Live lists refresh
+once a minute and everything else far less often, because the API caches a provider response for
+five minutes and polling faster would return the same bytes. Sprint 5 inverts this: a background
+service polls the provider and pushes over SSE, and the interval on the client goes away.
 
 ### Ports
 
@@ -100,7 +104,7 @@ HTTPS redirection runs outside Development only ([D-008](./decisions.md)).
 frontend/src/
 ├── app/            App, providers, router
 ├── components/     common/, layout/, match/
-├── features/       matches/ (api, components, hooks, mocks, types, utils), series/
+├── features/       matches/ (api, components, hooks, types, utils)
 ├── pages/          Home, Live, Matches, MatchDetails, NotFound
 ├── services/       apiClient
 ├── store/          uiStore

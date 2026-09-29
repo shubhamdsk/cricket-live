@@ -23,7 +23,7 @@ internal sealed class CricketDataProvider(
     private const string LastKnownGoodKey = "cricket-data:current-matches:last-known-good";
     private static readonly SemaphoreSlim RefreshGate = new(1, 1);
 
-    public async Task<IReadOnlyList<MatchDto>> GetCurrentMatchesAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<MatchDetailsDto>> GetCurrentMatchesAsync(CancellationToken cancellationToken)
         => await GetCurrentDetailsAsync(cancellationToken);
 
     public async Task<MatchDetailsDto?> GetMatchAsync(string matchId, CancellationToken cancellationToken)

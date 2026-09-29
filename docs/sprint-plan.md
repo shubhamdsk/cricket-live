@@ -265,51 +265,91 @@ Sprints 5, 6, and 7 all branch from here and can be reordered by priority. Sprin
 
 **Goal:** scores update in the browser without a refresh.
 
-### Redis
+### Redis — deferred, see [D-014](./decisions.md)
 
-* [ ] `5.1` Provision Redis and add connection configuration
-* [ ] `5.2` `RedisService` wrapper with serialization
-* [ ] `5.3` Implement the key scheme: `live:matches`, `live:match:{id}`, `live:match:{id}:score`
-* [ ] `5.4` Define TTLs and a cleanup path for finished matches
+* [ ] ~~`5.1` Provision Redis and add connection configuration~~
+* [ ] ~~`5.2` `RedisService` wrapper with serialization~~
+* [ ] ~~`5.3` Implement the key scheme: `live:matches`, `live:match:{id}`, `live:match:{id}:score`~~
+* [ ] ~~`5.4` Define TTLs and a cleanup path for finished matches~~
 
 ### Background polling
 
-* [ ] `5.5` `LiveMatchBackgroundService` polling at the interval established in `3.4`
-* [ ] `5.6` Change detection so unchanged state does not broadcast
-* [ ] `5.7` Back off polling when no matches are live, to protect the request budget
-* [ ] `5.8` Write detected state to Redis
-* [ ] `5.9` `CancellationToken` respected throughout
+* [x] `5.5` `LiveMatchPoller` polling at the interval established in `3.4`
+* [x] `5.6` Change detection so unchanged state does not broadcast
+* [x] `5.7` Back off polling when no matches are live, to protect the request budget
+* [x] `5.8` Write detected state to the in-process broadcaster
+* [x] `5.9` `CancellationToken` respected throughout
 
 ### SSE
 
-* [ ] `5.10` `SseService` managing connections per match
-* [ ] `5.11` `GET /api/matches/{matchId}/stream`
-* [ ] `5.12` Send current state on connect so clients are never blank
-* [ ] `5.13` Heartbeat to keep proxies from closing idle connections
-* [ ] `5.14` Clean up connections on client disconnect
+* [x] `5.10` `MatchBroadcaster` managing connections per match
+* [x] `5.11` `GET /api/matches/{matchId}/stream`
+* [x] `5.12` Send current state on connect so clients are never blank
+* [x] `5.13` Heartbeat to keep proxies from closing idle connections
+* [x] `5.14` Clean up connections on client disconnect
 
 ### Frontend
 
-* [ ] `5.15` `useMatchLiveStream()` handling connected, message, disconnected, reconnect, error
-* [ ] `5.16` Reconnect with backoff
-* [ ] `5.17` Merge stream updates into the TanStack Query cache
-* [ ] `5.18` Live indicator and last-updated timestamp in the UI
-* [ ] `5.19` Close the stream on unmount and when a match ends
+* [x] `5.15` `useMatchLiveStream()` handling connected, message, disconnected, reconnect, error
+* [x] `5.16` Reconnect with backoff
+* [x] `5.17` Merge stream updates into the TanStack Query cache
+* [x] `5.18` Live indicator and last-updated timestamp in the UI
+* [x] `5.19` Close the stream on unmount and when a match ends
 
 ### Exit criteria
 
 ```text
-[ ] Live match opens
-[ ] SSE connection established
-[ ] Score update received
-[ ] UI updates automatically
-[ ] Browser refresh not required
-[ ] Connection reconnects after failure
-[ ] One live match produces one provider poll regardless of connected client count
-[ ] No connection or memory leak after repeated open/close cycles
+[x] Live match opens
+[x] SSE connection established
+[x] Score update received
+[x] UI updates automatically
+[x] Browser refresh not required
+[x] Connection reconnects after failure
+[x] One live match produces one provider poll regardless of connected client count
+[x] No connection or memory leak after repeated open/close cycles
 ```
 
 The second-to-last criterion is the whole point of the architecture and should be verified explicitly, not assumed.
+
+**Status: ✅ Complete**
+
+### Sprint 5 notes
+
+**Redis was not built.** The reasoning is in [D-014](./decisions.md), and the short version is that
+with one API instance there is nothing to share between processes: a background service and an
+in-memory subscriber list already satisfy the one-poll-many-clients criterion. `IMatchBroadcaster`
+is the seam, so a Redis implementation drops in unchanged the day a second instance exists.
+
+**Three rules keep a hundred calls a day survivable**, and the third was the one that needed
+thought:
+
+1. The poller does not run unless somebody is subscribed, so idle days cost nothing at all.
+2. Its tick rate is not its spend rate. Every tick goes through the same five-minute cache the HTTP
+   endpoints use, so ticking every thirty seconds costs at most twelve calls an hour and only
+   shortens the gap between a cache refresh and the push that follows it.
+3. **The browser closes its stream when the tab is hidden.** An open connection is what tells the
+   server someone is watching, so without this a tab forgotten in a background window would drain
+   the entire daily allowance on its own — 100 ÷ 12 is about eight hours. The poller also stops
+   once only `ReservedHits` remain, so a long session degrades itself rather than starving someone
+   opening a match page.
+
+**Change detection could not use record equality.** `MatchDetailsDto` is a record, but its innings
+are an `IReadOnlyList<T>`, and records compare list members by reference. A freshly mapped response
+allocates new lists every poll, so every poll would have looked like a change and woken every
+client. `MatchSignature` builds a comparable fingerprint of the things a watcher would notice
+instead, and has a test asserting that two separately built copies of an identical match are not
+equal as records but do share a signature.
+
+**Verification.** Fan-out was tested with 25 concurrent subscribers, and the registry with 500
+open/close cycles asserting it is left both empty and still usable. The heartbeat is tested with a
+`FakeTimeProvider` rather than a sleep, because `8.26` calls proxy buffering the most likely
+deployment failure and a flaky test there would be worse than none. The snapshot-on-connect and
+end-on-completed frames were also confirmed against the running API with `curl -N`.
+
+**What could not be verified against real data:** the provider's window held no live match on the
+day this was built, so an actual score changing mid-stream has not been seen end to end. The path
+is covered by tests at both the broadcaster and the controller, but the first genuinely live match
+is worth watching.
 
 ---
 
@@ -470,13 +510,13 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | 2 — UI Foundation | ✅ Complete |
 | 3 — Cricket Data Integration | ✅ Complete |
 | 4 — Home + Match | ✅ Complete |
-| 5 — Live Engine | ⬜ Not Started |
+| 5 — Live Engine | ✅ Complete (Redis deferred, [D-014](./decisions.md)) |
 | 6 — Scorecard + Commentary | ⬜ Not Started |
 | 7 — Cricket Ecosystem | ⬜ Not Started |
 | 8 — Production Hardening | ⬜ Not Started |
 
-**Current sprint:** Sprint 5 — Live Engine
-**Next action:** `5.1` — provision Redis and add connection configuration
+**Current sprint:** Sprint 6 — Scorecard + Commentary
+**Next action:** re-scope Sprint 6 before starting it. `bbbEnabled` was `false` on every match observed in the Sprint 3 spike, so ball-by-ball commentary has no evidence behind it yet.
 
 Reasoning behind the choices below is recorded in [decisions.md](./decisions.md).
 

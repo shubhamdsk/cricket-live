@@ -23,10 +23,15 @@ Where they disagree on *how*, the standards win.
 
 ## Where we are
 
-Sprints 1 to 4 are complete and merged. The API is split into four projects with a shared response
+Sprints 1 to 5 are complete and merged. The API is split into four projects with a shared response
 envelope, CORS, global exception handling and CI on both halves; real cricket data reaches our own
-DTOs through `GET /api/matches/live`, `/upcoming`, `/recent` and `/{matchId}`; and every screen
-renders that data. No mock data remains.
+DTOs through `GET /api/matches/live`, `/upcoming`, `/recent` and `/{matchId}`; every screen renders
+that data with no mock data remaining; and a match in progress streams to the browser over SSE at
+`GET /api/matches/{matchId}/stream`.
+
+Redis was planned for Sprint 5 and deliberately not built — with one API instance there is nothing
+to fan out across, and `IMatchBroadcaster` is the seam that lets it drop in later
+([D-014](./decisions.md)).
 
 One thing is worth knowing before reading further: the provider is **CricketData, not SportScore**
 as `project-plan.md` says — the Sprint 3 spike rejected SportScore and the reasoning is in

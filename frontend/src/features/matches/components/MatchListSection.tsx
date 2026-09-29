@@ -1,4 +1,9 @@
-import type { UseQueryResult } from '@tanstack/react-query'
+import type {
+  InfiniteData,
+  UseInfiniteQueryResult,
+  UseQueryResult,
+} from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { EmptyState } from '@/components/common/EmptyState'
@@ -6,16 +11,33 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { focusRing } from '@/components/common/focusRing'
 import { MatchCard } from '@/components/match/MatchCard'
 import { MatchCardSkeleton } from '@/components/match/MatchCardSkeleton'
-import type { Match } from '@/features/matches/types'
+import type { Match, Paged } from '@/features/matches/types'
 import { cn } from '@/utils/cn'
+
+/**
+ * Results are paged and the other lists are not, so the section accepts either. Flattening here
+ * rather than at each call site keeps the four pages that render lists identical to read.
+ */
+type MatchListQuery =
+  UseQueryResult<Match[], Error> | UseInfiniteQueryResult<InfiniteData<Paged<Match>>, Error>
 
 interface MatchListSectionProps {
   title: string
-  query: UseQueryResult<Match[]>
+  query: MatchListQuery
   emptyTitle: string
   emptyDescription?: string
   viewAllTo?: string
   skeletonCount?: number
+  /** Rendered below the cards, for a section that can load more of itself. */
+  footer?: ReactNode
+}
+
+function matchesOf(data: MatchListQuery['data']): Match[] | undefined {
+  if (data === undefined) {
+    return undefined
+  }
+
+  return Array.isArray(data) ? data : data.pages.flatMap((page) => page.items)
 }
 
 const gridClasses = 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'
@@ -36,7 +58,10 @@ export function MatchListSection({
   emptyDescription,
   viewAllTo,
   skeletonCount = 2,
+  footer,
 }: MatchListSectionProps) {
+  const matches = matchesOf(query.data)
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -71,21 +96,24 @@ export function MatchListSection({
         />
       )}
 
-      {query.isSuccess &&
-        (query.data.length === 0 ? (
+      {matches !== undefined &&
+        (matches.length === 0 ? (
           <EmptyState title={emptyTitle} description={emptyDescription} />
         ) : (
-          <div className={gridClasses}>
-            {query.data.map((match, index) => (
-              <div
-                key={match.id}
-                className="animate-rise"
-                style={{ animationDelay: `${staggerDelayMs(index)}ms` }}
-              >
-                <MatchCard match={match} />
-              </div>
-            ))}
-          </div>
+          <>
+            <div className={gridClasses}>
+              {matches.map((match, index) => (
+                <div
+                  key={match.id}
+                  className="animate-rise"
+                  style={{ animationDelay: `${staggerDelayMs(index)}ms` }}
+                >
+                  <MatchCard match={match} />
+                </div>
+              ))}
+            </div>
+            {footer}
+          </>
         ))}
     </section>
   )

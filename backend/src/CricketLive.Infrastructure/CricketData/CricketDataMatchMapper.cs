@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Text;
+using CricketLive.Application.Common;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Infrastructure.CricketData.Models;
@@ -30,6 +30,7 @@ internal sealed class CricketDataMatchMapper(ILogger<CricketDataMatchMapper> log
             Slug = BuildSlug(source.Name, source.Id),
             Status = ResolveStatus(source),
             Format = ResolveFormat(source.MatchType),
+            SeriesId = source.SeriesId?.Trim() ?? string.Empty,
             SeriesName = seriesName,
             MatchTitle = matchTitle,
             Venue = source.Venue?.Trim() ?? string.Empty,
@@ -80,38 +81,11 @@ internal sealed class CricketDataMatchMapper(ILogger<CricketDataMatchMapper> log
     }
 
     /// <summary>
-    /// A readable slug that still ends in the provider id, so a pretty URL resolves without a lookup table.
+    /// A readable slug from the teams only — the leading segment of the provider's composite name,
+    /// before the match description and series it packs in after the first comma.
     /// </summary>
     private static string BuildSlug(string? name, string id)
-    {
-        var teams = name?.Split(',', 2, StringSplitOptions.TrimEntries).FirstOrDefault();
-        var prefix = Kebab(teams);
-
-        return string.IsNullOrEmpty(prefix) ? id : $"{prefix}-{id}";
-    }
-
-    private static string Kebab(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var builder = new StringBuilder(value.Length);
-        foreach (var character in value)
-        {
-            if (char.IsAsciiLetterOrDigit(character))
-            {
-                builder.Append(char.ToLowerInvariant(character));
-            }
-            else if (builder.Length > 0 && builder[^1] != '-')
-            {
-                builder.Append('-');
-            }
-        }
-
-        return builder.ToString().Trim('-');
-    }
+        => Slug.Make(name?.Split(',', 2, StringSplitOptions.TrimEntries).FirstOrDefault(), id);
 
     /// <summary>The provider sends "2026-09-27T08:30:00" with no offset and means UTC by it.</summary>
     private static DateTimeOffset ParseStartTime(string? value)
@@ -184,7 +158,7 @@ internal sealed class CricketDataMatchMapper(ILogger<CricketDataMatchMapper> log
             string.Equals(candidate.Name?.Trim(), teamName, StringComparison.OrdinalIgnoreCase));
 
         return new TeamDto(
-            Kebab(teamName),
+            Slug.Kebab(teamName),
             teamName,
             Abbreviate(info?.ShortName, teamName),
             string.IsNullOrWhiteSpace(info?.Image) ? null : info.Image);

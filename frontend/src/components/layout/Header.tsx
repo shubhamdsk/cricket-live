@@ -4,6 +4,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 
 import { focusRing } from '@/components/common/focusRing'
 import { Container } from '@/components/layout/Container'
+import { SearchBox } from '@/features/search/components/SearchBox'
 import { useUiStore } from '@/store/uiStore'
 import { cn } from '@/utils/cn'
 
@@ -11,6 +12,8 @@ const navItems = [
   { to: '/', label: 'Home', end: true },
   { to: '/live', label: 'Live', end: false },
   { to: '/matches', label: 'Matches', end: false },
+  { to: '/series', label: 'Series', end: false },
+  { to: '/teams', label: 'Teams', end: false },
 ]
 
 function navLinkClasses({ isActive }: { isActive: boolean }) {
@@ -50,6 +53,11 @@ export function Header() {
           ))}
         </nav>
 
+        {/* Pushed to the right of the nav on wide screens, and inside the menu on narrow ones. */}
+        <div className="ml-auto hidden sm:block">
+          <SearchBox />
+        </div>
+
         <button
           type="button"
           onClick={() => setMobileNavOpen(!isMobileNavOpen)}
@@ -72,6 +80,10 @@ export function Header() {
           className="animate-drop border-t border-line sm:hidden"
         >
           <Container className="flex flex-col gap-1 py-2">
+            <div className="px-1 pb-1">
+              <SearchBox onNavigate={() => setMobileNavOpen(false)} />
+            </div>
+
             {navItems.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClasses}>
                 {item.label}

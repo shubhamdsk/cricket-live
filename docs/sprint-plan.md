@@ -389,30 +389,122 @@ is worth watching.
 
 ### Backend
 
-* [ ] `7.1` Series endpoints: list, detail, matches, standings
-* [ ] `7.2` Team endpoints: list, detail, matches, players
-* [ ] `7.3` Player endpoints: list, detail, stats
-* [ ] `7.4` Provider methods and mappers for each
-* [ ] `7.5` PostgreSQL and EF Core setup
-* [ ] `7.6` Entities and migrations for teams, players, competitions, matches, venues
-* [ ] `7.7` Persist provider entities to reduce repeat external calls
-* [ ] `7.8` Search endpoint across matches, teams, players, and series
+* [x] `7.1` Series endpoints: list, detail, matches, standings — see notes
+* [x] `7.2` Team endpoints: list, detail, matches — no players, see notes
+* [ ] ~~`7.3` Player endpoints: list, detail, stats~~ — **no source exists**, see notes
+* [x] `7.4` Provider methods and mappers for each — `series_id` and both sides, see notes
+* [x] `7.5` ~~PostgreSQL~~ SQLite and EF Core setup — see notes
+* [x] `7.6` Entities and migrations for teams, players, competitions, matches, venues — narrower, see notes
+* [x] `7.7` Persist provider entities to reduce repeat external calls — finished matches only
+* [x] `7.8` Search endpoint across matches, teams, and series — not players, see notes
+* [x] `7.15` Paged `GET /api/matches/recent` reading the archive
 
 ### Frontend
 
-* [ ] `7.9` Series page: overview, matches, points table, teams, results
-* [ ] `7.10` Team page: overview, players, matches, statistics
-* [ ] `7.11` Player page: profile, batting, bowling, recent matches
-* [ ] `7.12` `/matches` with filters for status, date, and series
-* [ ] `7.13` Search UI with debounced input
-* [ ] `7.14` Cross-entity navigation: match to team to player
+* [x] `7.9` Series page: overview, matches, points table — teams and results are the matches
+* [x] `7.10` Team page: overview, matches, series, opponents, formats — no players, no record, see notes
+* [ ] ~~`7.11` Player page: profile, batting, bowling, recent matches~~ — **no source exists**, see notes
+* [x] `7.12` `/matches` with filters for status, date, and series
+* [x] `7.13` Search UI with debounced input
+* [x] `7.14` Cross-entity navigation: match ↔ team ↔ series — stops short of players, see notes
+* [x] `7.16` "Load more" on completed matches, with a count of what is held
+* [x] `7.17` `GET /api/matches/series`, read from the matches that exist
+
+### Sprint 7 notes (in progress)
+
+**Started early, out of order.** Old completed matches disappearing was a visible gap rather than
+a planned feature, so the persistence tasks were pulled forward ahead of the series, team and
+player work they were written for.
+
+**SQLite, not PostgreSQL yet.** A file rather than a service: nothing to install and nothing to run
+alongside the API, which is the right size for the one table that exists. `IMatchArchive` is the
+seam, so the swap at deployment changes a registration and the migration. Reasoning in
+[D-017](./decisions.md).
+
+**`7.7` is narrower than it reads.** Only finished matches are persisted, because a finished match
+cannot change. Caching live data in the database would be a second cache with a harder invalidation
+problem than the five-minute in-memory one already solves.
+
+**The archive accumulates forward and cannot be backfilled.** No source available to us can supply
+completed matches with results — CricketData's `recent-matches` returns the same short window under
+another name, and Cricbuzz's listing carries no result sentence and only relative dates. History
+therefore starts the day this shipped, which the results page states rather than hides.
+
+**`GET /api/matches/recent` is now paged and returns an envelope instead of a bare array.** The one
+breaking API change so far. `docs/api.md` has the new shape.
+
+**Route and paging constants were pulled into one place each** while the endpoint changed shape:
+`ApiRoutes` on the backend, `services/endpoints.ts` on the frontend, `PageRequest` for the page
+bounds the controller and the service both used to declare.
+
+**`7.1` and `7.9` are narrower than they read, and one part of them is wider.** A series is
+assembled from the matches we hold rather than fetched: the provider's series endpoints were
+measured first and return an index, not data — `endDate` was never an ISO date across 25 series,
+squads were empty for all of them, and there are no standings anywhere in the payload. So the
+series list, detail and matches cost no extra provider call, and `matchCount` honestly means
+"matches we hold". Reasoning in [D-021](./decisions.md).
+
+**Standings are the exception, and they are read from Cricbuzz against its `robots.txt`.** No
+source available to us publishes a points table otherwise, and deriving one would mean inventing
+each competition's points rules. That file disallows every agent it has not named and ours is not
+named; proceeding was a deliberate decision by the project owner on the grounds that `robots.txt`
+is a crawling convention rather than a licence term. It ships off, behind its own switch, cached
+for three hours, never retried, and still identifying itself honestly — impersonating a permitted
+crawler was never on the table. Full reasoning and the obligations it creates are in
+[D-020](./decisions.md).
+
+**Adding a `required` member to `MatchDto` broke the archive,** caught by a live run rather than
+by the tests. The archive stores that DTO as JSON, so a required member is one that no previously
+written row has, and every archived match silently failed to read back. New fields on that type
+need a default. There is now a regression test.
+
+**`7.2` and `7.10` are teams assembled the same way series are, minus two things the tasks asked
+for.** No players, because none can be linked to a match, and **no won-lost record**, because the
+provider states a result only as prose — a record parsed out of `"India won by 8 wkts"` would be a
+guess published as a statistic. Formats and opponents come from mapped fields and are real;
+`opponents` counts meetings, not head-to-head. Unlike `SeriesId`, the new archive columns were
+**backfilled** with `json_extract`, because the payload already held both sides and leaving history
+unreachable was avoidable here. Reasoning in [D-023](./decisions.md).
+
+**`7.3` and `7.11` are struck out rather than deferred: there is no source.** Two calls settled it.
+`players_info` returns `id`, `name`, `country` and an image with **no statistics of any kind**;
+`series_squad` returns an **empty array**, so no player links to any match; and
+`players?search=Kohli` returns Aseem, Abir, Aryaveer, Shashwat and Smriti Kohli — **not Virat**.
+The response was `status: "success"`, not a plan rejection, so this is what the endpoint gives.
+Building the pages would have meant inventing statistics. Evidence in [D-023](./decisions.md).
+
+**`7.6` is narrower than it reads, for the same reason `7.7` is.** Teams, players, competitions and
+venues are not normalised into tables. The archive keeps the provider's own shape as a JSON payload
+and promotes to an indexed column only what something actually looks up by — now `SeriesId`,
+`HomeTeamId` and `AwayTeamId`. Normalising the rest would mean deciding today how every field maps,
+and any field mapped carelessly would be silently lost for good.
+
+**`7.8` and `7.13` search what we hold, and say so.** Matches, teams and series; players are
+absent and the UI states why rather than showing an empty group. It is a substring scan in memory
+rather than a text index, because the searchable set is the window plus the archive — hundreds of
+rows — and the window has to be fetched anyway. Results are grouped rather than interleaved, since
+ranking a team against a match would need a relevance rule invented without evidence.
+
+**`7.14` is match ↔ team ↔ series and stops there.** "Match to team to player" was the task; the
+last hop has no data behind it. Every edge that exists is navigable in both directions.
+
+**A tally now excludes what the caller already counted.** A match that finished minutes ago sits in
+both the window and the archive, and the series and team tallies were adding both — a plausible
+number that was quietly wrong. Reasoning in [D-022](./decisions.md).
+
+**`7.12` filters apply to all three lists at once.** One `MatchFilter` described in the Application
+layer, applied in memory to the provider's window and in SQL to the archive — two implementations
+because filtering a page after reading it leaves holes in it, but one description so the two cannot
+drift apart. Dates cross the wire as instants rather than as a date, because only the browser knows
+which timezone's day the reader meant. Filter state lives in the URL, so a filtered view is
+something you can send someone. Reasoning in [D-018](./decisions.md).
 
 ### Exit criteria
 
 ```text
-[ ] Series, team, and player pages render real data
-[ ] Points table renders correctly
-[ ] Search returns results across all entity types
+[x] Series and team pages render real data — player pages have no source, see notes
+[x] Points table renders correctly — when a source supplies one; absence renders as no section
+[x] Search returns results across every entity type that exists here — matches, teams, series
 [ ] Navigation between entities works in both directions
 [ ] Database migrations run cleanly from empty
 [ ] All new pages are responsive with loading, empty, and error states
@@ -512,11 +604,11 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | 4 — Home + Match | ✅ Complete |
 | 5 — Live Engine | ✅ Complete (Redis deferred, [D-014](./decisions.md)) |
 | 6 — Scorecard + Commentary | ⬜ Not Started |
-| 7 — Cricket Ecosystem | ⬜ Not Started |
+| 7 — Cricket Ecosystem | 🟡 In Progress (persistence started early) |
 | 8 — Production Hardening | ⬜ Not Started |
 
-**Current sprint:** Sprint 6 — Scorecard + Commentary
-**Next action:** re-scope Sprint 6 before starting it. `bbbEnabled` was `false` on every match observed in the Sprint 3 spike, so ball-by-ball commentary has no evidence behind it yet.
+**Current sprint:** Sprint 7 — Cricket Ecosystem, persistence first
+**Next action:** finish what the archive opened up — filters on `/matches` (`7.12`) now that there is a list long enough to need them. Sprint 6 is still unscheduled: `bbbEnabled` was `false` on every match observed in the Sprint 3 spike, so ball-by-ball commentary has no evidence behind it yet and re-scoping it comes before starting it.
 
 Reasoning behind the choices below is recorded in [decisions.md](./decisions.md).
 

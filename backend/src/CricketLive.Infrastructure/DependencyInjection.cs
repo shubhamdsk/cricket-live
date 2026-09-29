@@ -1,12 +1,18 @@
 using CricketLive.Application.Enrichment;
 using CricketLive.Application.Live;
 using CricketLive.Application.Matches;
+using CricketLive.Application.Search;
+using CricketLive.Application.Series;
+using CricketLive.Application.Teams;
 using CricketLive.Infrastructure.Cricbuzz;
 using CricketLive.Infrastructure.CricketData;
 using CricketLive.Infrastructure.Live;
+using CricketLive.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CricketLive.Infrastructure;
@@ -61,8 +67,20 @@ public static class DependencyInjection
             resilience.TotalRequestTimeout.Timeout = (attempt * 2) + TimeSpan.FromSeconds(2);
         });
 
-        services.AddScoped<ICricketDataProvider, CricketDataProvider>();
+        AddArchive(services, configuration);
+
+        // Registered as the decorator, so nothing that asks for cricket data has to know that
+        // finished matches are being kept on the way past.
+        services.AddScoped<CricketDataProvider>();
+        services.AddScoped<ICricketDataProvider>(provider => new ArchivingCricketDataProvider(
+            provider.GetRequiredService<CricketDataProvider>(),
+            provider.GetRequiredService<IMatchArchive>(),
+            provider.GetRequiredService<ILogger<ArchivingCricketDataProvider>>()));
+
         services.AddScoped<IMatchService, MatchService>();
+        services.AddScoped<ISeriesService, SeriesService>();
+        services.AddScoped<ITeamService, TeamService>();
+        services.AddScoped<ISearchService, SearchService>();
 
         services
             .AddOptions<LiveOptions>()
@@ -76,8 +94,46 @@ public static class DependencyInjection
         services.AddHostedService<LiveMatchPoller>();
 
         AddCricbuzzEnrichment(services, configuration);
+        AddStandings(services);
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the store that keeps finished matches after the provider's window moves on.
+    /// </summary>
+    /// <remarks>
+    /// SQLite because it is a file. There is nothing to install, nothing to run alongside the API
+    /// and nothing to provision, and a few thousand finished matches is not a workload that needs
+    /// more. The abstraction is <see cref="IMatchArchive"/>, so swapping the provider at deployment
+    /// changes this method and nothing else.
+    /// </remarks>
+    private static void AddArchive(IServiceCollection services, IConfiguration configuration)
+    {
+        var connection = configuration.GetConnectionString("Archive")
+            ?? "Data Source=cricket-live.db";
+
+        services.AddDbContext<CricketLiveDbContext>(options => options.UseSqlite(connection));
+        services.AddScoped<IMatchArchive, SqlMatchArchive>();
+    }
+
+    /// <summary>
+    /// Brings the archive's schema up to date, creating the file if it is not there yet.
+    /// </summary>
+    /// <remarks>
+    /// Migrating on startup suits a single instance writing to a local file and would not suit a
+    /// cluster, where two instances racing the same migration is a real failure. That is a
+    /// deployment-time change, and it belongs with the change of provider.
+    /// </remarks>
+    public static async Task MigrateArchiveAsync(
+        this IServiceProvider services,
+        CancellationToken cancellationToken = default)
+    {
+        await using var scope = services.CreateAsyncScope();
+
+        await scope.ServiceProvider
+            .GetRequiredService<CricketLiveDbContext>()
+            .Database.MigrateAsync(cancellationToken);
     }
 
     /// <summary>
@@ -96,7 +152,40 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddHttpClient<IMatchEnrichmentProvider, CricbuzzEnrichmentProvider>((provider, client) =>
+        services.AddHttpClient<IMatchEnrichmentProvider, CricbuzzEnrichmentProvider>(Configure);
+
+        // Its own client so the listing and the scorecards do not share a connection budget, and
+        // so a slow listing cannot time out a scorecard that was already in flight.
+        services.AddHttpClient<CricbuzzMatchDirectory>(Configure);
+
+        static void Configure(IServiceProvider provider, HttpClient client)
+        {
+            var cricbuzz = provider.GetRequiredService<IOptions<CricbuzzOptions>>().Value;
+
+            client.BaseAddress = new Uri(cricbuzz.BaseUrl.TrimEnd('/') + '/');
+            client.Timeout = TimeSpan.FromSeconds(cricbuzz.TimeoutSeconds);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(cricbuzz.UserAgent);
+        }
+
+        // Deliberately no retry. This reads someone else's website, and a page that did not answer
+        // is not an invitation to ask again — the caller loses two player names, which is nothing.
+    }
+
+    /// <summary>
+    /// Registers whatever can supply a points table, which by default is nothing.
+    /// </summary>
+    /// <remarks>
+    /// The only source we found publishes one behind a <c>robots.txt</c> that disallows us, so
+    /// unlike the other registrations here this one is conditional: when the switch is off, the
+    /// Cricbuzz reader is not in the graph at all rather than present and dormant. Configuration
+    /// should not be the only thing standing between a deployment and traffic it did not intend
+    /// to send.
+    /// </remarks>
+    private static void AddStandings(IServiceCollection services)
+    {
+        services.AddSingleton<NoSeriesStandingsProvider>();
+
+        services.AddHttpClient<CricbuzzStandingsProvider>((provider, client) =>
         {
             var cricbuzz = provider.GetRequiredService<IOptions<CricbuzzOptions>>().Value;
 
@@ -105,7 +194,9 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.UserAgent.ParseAdd(cricbuzz.UserAgent);
         });
 
-        // Deliberately no retry. This reads someone else's website, and a page that did not answer
-        // is not an invitation to ask again — the caller loses two player names, which is nothing.
+        services.AddScoped<ISeriesStandingsProvider>(provider =>
+            provider.GetRequiredService<IOptions<CricbuzzOptions>>().Value.StandingsEnabled
+                ? provider.GetRequiredService<CricbuzzStandingsProvider>()
+                : provider.GetRequiredService<NoSeriesStandingsProvider>());
     }
 }

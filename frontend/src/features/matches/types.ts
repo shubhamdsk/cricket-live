@@ -38,6 +38,14 @@ export interface Match {
   slug: string
   status: MatchStatus
   format: MatchFormat
+  /**
+   * The provider's series id, or empty when it sent none.
+   *
+   * What a series link is built from. `seriesName` is what a reader sees, but it is parsed out of
+   * a free-text field and two matches of one series do not always spell it identically, so it is
+   * not safe to key on. Empty means this match has no series page to link to.
+   */
+  seriesId: string
   seriesName: string
   matchTitle: string
   venue: string
@@ -46,6 +54,20 @@ export interface Match {
   away: TeamInnings
   /** The provider's own sentence, such as "India won by 8 wkts". Displayed verbatim. */
   statusText: string
+}
+
+/**
+ * One page of a list the API does not return whole.
+ *
+ * `total` is what the archive holds, so it grows as matches finish and is not a fixed number the
+ * UI can plan around. `hasMore` is the API's own answer rather than something derived here.
+ */
+export interface Paged<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  total: number
+  hasMore: boolean
 }
 
 export interface Batter {

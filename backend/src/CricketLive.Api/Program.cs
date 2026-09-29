@@ -22,6 +22,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+await app.Services.MigrateArchiveAsync();
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())

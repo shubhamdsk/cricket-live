@@ -5,6 +5,365 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-023 — Teams are assembled from matches; players are not built at all
+
+**Status:** accepted
+
+`/api/teams` follows [D-021](#d-021--a-series-is-assembled-from-matches-not-fetched) and for a
+stronger reason: **the provider issues no team identifier and has no team endpoint.** A match
+names its two sides and that is the whole of it, so a team is not a record to fetch and decorate —
+it is what the matches say, and nothing else could be true of it.
+
+Identity therefore comes from the name, as a slug. That is weaker than the series case, where an
+opaque `series_id` arrives free, and the weakness is real: a side that changes how its name is
+spelled becomes a second team. The slug is at least stable under spacing and punctuation, and it
+is the value `TeamDto.Id` already carried before any of this existed, so nothing new was invented.
+
+**Unlike `SeriesId`, the team columns were backfilled.** Adding indexed columns to the archive
+normally leaves existing rows empty — that is what happened for `SeriesId`, and it means history
+is unreachable through the new column. Here the payload already held both sides, so the migration
+extracted them with SQLite's `json_extract` rather than writing off every match archived before
+today. Without it a team's first match would appear to be whenever the columns happened to be
+added. This is the second provider-specific line in the project after the `NOCASE` collation, and
+it is confined to a migration, which is the one place a SQL dialect is expected to show.
+
+### There is no won-lost record, and its absence is the decision
+
+The provider states a result only as prose — `"India won by 8 wkts"`, `"Match tied"`,
+`"No result"`. Turning that into a record means parsing free text and then publishing the parse as
+a team's history. The formats a team played and the sides it faced come from mapped fields and are
+facts; who won does not, so the page reports what was played and says nothing about how it fared.
+A wrong record would be indistinguishable from a right one to a reader, which is exactly why it is
+not offered.
+
+### Players: no source, so no feature
+
+Tasks `7.3` and `7.11` asked for player endpoints and a player page with profile, batting, bowling
+and recent matches. **Two calls established that none of it is available**, and the evidence is
+worth recording because the tasks look reasonable until you look:
+
+| Checked | Result |
+| --- | --- |
+| `players_info` fields | `id`, `name`, `country`, `playerImg` — **no stats of any kind** |
+| `series_squad` | `data: []`, so no player is linked to any match we hold |
+| `players?search=Kohli` | 10 hits: Aseem, Abir, Aryaveer, Shashwat, Smriti — **not Virat** |
+| Mentions of `matchId` or `recent` in a player payload | 0 |
+
+So a player cannot be reached from a match, a match cannot be reached from a player, and a player
+profile would hold a name and a flag. The response came back `status: "success"` rather than as a
+plan rejection, so this is what the endpoint returns rather than something a paid tier is
+withholding — though that distinction is worth re-testing if the plan ever changes.
+
+Building the pages anyway would mean inventing statistics, which is the one thing this project does
+not do. The tasks are recorded as blocked with this evidence instead, and search says plainly that
+players are not searchable rather than returning an empty group and letting the reader wonder.
+
+**What this costs:** `7.14`'s "match to team to player" stops at the team. Cross-entity navigation
+is match ↔ team ↔ series, which is every edge the data actually supports.
+
+---
+
+## D-022 — A tally excludes what the caller already counted
+
+**Status:** accepted
+
+`GetSeriesTalliesAsync` and `GetTeamTalliesAsync` take the ids the caller is counting from the
+provider window and leave those rows out of the aggregate.
+
+A match that finished minutes ago is in **both** the window and the archive. The services add a
+window-derived tally to a SQL-derived one, so without this a recently-finished match is counted
+twice and a series or team claims more matches than it has. The bug was silent: the number is
+plausible, only wrong, and it grows worse the more often the poller runs.
+
+The exclusion list is the window — a few dozen ids — so it is a short `NOT IN` rather than
+anything needing a temporary table, and an empty list adds no clause at all.
+
+`GetSeriesNamesAsync` passes an empty list deliberately: it reduces to a distinct set of names, so
+a duplicate costs nothing and `Distinct` already removes it. Nothing there is counted.
+
+---
+
+## D-021 — A series is assembled from matches, not fetched
+
+**Status:** accepted
+
+`/api/series` is derived from the matches already in hand — the provider's current window plus the
+archive — and costs no call beyond the one every other list already shares.
+
+**The provider's series endpoints were measured first, and they are an index rather than data.**
+Four calls, spent deliberately:
+
+| Endpoint | Returned |
+| --- | --- |
+| `series` | 25 per page: id, name, start/end, format counts |
+| `series_info` | an info block and an empty `matchList` |
+| `series_squad` | `data: []` |
+| `players` | id, name, country, and nothing else |
+
+Three findings decided it. **`endDate` was never an ISO date** — 0 of 25, always `"Apr 11"` with
+no year, and in the 7 cases where `startDate` was ISO the two fields disagreed on format *inside
+the same object*, so the year would have to be inferred from the series name. **`squads` was 0 for
+all 25**, which is why `series_squad` came back empty. And 18 of 25 declared ODI, T20 or Test
+counts while reporting `matches: 0`. Reading any of this would spend from a hundred-a-day budget
+to learn less than the matches already in memory can say.
+
+**`series_id` is the one field worth taking, and it arrives free** on every match. It is what
+makes a series identifiable: the name reaches us as the tail of a free-text field, and two matches
+of one series do not reliably spell it the same way, so grouping by name would split a series in
+half. Ids group; names display.
+
+**`matchCount` means matches we hold, and the UI says "held" rather than implying completeness.**
+A tournament that started before the archive did will show a fraction of what it played. That is
+the same limitation the results page already states about its own history.
+
+**Adding `SeriesId` as a `required` member broke every row already archived,** which a live run
+caught before this shipped: `MatchDetailsDto` is what the archive stores as JSON, and a required
+member is one that no previously written payload has. Every archived match failed to deserialise
+and silently vanished from results. The field is now optional with a default, and a regression
+test writes a payload without it. **Anything added to `MatchDto` from now on needs a default for
+the same reason** — the archive's durability is the whole point of it.
+
+---
+
+## D-020 — Standings are read from Cricbuzz, against its robots.txt
+
+**Status:** accepted, deliberately and with the cost understood
+**Supersedes part of:** D-015
+
+A points table is read from Cricbuzz series pages. Off by default, behind its own switch.
+
+**Standings cannot be derived and cannot be bought.** CricketData publishes no table at all — the
+full `series_info` payload was searched for `points`, `standing`, `table`, `nrr`, `wins` and
+`losses`, and matched none of them. Computing one from results would mean encoding each
+competition's points rules, and the County Championship alone awards bonus points for batting and
+bowling. A derived table is a guess presented as a standing, which this project does not do.
+Cricbuzz publishes one: the Ranji Trophy Elite table is 740 KB of server-rendered HTML, four
+groups, no JavaScript assembly.
+
+**Cricbuzz's `robots.txt` disallows us, and we are proceeding anyway.** The file reads:
+
+```
+User-agent: *
+Allow: /ads.txt
+Disallow: /
+```
+
+It then grants broad access to roughly eighteen *named* agents — Googlebot, Bingbot, Applebot,
+Twitterbot, AmazonAdBot and others. Ours is not among them. This is not a site that failed to
+consider automated readers; it is one that decided which ones it wants. The judgement taken here
+is that `robots.txt` is a crawling convention rather than a licence term, and the project owner
+made that call with the file in front of them.
+
+**What is not on the table is sending a user agent the file permits.** Declining a stated
+preference and impersonating someone granted an exception are different acts, and only the first
+is being done. We identify ourselves as `cricket-live/1.0` with no `Referer` and no `Origin`,
+exactly as D-015 established, and a test asserts it.
+
+**The obligations this creates are in the code, not in good intentions:**
+
+- **Off by default,** under `Cricbuzz:StandingsEnabled`, separate from the switch that governs
+  batters because it is a separate and larger decision. When off, the reader is not registered at
+  all rather than registered and dormant.
+- **Cached for three hours,** not seconds. A table changes when a match finishes.
+- **No retry, ever.** A page that did not answer is not an invitation to ask again.
+- **One listing read serves every series**, so resolution is a request per cache period rather
+  than per page view.
+- **The live test is opt-in** behind `CRICKET_LIVE_LIVE_TESTS=1`, so CI does not send this traffic
+  from every branch on every push.
+
+**A wrong table is worse than no table,** so the parser is built to decline. It reads the header
+rather than assuming column positions, because competitions differ — Ranji publishes P, W, L, NR,
+Pts and NRR with no tie column, and a fixed layout would shift every value after the missing one.
+A row whose numbers do not parse is dropped rather than defaulted to zero, since a zero is a claim
+about a result. Anything unreadable becomes an empty list, which renders as no section at all.
+
+**Cost:** this reads a presentation detail of someone else's HTML and will break without warning.
+The tests against a captured page are the alarm.
+
+**Reopen this when:** Cricbuzz blocks an honest agent — in which case stop, per D-015 — or a
+source appears that publishes standings under terms that permit it.
+
+---
+
+## D-019 — Routes live in the fragment
+
+**Status:** accepted
+**Extends:** D-018
+
+`createHashRouter` rather than `createBrowserRouter`. URLs read `/#/matches?status=completed`.
+
+**A path router needs the host to cooperate.** Every unknown path has to be rewritten to
+`index.html`, or reloading `/matches` is a 404 from the server before the app ever loads. That
+rewrite is a different setting on every host — a `_redirects` file, a `try_files` directive, a
+rewrite rule — and it is easy to deploy without. When it is missing, what breaks is reload, shared
+links and the back button, which are precisely the three things D-018 put filter state in the URL
+to preserve. The fragment is never sent to the server, so none of it can go wrong.
+
+**Search params still work.** They live inside the fragment and `useSearchParams` reads them
+unchanged; a deep link with two filters was verified restoring both.
+
+**Cost, and it is a real one: crawlers.** Search engines index the path, not the fragment, so every
+route collapses to one indexable URL. For a public scores site that is a genuine loss, and it is
+the reason this would be worth revisiting. Reopen if organic search becomes a goal, or when the
+deployment target is known to rewrite reliably — the change is one function name and nothing else,
+because no code reads `window.location` or builds a path by hand.
+
+Nothing else was affected: links are `<Link to="/matches">` and react-router adds the `#` itself,
+and the API base URL is unrelated to how the app routes.
+
+---
+
+## D-018 — One filter, applied twice, and dates cross the wire as instants
+
+**Status:** accepted
+**Extends:** D-017
+
+Matches live in two places now — the provider's window in memory and the archive on disk — and
+filtering has to mean the same thing in both.
+
+**The filter is described once and applied twice.** `MatchFilter` carries the four conditions and
+owns the in-memory predicate; `SqlMatchArchive` translates the same conditions into a `WHERE`. Two
+implementations were unavoidable, because filtering the archive after reading a page gives a page
+with holes in it — ask for twenty, discard nine, serve eleven, and the count no longer agrees with
+what came back. What was avoidable is two *descriptions*, which is how a LINQ predicate and a SQL
+clause end up quietly disagreeing about case sensitivity. The tests for the two halves cover the
+same cases deliberately.
+
+**Dates cross the wire as instants, not as a date.** A calendar day is a different interval in
+every timezone: the same match starts on the 27th in London and the 28th in Sydney. A server given
+`date=2026-09-27` has to guess whose 27th that is, and any guess is wrong for most readers. The API
+therefore takes `from` and `to` as instants and the browser — the only participant that knows the
+reader's timezone — converts its local day into them. The range is half-open so consecutive days
+abut without overlapping or leaving a gap, and a match starting exactly at midnight belongs to the
+later day only.
+
+**Series is matched whole, not as a substring.** `tour of India` would pull in every touring series
+at once, which is a filter quietly becoming a search and returning more than was asked for.
+
+**Case-insensitivity comes from the column's collation, not from the comparison.** `NOCASE` on
+`SeriesName` keeps the match index-backed while agreeing with `OrdinalIgnoreCase` in memory.
+`LIKE` was the obvious alternative and is the wrong tool twice over: a series named `100% Cricket
+League` would become a wildcard matching everything, and `LIKE` is case-insensitive in SQLite but
+case-sensitive in PostgreSQL. This is the one provider-specific line in the model, and it is in the
+model precisely so the PostgreSQL swap has one place to look.
+
+**The series list is read from the rows, never held as a list**, and drawn from both sources since
+neither is a superset of the other. The filter can then only offer selections with something behind
+them.
+
+**Contradictions are answered, not rejected.** Asking the archive for live matches, or `/upcoming`
+for live ones, returns empty — a coherent question with an empty answer. The second case returns
+empty *without calling the provider*, which matters because provider calls are the budgeted
+resource and a client sending one filter to all three lists should not spend calls on the two it
+excluded. An inverted date range is different and returns **400**: it selects nothing, and serving
+an empty list for it would look like an answer.
+
+**Filter state lives in the URL.** A filtered view is then linkable, reloadable and reachable with
+the back button. Component state would break all three silently. Changes `replace` rather than
+`push`, so adjusting a dropdown does not bury the previous page under a dozen history entries.
+
+**Cost:** four new query parameters on three endpoints, one new endpoint, and a migration for the
+collation. A filter naming a series that has since aged out of both sources shows an empty list;
+the filter bar keeps the name visible as an option so the reader can see what they are filtered to
+rather than facing a blank dropdown above nothing.
+
+---
+
+## D-017 — Results are kept in a SQLite file, and only from today forward
+
+**Status:** accepted
+**Extends:** D-012
+
+The provider's current-matches window is a few days wide, so "recent results" meant "results since
+the day before yesterday" and nothing more. A match that finished last week was gone, and so was
+its match page, because the only place we had ever held it was the window.
+
+**We keep what passes through rather than fetching history.** No source available to us can supply
+completed matches with results. CricketData's `recent-matches` route was measured and returns the
+same short window under a different name; Cricbuzz's own listing mixes live and upcoming fixtures,
+carries no result sentence in the one part of the page we are willing to read, and dates entries
+relatively ("Today", "Yesterday"). Anything we presented as older history would therefore have been
+assembled from fragments, and a wrong result is worse than a missing one.
+
+So the archive **accumulates forward**. It began empty on the day it shipped. Matches played before
+that cannot appear, which is stated on the results page rather than hidden, and `total` in the API
+is explicitly "what we hold" rather than "what was played".
+
+**SQLite because it is a file.** Nothing to install, nothing to run alongside the API, nothing to
+provision. A few thousand finished matches a year is not a workload that needs more. PostgreSQL is
+still the deployment target from D-004; `IMatchArchive` is the seam, so that swap changes one
+registration and the migration, and nothing above Infrastructure.
+
+**Each match is stored whole, as JSON, beside a handful of indexed columns.** The columns — id,
+slug, start time, series — are the ones we sort, page and look up by. The payload is the entire
+serialised match and is what gets returned. Normalising instead would mean deciding today how every
+field maps, and any field mapped carelessly would be silently lost for good; this way an archived
+match reads back byte-identical to a live one, and a column can be promoted out of the payload
+later without a backfill.
+
+**Archiving is a decorator over the data provider, not a step inside it.** Fetching cricket and
+keeping cricket are different jobs. It is deliberately not in the live poller either, because the
+poller only runs while somebody is watching a live match — history would then depend on whether
+anyone happened to be watching. Every window fetch passes through the decorator, so anyone opening
+the site contributes.
+
+**A failed write never fails a read.** The decorator logs and returns the provider's data. Losing a
+match from history is a much smaller harm than a home page that will not load, and the results
+endpoint separately merges any finished match the window still holds but the archive does not, so
+a failed write costs history rather than today's results.
+
+**Cost:** `GET /api/matches/recent` is now paged and returns an envelope instead of a bare array,
+which is a breaking change to that one endpoint. A finished match is never rewritten, so a later
+provider correction to a completed match will not be picked up — accepted, because a finished match
+does not change, and keeping what we recorded at the time is the more defensible of the two.
+
+---
+
+## D-016 — Matches are paired on title and series, or not at all
+
+**Status:** accepted
+**Extends:** D-015
+
+Enrichment needs to know which Cricbuzz match is which of ours, and the two providers share no
+identifier. The first version required somebody to write each pair into configuration, which meant
+no match was ever enriched unless a human had been watching.
+
+Measuring a real listing of 26 Cricbuzz matches against our window settled how to do better, and
+also ruled out the obvious approach:
+
+**The team pair is not a key.** `ind` appeared on three of the 26 fixtures, `skr` on four, and two
+were `tbc-vs-tbc` because Cricbuzz lists finals before the finalists are known. Our own
+`IND v WI, 1st ODI` matched two entries on teams alone — the 2nd and 3rd ODIs, **both wrong**,
+because the 1st had already dropped off the listing. That join does not fail; it puts another
+match's batters on the page and looks right doing it.
+
+**The slug tail is a key, and we can reproduce it exactly.** Cricbuzz links read
+`/live-cricket-scores/151543/ind-vs-wi-2nd-odi-west-indies-tour-of-india-2026`. Everything after
+the teams is the match title and series name, and slugifying CricketData's own `matchTitle` and
+`seriesName` produces the identical string once punctuation is dropped. Across the 26 fixtures this
+gave 24 distinct values, the only two collisions being group-stage fixtures sharing "Pool A" and
+"Pool B" within one tournament — and those have different teams, so teams plus tail is unique
+across the whole listing.
+
+So: exact match on title and series; teams consulted only to break a collision, because the two
+providers do not always abbreviate alike and demanding agreement up front would reject good matches.
+
+**A unique answer or no answer.** Zero candidates means no enrichment. Two candidates the teams
+cannot separate means no enrichment. There is no best guess, because declining costs two player
+names and guessing tells the reader something false about a match they are watching.
+
+**Cost:** one request for a listing that serves every match, cached for thirty minutes, rather than
+one request per match. Which fixtures exist changes over hours; only the scores move quickly, and
+those are fetched separately. `Cricbuzz:MatchIds` survives as an override for when resolution
+declines, and `Cricbuzz:AutoResolve` turns the whole mechanism off independently of `Enabled`,
+because it is a separate risk from reading the site at all.
+
+**Verified** against live Cricbuzz: resolution found `155422` for "2nd unofficial Test / Australia A
+tour of India 2026" from the title and series alone. The unit tests use the real 26-match listing,
+including both `tbc-vs-tbc` fixtures and the Pool A collision.
+
+---
+
 ## D-015 — Batters come from a second source that is off by default
 
 **Status:** accepted
@@ -42,12 +401,10 @@ reproduced; a test asserts we send neither header. Cricbuzz was verified to answ
 with HTTP 200, so the disguise bought nothing anyway. If an honest agent is ever blocked, that is
 an answer about whether the data is ours to take, and the response is to stop rather than to hide.
 
-**It ships disabled, and matches are mapped by hand.** Whether to read a public website is a
-judgement about someone else's terms, not a technical default, so `Cricbuzz:Enabled` is `false`.
-The two providers share no key, and guessing the pairing from team names and dates fails silently
-by showing one match's batters on another match's page — worse than showing none. The hand-written
-map doubles as the rate limiter: load is bounded by an act of typing rather than by how popular the
-app becomes.
+**It ships disabled.** Whether to read a public website is a judgement about someone else's terms,
+not a technical default, so `Cricbuzz:Enabled` is `false`.
+
+**Matches are paired on title and series, and never by guesswork.** See D-016.
 
 **Cost:** the port reads a presentation detail of someone else's HTML and will break without
 warning. The tests are the alarm, and the feature degrades to absence rather than to error — an

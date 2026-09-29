@@ -73,13 +73,43 @@ endpoint answers only "the process is up and serving".
 
 ## Matches
 
-### `GET /api/matches/live` · `GET /api/matches/upcoming` · `GET /api/matches/recent`
+### Filtering
 
-Three lists, no parameters, each returning `data` as an array of matches. They are partitions of a
-single upstream response, so asking for all three costs one provider call rather than three — see
+All three list endpoints accept the same four parameters. None are required, and omitting them all
+means "everything".
+
+| Parameter | Notes |
+| --- | --- |
+| `status` | `live`, `upcoming` or `completed`. Redundant on `/live` and `/upcoming`, accepted there so one filter can be sent to all three. |
+| `from` | Inclusive lower bound on start time, as an ISO instant. |
+| `to` | Exclusive upper bound, so consecutive days abut without overlapping. |
+| `series` | An exact name from `GET /api/matches/series`. Matched whole and case-insensitively. |
+
+**`from` and `to` are instants, not dates**, and this is deliberate. A calendar day is a different
+interval in every timezone — the same match starts on the 27th in London and the 28th in Sydney —
+and the server has no way to know which one the caller meant. Converting a local day into a range
+is therefore the client's job:
+
+```text
+GET /api/matches/recent?from=2026-09-27T00:00:00%2B05:30&to=2026-09-28T00:00:00%2B05:30
+```
+
+**`series` is a filter, not a search.** `tour of India` matches nothing; the whole name must be
+given. A substring would silently widen the result to every touring series at once.
+
+A range where `from` is not earlier than `to` returns **400**. It selects nothing, and serving an
+empty list for it would look like an answer rather than a mistake.
+
+### `GET /api/matches/live` · `GET /api/matches/upcoming`
+
+Two lists, each returning `data` as an array of matches. They are partitions of a
+single upstream response, so asking for both costs one provider call rather than two — see
 [D-012](./decisions.md).
 
-**Any of them can legitimately return an empty array.** The provider's current-matches window held
+A `status` that contradicts the endpoint — `/upcoming?status=live` — returns an empty array
+**without calling the provider**, which matters because provider calls are the budgeted resource.
+
+**Either can legitimately return an empty array.** The provider's current-matches window held
 ten matches one day and one the next, and no live matches at all across two days of the Sprint 3
 spike. An empty list means no cricket in the window, not a failure.
 
@@ -122,6 +152,56 @@ Field notes worth knowing before building against this:
 - `logoUrl` is nullable. The provider only has images for teams it holds a profile for.
 - `slug` always ends in `id`, so a pretty URL resolves without a lookup.
 
+### `GET /api/matches/recent`
+
+Completed matches, newest first. **This is the one list that is paged**, because it is the one list
+that grows: live and upcoming come from the provider's few-day window, while results come from what
+we kept as that window moved on — see [D-017](./decisions.md).
+
+| Parameter | Default | Notes |
+| --- | --- | --- |
+| `page` | `1` | 1-based. Anything below 1 is treated as 1. |
+| `pageSize` | `20` | Clamped to 1–50. |
+
+`data` is an envelope rather than a bare array. The matches inside `items` are exactly the objects
+the two lists above return.
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [{ "id": "90ae280c-…", "status": "completed", "statusText": "India won by 8 wkts" }],
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "hasMore": false
+  },
+  "message": "Success"
+}
+```
+
+`total` is what the archive currently holds **that matches the filter**, so it shrinks as a filter
+narrows and grows as matches finish. **It is not the number of matches ever played.** The archive
+accumulates forward from the day it was switched on, so an early `total` being small is expected
+rather than a sign of missing data. Page through with `hasMore` rather than by comparing counts.
+
+Filtering happens in the database rather than over the returned page, so a filtered page is a full
+page and `total` agrees with what came back.
+
+### `GET /api/matches/series`
+
+Every series that currently has a match behind it, sorted, as `data`:
+
+```json
+{ "success": true, "data": ["West Indies tour of India, 2026"], "message": "Success" }
+```
+
+Read from the matches themselves rather than kept as a list, and drawn from **both** the provider's
+window and the archive, because neither is a superset of the other: the archive has not heard of a
+tournament that started this morning, and the window has forgotten one that ended last week. A
+fixed list would go stale the first time a tournament ended, and would offer selections returning
+nothing.
+
 ### `GET /api/matches/{matchId}`
 
 Accepts either the bare id or the full slug. Returns one match with two extra fields:
@@ -134,9 +214,212 @@ These report what the provider claims to hold for this match rather than what we
 every match observed during the spike `hasBallByBall` was `false`, which is why scorecard and
 commentary are not yet buildable.
 
-Returns **404** when the identifier is not a GUID, or is a well-formed GUID the provider does not
-know. A malformed identifier is rejected without any provider call, which protects the daily
-allowance as much as it validates the input.
+Returns **404** when the identifier is not a GUID, or is a well-formed GUID that neither the
+provider nor the archive knows. A malformed identifier is rejected without any provider call, which
+protects the daily allowance as much as it validates the input.
+
+A match the provider's window has dropped is still answered from the archive if we kept it, so a
+link to a finished match does not rot the moment the window moves past it.
+
+Every match also carries `seriesId`, the provider's own identifier for the series it belongs to.
+It is **empty when the provider sent none**, and such a match has no series page to link to. Build
+series links from this rather than from `seriesName`, which is parsed from a free-text field and
+is not a reliable key.
+
+---
+
+## Series
+
+Series are **assembled from the matches we hold**, in both places matches live, rather than
+fetched as entities. The provider's own series endpoints were measured and are an index rather
+than data — no standings at all, `endDate` never an ISO date, squads empty for every series
+sampled. Reasoning in [D-021](./decisions.md).
+
+The practical consequence is that a series describes what we have, not what was played.
+
+### `GET /api/series`
+
+Every series with a match behind it. Ongoing first, then most recently played.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "702ce6cb-a551-4aab-961e-0ed1548a3c74",
+      "slug": "west-indies-tour-of-india-2026-702ce6cb-a551-4aab-961e-0ed1548a3c74",
+      "name": "West Indies tour of India, 2026",
+      "startTimeUtc": "2026-09-27T08:30:00+00:00",
+      "lastMatchUtc": "2026-09-27T08:30:00+00:00",
+      "matchCount": 1,
+      "isOngoing": false
+    }
+  ],
+  "message": "Success"
+}
+```
+
+`matchCount` is **how many matches of this series we can show**, not how many it contains. A
+tournament that began before this site started recording will report far fewer than it played.
+`lastMatchUtc` is when the latest match we hold began — not when the series ends, which we have no
+way of knowing.
+
+### `GET /api/series/{seriesId}`
+
+Accepts either the bare id or the full slug.
+
+```json
+{
+  "success": true,
+  "data": {
+    "series": { "...": "as above" },
+    "matches": ["...match objects, in playing order..."],
+    "standings": []
+  },
+  "message": "Success"
+}
+```
+
+Returns **404** when the identifier is not a GUID, or when no match we hold belongs to it. A
+series we have nothing of cannot be told apart from one that never existed, so claiming it exists
+but is empty would be a claim we cannot support.
+
+**`standings` is empty unless a source supplied a table, which is the normal case.** A bilateral
+tour has no points table at all, and the only source that publishes one for the tournaments that
+do is read behind a switch that is off by default — see [D-020](./decisions.md) for what that
+switch means and why it exists. Empty means *no table available*, never *this series has no
+table*; those are different claims and only the first is ours to make, so render absence as no
+section rather than as an empty table.
+
+A standings row is published exactly as its source wrote it. Nothing is computed:
+
+```json
+{
+  "group": "Elite Group A",
+  "teamName": "MUM",
+  "played": 5, "won": 3, "lost": 1, "tied": 0, "noResult": 1,
+  "points": 16,
+  "netRunRate": "0.512"
+}
+```
+
+`group` is empty for a competition with one table. `teamName` is whatever the table printed,
+usually an abbreviation, and is not expanded into a full name because that expansion would be a
+guess. `netRunRate` is a string: it is signed and published to three places, and is shown as
+given rather than reformatted.
+
+---
+
+## Teams
+
+Teams are **assembled from the matches we hold**, like series, and for a stronger reason: the
+provider issues no team identifier and has no team endpoint. A team is only ever what its matches
+say about it. Reasoning in [D-023](./decisions.md).
+
+A team's **slug is its identifier** — there is no id to pass instead.
+
+### `GET /api/teams`
+
+Every side appearing in a match we hold. Teams with a match in progress first, then most recently
+seen.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "india",
+      "name": "India",
+      "shortName": "IND",
+      "logoUrl": "https://g.cricapi.com/img/teams/…png",
+      "matchCount": 1,
+      "firstMatchUtc": "2026-09-27T08:30:00+00:00",
+      "lastMatchUtc": "2026-09-27T08:30:00+00:00",
+      "isActive": false
+    }
+  ],
+  "message": "Success"
+}
+```
+
+`matchCount` is **how many matches of this team we can show**, not how many it has played — the
+same caveat a series carries. `logoUrl` is `null` for most sides. `shortName` falls back to the
+full name when no match supplied an abbreviation; it is never invented from the name, because a
+made-up three-letter code reads as authoritatively as a real one.
+
+### `GET /api/teams/{teamId}`
+
+Takes the slug, such as `india`.
+
+```json
+{
+  "success": true,
+  "data": {
+    "team": { "...": "as above" },
+    "matches": ["...match objects, in playing order..."],
+    "series": [
+      {
+        "id": "702ce6cb-a551-4aab-961e-0ed1548a3c74",
+        "slug": "west-indies-tour-of-india-2026-702ce6cb-…",
+        "name": "West Indies tour of India, 2026",
+        "matchCount": 1
+      }
+    ],
+    "opponents": [{ "id": "west-indies", "name": "West Indies", "matchCount": 1 }],
+    "formats": [{ "format": "ODI", "matchCount": 1 }]
+  },
+  "message": "Success"
+}
+```
+
+Returns **404** when we hold no match for the slug. A side we have nothing of cannot be told apart
+from one that never played.
+
+**There is no won-lost record here, and its absence is deliberate.** The provider states results
+only as prose — `"India won by 8 wkts"` — so a record would have to be parsed out of a sentence and
+then published as a statistic. `formats` and `opponents` come from mapped fields and are facts;
+`opponents` counts *meetings*, not a head-to-head. See [D-023](./decisions.md).
+
+---
+
+## Search
+
+### `GET /api/search?q=`
+
+Matches, teams and series whose names contain the term.
+
+```json
+{
+  "success": true,
+  "data": {
+    "query": "ind",
+    "matches": [{ "id": "india-vs-west-indies-abc123", "title": "1st ODI", "subtitle": "West Indies tour of India, 2026" }],
+    "teams": [{ "id": "india", "title": "India", "subtitle": "1 match held" }],
+    "series": [{ "id": "west-indies-tour-of-india-2026-702ce6cb-…", "title": "West Indies tour of India, 2026", "subtitle": "1 match held" }],
+    "total": 3
+  },
+  "message": "Success"
+}
+```
+
+Each hit's `id` is what that kind of thing is addressed by: a match slug, a team slug, a series
+slug. Up to 10 per group.
+
+A term shorter than **2 characters** returns an empty result with `200`, not a `400`. Someone
+typing into a box is not making a mistake, and an error response would make the UI report one.
+
+Results are **grouped rather than interleaved**, because a team and a match are not more or less
+relevant than each other and combining them would need a scoring rule invented for the purpose.
+Within a group, a title starting with the term sorts above one merely containing it; that is the
+whole of the ranking.
+
+**There is no `players` group.** No source available to us links a player to a match, and the
+provider's player index holds a name and a country and nothing else, so a player result would lead
+to a page with nothing on it. Evidence in [D-023](./decisions.md).
+
+Matching is a substring scan in memory over the window plus the archive, not a text index — a
+sizing decision, since the window has to be fetched anyway and the set is hundreds of rows. If the
+archive grows enough for that to matter, `SearchService` is the seam to replace.
 
 ---
 
@@ -195,7 +478,13 @@ implements a client against a guess.
 | `GET /api/matches/{matchId}/scorecard` | 6 |
 | `GET /api/matches/{matchId}/commentary` | 6 |
 | `GET /api/matches/{matchId}/stats` | 6 |
-| `GET /api/series…`, `/api/teams…`, `/api/players…` | 7 |
+
+`GET /api/series…`, `/api/teams…` and `GET /api/search` are now implemented and documented above.
+
+**`GET /api/players…` will not be built.** Not deferred — there is no source. The provider's
+`players_info` returns `id`, `name`, `country` and an image with no statistics of any kind, and
+`series_squad` returns an empty array, so a player can be linked neither to a team nor to a match.
+Evidence in [D-023](./decisions.md). A client should not wait for it.
 
 ---
 

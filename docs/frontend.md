@@ -29,7 +29,6 @@ src/
 │       ├── api/                one function per endpoint, no rules
 │       ├── components/         data-bound pieces for this feature
 │       ├── hooks/              query keys and what a screen renders
-│       ├── mocks/              fixtures, until the endpoint exists
 │       ├── types.ts            what the API returns for this feature
 │       └── utils/              formatting and derivation
 ├── pages/                      route targets, one folder per page
@@ -96,6 +95,22 @@ export function getLiveMatches(signal?: AbortSignal): Promise<Match[]>
 The mock resolves after a short delay and honours the abort signal, so loading states and
 cancellation are exercised for real. When the endpoint lands, the body changes and nothing above it
 does. The types in `features/x/types.ts` are the contract the backend then has to meet.
+
+Sprint 2 built the match UI this way and Sprint 4 swapped the bodies, which is the pattern working.
+What it cannot do is invent data: the contract held for scores, teams, venue, and status, but the
+toss, editorial summary, and players at the crease were things we had assumed a provider would
+carry. It does not. The fixtures are deleted along with the UI that depended on them.
+
+**So the rule has a second half: a mock may stand in for data we have seen, not for data we hope
+exists.** A field nobody has observed in a real response is a design sketch, and a design sketch
+does not belong behind a function that claims to return the API's shape.
+
+### When the data will not support the design
+
+Remove the section. Not a placeholder, not an empty state, not "coming soon" — those all tell the
+reader that something is missing, and a page that keeps apologising reads as broken. A match page
+with a header, an innings breakdown, and match information is complete. The same page with four
+tabs where three say "arrives in Sprint 6" is the same content wearing a sign that says it is not.
 
 ---
 

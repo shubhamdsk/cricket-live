@@ -205,27 +205,57 @@ Agreeing the mock data shape in `2.9` is what lets Sprint 4 be a swap rather tha
 
 **Goal:** replace mock data with the real API. The first complete vertical slice.
 
-* [ ] `4.1` Generate or hand-write frontend types matching the API DTOs
-* [ ] `4.2` `features/matches/api` query functions
-* [ ] `4.3` TanStack Query hooks: `useLiveMatches`, `useUpcomingMatches`, `useRecentMatches`, `useMatchDetails`
-* [ ] `4.4` Wire Home sections to real data
-* [ ] `4.5` Wire Live page to real data
-* [ ] `4.6` Match details: `MatchHeader`, score, teams, status, current batsmen, current bowler, summary
-* [ ] `4.7` Slug-based routing and resolution for `/match/:slug`
-* [ ] `4.8` Real loading skeletons, empty states, and error states on every section
-* [ ] `4.9` Configure query stale times and refetch behavior per data type
-* [ ] `4.10` Re-verify responsiveness with real, variable-length data
+* [x] `4.1` Generate or hand-write frontend types matching the API DTOs
+* [x] `4.2` `features/matches/api` query functions
+* [x] `4.3` TanStack Query hooks: `useLiveMatches`, `useUpcomingMatches`, `useRecentMatches`, `useMatchDetails`
+* [x] `4.4` Wire Home sections to real data
+* [x] `4.5` Wire Live page to real data
+* [x] `4.6` Match details: header, per-innings breakdown, match information
+* [x] `4.7` Slug-based routing and resolution for `/match/:slug`
+* [x] `4.8` Real loading skeletons, empty states, and error states on every section
+* [x] `4.9` Configure query stale times and refetch behavior per data type
+* [x] `4.10` Re-verify responsiveness with real, variable-length data
 
 ### Exit criteria
 
 ```text
-[ ] Home renders live cricket data
-[ ] Live page renders live cricket data
-[ ] Match details renders a real match
-[ ] No mock data remains in these paths
-[ ] Long team names and unusual scores do not break layout
-[ ] Loading, empty, and error states verified against the real API
+[x] Home renders live cricket data
+[x] Live page renders live cricket data
+[x] Match details renders a real match
+[x] No mock data remains in these paths
+[x] Long team names and unusual scores do not break layout
+[x] Loading, empty, and error states verified against the real API
 ```
+
+**Status: ✅ Complete**
+
+### Sprint 4 notes
+
+`4.6` was written in Sprint 1 against a data shape we had not measured. The provider carries no toss,
+no editorial summary, and no players at the crease, so per the decision recorded in D-012 those
+sections were removed rather than stubbed. What replaced them is real: a per-innings breakdown,
+which is the only part of the payload the header does not already show, and a match information
+card. `features/matches/components/CurrentPlayers.tsx` and both mock modules are deleted.
+
+The Summary / Scorecard / Commentary / Stats tablist went with them. Three of its four panels were
+placeholders pointing at Sprint 6, and a tablist that is three-quarters empty is worse than no
+tablist. `components/common/Tabs` stays in the design system for Sprint 6 to use.
+
+Two duplications surfaced only once real data was flowing. The home hero and the live list are the
+same query, so an outage printed the same error twice and a quiet day printed the same empty state
+twice; the hero now renders only when there is a match to feature. And `logoUrl` was arriving
+unused, so `TeamScoreRow` now shows a crest when the provider has one — it does not for domestic
+sides, which is why there is no placeholder shape.
+
+Refetch behaviour is set against what the data can do rather than how live the page should feel.
+Our API caches a provider response for five minutes, so live data polls at one minute, fixtures and
+results at five, and a completed match stops polling entirely. A 4xx is no longer retried; repeating
+a request the API has already rejected cannot change the answer, and it was costing every unknown
+slug a second round trip. Sprint 5 replaces the live interval with an SSE push.
+
+Verified against the running API on a day with one completed match and nothing live: populated
+lists, both empty states, the unreachable-API error state on all three sections, a real match detail
+page, an unknown slug returning the not-found state, and the whole thing at 360 px.
 
 Sprints 5, 6, and 7 all branch from here and can be reordered by priority. Sprint 5 is the project's differentiator and should stay next.
 
@@ -377,7 +407,7 @@ The second-to-last criterion is the whole point of the architecture and should b
 * [ ] `8.13` Production CORS policy
 * [ ] `8.14` Security headers
 * [ ] `8.15` Input validation on every endpoint
-* [ ] `8.16` Secret management via hosting environment
+* [ ] `8.16` Secret management via hosting environment, and `CRICKETDATA_API_KEY` as a GitHub Actions secret once a workflow needs it
 * [ ] `8.17` API abuse protection
 
 ### Testing
@@ -439,14 +469,14 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | 1 — Foundation | ✅ Complete |
 | 2 — UI Foundation | ✅ Complete |
 | 3 — Cricket Data Integration | ✅ Complete |
-| 4 — Home + Match | ⬜ Not Started |
+| 4 — Home + Match | ✅ Complete |
 | 5 — Live Engine | ⬜ Not Started |
 | 6 — Scorecard + Commentary | ⬜ Not Started |
 | 7 — Cricket Ecosystem | ⬜ Not Started |
 | 8 — Production Hardening | ⬜ Not Started |
 
-**Current sprint:** Sprint 4 — Home + Match Experience
-**Next action:** `4.1` — replace the mock API functions with calls to our own endpoints
+**Current sprint:** Sprint 5 — Live Engine
+**Next action:** `5.1` — provision Redis and add connection configuration
 
 Reasoning behind the choices below is recorded in [decisions.md](./decisions.md).
 

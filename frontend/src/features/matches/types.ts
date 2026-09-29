@@ -1,20 +1,32 @@
+/**
+ * Mirrors the DTOs returned by our API. See docs/api.md.
+ *
+ * These began in Sprint 2 as a contract written from what the screens needed. Sprint 3 measured a
+ * real provider and most of it held; what did not is recorded in docs/decisions.md D-012.
+ */
+
 export type MatchStatus = 'live' | 'upcoming' | 'completed'
 
-export type MatchFormat = 'T20' | 'ODI' | 'TEST'
+/** `OTHER` covers formats the provider carries but we do not model, such as T10. */
+export type MatchFormat = 'T20' | 'ODI' | 'TEST' | 'OTHER'
 
 export interface TeamSummary {
   id: string
   name: string
   shortName: string
+  /** Null for teams the provider holds no profile for, which is most domestic sides. */
+  logoUrl: string | null
 }
 
 export interface InningsScore {
+  number: number
   runs: number
   wickets: number
+  /** Cricket over notation: `12.3` is twelve overs and three balls. Never arithmetic. */
   overs: string
 }
 
-/** A side and every innings it has batted. Tests can hold two. */
+/** A side and every innings it has batted. Tests hold two; a side yet to bat holds none. */
 export interface TeamInnings {
   team: TeamSummary
   innings: InningsScore[]
@@ -22,6 +34,7 @@ export interface TeamInnings {
 
 export interface Match {
   id: string
+  /** Always ends in `id`, so a readable URL resolves without a lookup. */
   slug: string
   status: MatchStatus
   format: MatchFormat
@@ -31,32 +44,12 @@ export interface Match {
   startTimeUtc: string
   home: TeamInnings
   away: TeamInnings
-  /** Provider-authored line such as "India need 37 runs in 28 balls". */
+  /** The provider's own sentence, such as "India won by 8 wkts". Displayed verbatim. */
   statusText: string
 }
 
-export interface BatterSummary {
-  playerId: string
-  name: string
-  runs: number
-  balls: number
-  fours: number
-  sixes: number
-  isOnStrike: boolean
-}
-
-export interface BowlerSummary {
-  playerId: string
-  name: string
-  overs: string
-  maidens: number
-  runs: number
-  wickets: number
-}
-
 export interface MatchDetails extends Match {
-  tossText: string | null
-  summary: string | null
-  currentBatters: BatterSummary[]
-  currentBowler: BowlerSummary | null
+  /** What the provider claims to hold, not what we display. False everywhere so far. */
+  hasBallByBall: boolean
+  hasSquads: boolean
 }

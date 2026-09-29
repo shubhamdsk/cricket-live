@@ -153,8 +153,7 @@ implements a client against a guess.
 | `GET /api/matches/{matchId}/stats` | 6 |
 | `GET /api/series…`, `/api/teams…`, `/api/players…` | 7 |
 
-The frontend still serves match data from `features/matches/mocks/` through the real function
-signatures ([D-009](./decisions.md)). Sprint 4 switches those function bodies to call the endpoints
-above, which also means reconciling `features/matches/types.ts` with the shapes documented here —
-notably dropping `tossText`, `summary`, `currentBatters` and `currentBowler`, none of which the
-provider supplies.
+`features/matches/types.ts` mirrors the shapes documented here and is the frontend's only match
+contract. Sprint 4 reconciled the two: `logoUrl` and `number` were added, `hasBallByBall` and
+`hasSquads` replaced `tossText`, `summary`, `currentBatters` and `currentBowler`, and `OTHER`
+joined the format union. Anything added to a DTO belongs in both places or in neither.

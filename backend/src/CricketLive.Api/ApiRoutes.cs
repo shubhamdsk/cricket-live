@@ -18,4 +18,8 @@ internal static class ApiRoutes
     public const string Matches = $"{Root}/matches";
 
     public const string Series = $"{Root}/series";
+
+    public const string Teams = $"{Root}/teams";
+
+    public const string Search = $"{Root}/search";
 }

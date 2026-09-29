@@ -1,6 +1,7 @@
-﻿using CricketLive.Application.Matches;
+using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Application.Series;
+using CricketLive.Application.Teams;
 using CricketLive.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -132,10 +133,20 @@ public sealed class ArchivingCricketDataProviderTests
         public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
             => Task.FromResult(0);
 
-        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken)
+        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(
+            IReadOnlyCollection<string> excluding,
+            CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<SeriesTally>>([]);
 
         public Task<IReadOnlyList<MatchDto>> GetBySeriesAsync(string seriesId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<MatchDto>>([]);
+
+        public Task<IReadOnlyList<TeamTally>> GetTeamTalliesAsync(
+            IReadOnlyCollection<string> excluding,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<TeamTally>>([]);
+
+        public Task<IReadOnlyList<MatchDto>> GetByTeamAsync(string teamId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<MatchDto>>([]);
     }
 
@@ -160,10 +171,20 @@ public sealed class ArchivingCricketDataProviderTests
         public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
             => Task.FromResult(0);
 
-        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken)
+        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(
+            IReadOnlyCollection<string> excluding,
+            CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<SeriesTally>>([]);
 
         public Task<IReadOnlyList<MatchDto>> GetBySeriesAsync(string seriesId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<MatchDto>>([]);
+
+        public Task<IReadOnlyList<TeamTally>> GetTeamTalliesAsync(
+            IReadOnlyCollection<string> excluding,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<TeamTally>>([]);
+
+        public Task<IReadOnlyList<MatchDto>> GetByTeamAsync(string teamId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<MatchDto>>([]);
     }
 }

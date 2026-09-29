@@ -155,6 +155,36 @@ function renderSide(side: TeamInnings) {
   ))
 }
 
+/**
+ * Both sides, each linked to its own page.
+ *
+ * A team's slug is its identifier, and it is derived from the name we were given rather than
+ * issued by the provider, so a side is only linked when that name gave us something to address.
+ */
+function TeamLinks({ match }: { match: MatchDetails }) {
+  const sides = [match.home.team, match.away.team]
+
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
+      {sides.map((team, index) => (
+        <span key={team.id || team.name} className="inline-flex items-baseline">
+          {index > 0 && <span className="mr-1.5 text-ink-subtle">v</span>}
+          {team.id === '' ? (
+            team.name
+          ) : (
+            <Link
+              to={`/teams/${team.id}`}
+              className={cn('font-medium text-brand-strong hover:underline', focusRing)}
+            >
+              {team.name}
+            </Link>
+          )}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 function MatchInformation({ match }: { match: MatchDetails }) {
   // Linked only when the provider gave an id. The name alone cannot address a series page, and a
   // link built from it would sometimes lead nowhere.
@@ -173,6 +203,7 @@ function MatchInformation({ match }: { match: MatchDetails }) {
   const rows: Array<[string, ReactNode]> = [
     ['Format', formatLabels[match.format]],
     ['Series', series],
+    ['Teams', <TeamLinks key="teams" match={match} />],
     ['Venue', match.venue || 'Not published'],
     ['Start', formatStartTime(match.startTimeUtc)],
   ]

@@ -310,6 +310,119 @@ given rather than reformatted.
 
 ---
 
+## Teams
+
+Teams are **assembled from the matches we hold**, like series, and for a stronger reason: the
+provider issues no team identifier and has no team endpoint. A team is only ever what its matches
+say about it. Reasoning in [D-023](./decisions.md).
+
+A team's **slug is its identifier** — there is no id to pass instead.
+
+### `GET /api/teams`
+
+Every side appearing in a match we hold. Teams with a match in progress first, then most recently
+seen.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "india",
+      "name": "India",
+      "shortName": "IND",
+      "logoUrl": "https://g.cricapi.com/img/teams/…png",
+      "matchCount": 1,
+      "firstMatchUtc": "2026-09-27T08:30:00+00:00",
+      "lastMatchUtc": "2026-09-27T08:30:00+00:00",
+      "isActive": false
+    }
+  ],
+  "message": "Success"
+}
+```
+
+`matchCount` is **how many matches of this team we can show**, not how many it has played — the
+same caveat a series carries. `logoUrl` is `null` for most sides. `shortName` falls back to the
+full name when no match supplied an abbreviation; it is never invented from the name, because a
+made-up three-letter code reads as authoritatively as a real one.
+
+### `GET /api/teams/{teamId}`
+
+Takes the slug, such as `india`.
+
+```json
+{
+  "success": true,
+  "data": {
+    "team": { "...": "as above" },
+    "matches": ["...match objects, in playing order..."],
+    "series": [
+      {
+        "id": "702ce6cb-a551-4aab-961e-0ed1548a3c74",
+        "slug": "west-indies-tour-of-india-2026-702ce6cb-…",
+        "name": "West Indies tour of India, 2026",
+        "matchCount": 1
+      }
+    ],
+    "opponents": [{ "id": "west-indies", "name": "West Indies", "matchCount": 1 }],
+    "formats": [{ "format": "ODI", "matchCount": 1 }]
+  },
+  "message": "Success"
+}
+```
+
+Returns **404** when we hold no match for the slug. A side we have nothing of cannot be told apart
+from one that never played.
+
+**There is no won-lost record here, and its absence is deliberate.** The provider states results
+only as prose — `"India won by 8 wkts"` — so a record would have to be parsed out of a sentence and
+then published as a statistic. `formats` and `opponents` come from mapped fields and are facts;
+`opponents` counts *meetings*, not a head-to-head. See [D-023](./decisions.md).
+
+---
+
+## Search
+
+### `GET /api/search?q=`
+
+Matches, teams and series whose names contain the term.
+
+```json
+{
+  "success": true,
+  "data": {
+    "query": "ind",
+    "matches": [{ "id": "india-vs-west-indies-abc123", "title": "1st ODI", "subtitle": "West Indies tour of India, 2026" }],
+    "teams": [{ "id": "india", "title": "India", "subtitle": "1 match held" }],
+    "series": [{ "id": "west-indies-tour-of-india-2026-702ce6cb-…", "title": "West Indies tour of India, 2026", "subtitle": "1 match held" }],
+    "total": 3
+  },
+  "message": "Success"
+}
+```
+
+Each hit's `id` is what that kind of thing is addressed by: a match slug, a team slug, a series
+slug. Up to 10 per group.
+
+A term shorter than **2 characters** returns an empty result with `200`, not a `400`. Someone
+typing into a box is not making a mistake, and an error response would make the UI report one.
+
+Results are **grouped rather than interleaved**, because a team and a match are not more or less
+relevant than each other and combining them would need a scoring rule invented for the purpose.
+Within a group, a title starting with the term sorts above one merely containing it; that is the
+whole of the ranking.
+
+**There is no `players` group.** No source available to us links a player to a match, and the
+provider's player index holds a name and a country and nothing else, so a player result would lead
+to a page with nothing on it. Evidence in [D-023](./decisions.md).
+
+Matching is a substring scan in memory over the window plus the archive, not a text index — a
+sizing decision, since the window has to be fetched anyway and the set is hundreds of rows. If the
+archive grows enough for that to matter, `SearchService` is the seam to replace.
+
+---
+
 ## Live stream
 
 ```http
@@ -365,7 +478,13 @@ implements a client against a guess.
 | `GET /api/matches/{matchId}/scorecard` | 6 |
 | `GET /api/matches/{matchId}/commentary` | 6 |
 | `GET /api/matches/{matchId}/stats` | 6 |
-| `GET /api/series…`, `/api/teams…`, `/api/players…` | 7 |
+
+`GET /api/series…`, `/api/teams…` and `GET /api/search` are now implemented and documented above.
+
+**`GET /api/players…` will not be built.** Not deferred — there is no source. The provider's
+`players_info` returns `id`, `name`, `country` and an image with no statistics of any kind, and
+`series_squad` returns an empty array, so a player can be linked neither to a team nor to a match.
+Evidence in [D-023](./decisions.md). A client should not wait for it.
 
 ---
 

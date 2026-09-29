@@ -1,4 +1,6 @@
-﻿using System.Text.Json;
+﻿using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using CricketLive.Application.Common;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
@@ -139,6 +141,10 @@ public sealed class SqlMatchArchiveTests : IDisposable
             StartTimeUtc = Day(9).UtcDateTime,
             SeriesId = "series-a",
             SeriesName = "A series",
+            HomeTeamId = "india",
+            AwayTeamId = "australia",
+            HomeTeamName = "India",
+            AwayTeamName = "Australia",
             Payload = "{ this is not json",
             ArchivedAtUtc = clock.GetUtcNow().UtcDateTime,
         });
@@ -252,28 +258,7 @@ public sealed class SqlMatchArchiveTests : IDisposable
         // payload is the durable format, so a new field has to be optional with a default.
         var archive = Build();
 
-        var payload = JsonSerializer.Serialize(
-            Match("older", MatchStatus.Completed, Day(1)),
-            JsonSerializerOptions.Web);
-
-        using var document = JsonDocument.Parse(payload);
-
-        var withoutSeriesId = new Dictionary<string, JsonElement>(
-            document.RootElement
-                .EnumerateObject()
-                .Where(property => property.Name != "seriesId")
-                .Select(property => KeyValuePair.Create(property.Name, property.Value)));
-
-        database.ArchivedMatches.Add(new ArchivedMatch
-        {
-            Id = "older",
-            Slug = "older",
-            StartTimeUtc = Day(1).UtcDateTime,
-            SeriesId = string.Empty,
-            SeriesName = "A series",
-            Payload = JsonSerializer.Serialize(withoutSeriesId, JsonSerializerOptions.Web),
-            ArchivedAtUtc = Day(1).UtcDateTime,
-        });
+        database.ArchivedMatches.Add(Archived("older", Without("seriesId", "older")));
 
         await database.SaveChangesAsync();
 
@@ -282,6 +267,63 @@ public sealed class SqlMatchArchiveTests : IDisposable
         var match = Assert.Single(page);
         Assert.Equal("older", match.Id);
         Assert.Equal(string.Empty, match.SeriesId);
+    }
+
+    [Fact]
+    public async Task Any_optional_field_may_be_missing_from_an_archived_payload()
+    {
+        // The test above is the incident; this is the rule it taught us, applied to every optional
+        // field rather than only the one that caught us out. A field the archive can read only when
+        // present orphans every row written before it existed, so each is stripped in turn. This
+        // covers fields added after today without anyone remembering to come back here.
+        var archive = Build();
+        var optional = OptionalNames();
+
+        // Without this, deleting the last optional field would leave a test that proves nothing.
+        Assert.NotEmpty(optional);
+
+        for (var index = 0; index < optional.Length; index++)
+        {
+            var id = $"m{index}";
+            database.ArchivedMatches.Add(Archived(id, Without(optional[index], id)));
+        }
+
+        await database.SaveChangesAsync();
+
+        var page = await archive.GetFinishedAsync(MatchFilter.None, 0, 100, default);
+
+        // A payload that fails to deserialise is dropped rather than thrown, so a row that went
+        // missing here is the whole symptom: absence, not an error. Reporting the field name
+        // rather than the row id means a failure says which field broke, not just that one did.
+        string[] read = [.. page.Select(match => optional[int.Parse(match.Id[1..])]).Order()];
+
+        Assert.Equal(optional, read);
+    }
+
+    [Fact]
+    public void The_required_fields_of_an_archived_payload_are_pinned()
+    {
+        // Adding a name to this list is the change that orphans the archive, so it cannot be made
+        // by accident. If a new field brought you here, give it a default instead of `required`.
+        // If it genuinely must be required, every row already stored needs rewriting first.
+        string[] pinned =
+        [
+            "Away",
+            "Format",
+            "HasBallByBall",
+            "HasSquads",
+            "Home",
+            "Id",
+            "MatchTitle",
+            "SeriesName",
+            "Slug",
+            "StartTimeUtc",
+            "Status",
+            "StatusText",
+            "Venue",
+        ];
+
+        Assert.Equal(pinned, Names(IsRequired));
     }
 
     [Fact]
@@ -297,7 +339,7 @@ public sealed class SqlMatchArchiveTests : IDisposable
             ],
             default);
 
-        var tallies = await archive.GetSeriesTalliesAsync(default);
+        var tallies = await archive.GetSeriesTalliesAsync([], default);
 
         Assert.Equal(
             ["ashes", "zimbabwe-tri-series"],
@@ -361,6 +403,54 @@ public sealed class SqlMatchArchiveTests : IDisposable
 
     private static string Json(MatchDetailsDto? match)
         => JsonSerializer.Serialize(match, JsonSerializerOptions.Web);
+
+    /// <summary>A stored payload for <paramref name="id"/> with one property left out.</summary>
+    private static string Without(string jsonName, string id)
+    {
+        using var document = JsonDocument.Parse(Json(Match(id, MatchStatus.Completed, Day(1))));
+
+        var kept = new Dictionary<string, JsonElement>(
+            document.RootElement
+                .EnumerateObject()
+                .Where(property => property.Name != jsonName)
+                .Select(property => KeyValuePair.Create(property.Name, property.Value)));
+
+        // Asserting the strip happened keeps a renamed field from turning this into a no-op test.
+        Assert.Equal(document.RootElement.EnumerateObject().Count() - 1, kept.Count);
+
+        return JsonSerializer.Serialize(kept, JsonSerializerOptions.Web);
+    }
+
+    /// <summary>A row written straight to the table, bypassing the writer as history has.</summary>
+    private static ArchivedMatch Archived(string id, string payload) => new()
+    {
+        Id = id,
+        Slug = id,
+        StartTimeUtc = Day(1).UtcDateTime,
+        SeriesId = string.Empty,
+        SeriesName = "A series",
+        HomeTeamId = "india",
+        AwayTeamId = "australia",
+        HomeTeamName = "India",
+        AwayTeamName = "Australia",
+        Payload = payload,
+        ArchivedAtUtc = Day(1).UtcDateTime,
+    };
+
+    /// <summary>The serialised names of every field the payload does not insist upon.</summary>
+    private static string[] OptionalNames()
+        => [.. Names(property => !IsRequired(property))
+            .Select(JsonNamingPolicy.CamelCase.ConvertName)];
+
+    private static string[] Names(Func<PropertyInfo, bool> keep)
+        => [.. typeof(MatchDetailsDto)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(keep)
+            .Select(property => property.Name)
+            .Order()];
+
+    private static bool IsRequired(PropertyInfo property)
+        => property.GetCustomAttribute<RequiredMemberAttribute>() is not null;
 
     private static DateTimeOffset Day(int day) => new(2026, 1, day, 9, 0, 0, TimeSpan.Zero);
 

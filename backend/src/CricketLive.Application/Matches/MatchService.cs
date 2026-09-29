@@ -116,7 +116,9 @@ public sealed class MatchService(
     public async Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
     {
         var window = await provider.GetCurrentMatchesAsync(cancellationToken);
-        var archived = await archive.GetSeriesTalliesAsync(cancellationToken);
+        // Nothing is excluded because nothing here is counted: this reduces to a distinct set of
+        // names, so a series appearing in both sources costs a duplicate that Distinct removes.
+        var archived = await archive.GetSeriesTalliesAsync([], cancellationToken);
 
         return
         [

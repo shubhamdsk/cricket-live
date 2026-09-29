@@ -5,6 +5,84 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-023 — Teams are assembled from matches; players are not built at all
+
+**Status:** accepted
+
+`/api/teams` follows [D-021](#d-021--a-series-is-assembled-from-matches-not-fetched) and for a
+stronger reason: **the provider issues no team identifier and has no team endpoint.** A match
+names its two sides and that is the whole of it, so a team is not a record to fetch and decorate —
+it is what the matches say, and nothing else could be true of it.
+
+Identity therefore comes from the name, as a slug. That is weaker than the series case, where an
+opaque `series_id` arrives free, and the weakness is real: a side that changes how its name is
+spelled becomes a second team. The slug is at least stable under spacing and punctuation, and it
+is the value `TeamDto.Id` already carried before any of this existed, so nothing new was invented.
+
+**Unlike `SeriesId`, the team columns were backfilled.** Adding indexed columns to the archive
+normally leaves existing rows empty — that is what happened for `SeriesId`, and it means history
+is unreachable through the new column. Here the payload already held both sides, so the migration
+extracted them with SQLite's `json_extract` rather than writing off every match archived before
+today. Without it a team's first match would appear to be whenever the columns happened to be
+added. This is the second provider-specific line in the project after the `NOCASE` collation, and
+it is confined to a migration, which is the one place a SQL dialect is expected to show.
+
+### There is no won-lost record, and its absence is the decision
+
+The provider states a result only as prose — `"India won by 8 wkts"`, `"Match tied"`,
+`"No result"`. Turning that into a record means parsing free text and then publishing the parse as
+a team's history. The formats a team played and the sides it faced come from mapped fields and are
+facts; who won does not, so the page reports what was played and says nothing about how it fared.
+A wrong record would be indistinguishable from a right one to a reader, which is exactly why it is
+not offered.
+
+### Players: no source, so no feature
+
+Tasks `7.3` and `7.11` asked for player endpoints and a player page with profile, batting, bowling
+and recent matches. **Two calls established that none of it is available**, and the evidence is
+worth recording because the tasks look reasonable until you look:
+
+| Checked | Result |
+| --- | --- |
+| `players_info` fields | `id`, `name`, `country`, `playerImg` — **no stats of any kind** |
+| `series_squad` | `data: []`, so no player is linked to any match we hold |
+| `players?search=Kohli` | 10 hits: Aseem, Abir, Aryaveer, Shashwat, Smriti — **not Virat** |
+| Mentions of `matchId` or `recent` in a player payload | 0 |
+
+So a player cannot be reached from a match, a match cannot be reached from a player, and a player
+profile would hold a name and a flag. The response came back `status: "success"` rather than as a
+plan rejection, so this is what the endpoint returns rather than something a paid tier is
+withholding — though that distinction is worth re-testing if the plan ever changes.
+
+Building the pages anyway would mean inventing statistics, which is the one thing this project does
+not do. The tasks are recorded as blocked with this evidence instead, and search says plainly that
+players are not searchable rather than returning an empty group and letting the reader wonder.
+
+**What this costs:** `7.14`'s "match to team to player" stops at the team. Cross-entity navigation
+is match ↔ team ↔ series, which is every edge the data actually supports.
+
+---
+
+## D-022 — A tally excludes what the caller already counted
+
+**Status:** accepted
+
+`GetSeriesTalliesAsync` and `GetTeamTalliesAsync` take the ids the caller is counting from the
+provider window and leave those rows out of the aggregate.
+
+A match that finished minutes ago is in **both** the window and the archive. The services add a
+window-derived tally to a SQL-derived one, so without this a recently-finished match is counted
+twice and a series or team claims more matches than it has. The bug was silent: the number is
+plausible, only wrong, and it grows worse the more often the poller runs.
+
+The exclusion list is the window — a few dozen ids — so it is a short `NOT IN` rather than
+anything needing a temporary table, and an empty list adds no clause at all.
+
+`GetSeriesNamesAsync` passes an empty list deliberately: it reduces to a distinct set of names, so
+a duplicate costs nothing and `Distinct` already removes it. Nothing there is counted.
+
+---
+
 ## D-021 — A series is assembled from matches, not fetched
 
 **Status:** accepted

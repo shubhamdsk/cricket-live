@@ -1,7 +1,8 @@
-﻿using CricketLive.Application.Enrichment;
+using CricketLive.Application.Enrichment;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Application.Series;
+using CricketLive.Application.Teams;
 using CricketLive.Application.Series.Dtos;
 
 namespace CricketLive.Application.Tests.Series;
@@ -224,10 +225,13 @@ public sealed class SeriesServiceTests
         public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
             => Task.FromResult(0);
 
-        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(CancellationToken cancellationToken)
+        public Task<IReadOnlyList<SeriesTally>> GetSeriesTalliesAsync(
+            IReadOnlyCollection<string> excluding,
+            CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<SeriesTally>>(
             [
                 .. held
+                    .Where(match => !excluding.Contains(match.Id))
                     .Where(match => !string.IsNullOrWhiteSpace(match.SeriesId))
                     .GroupBy(match => match.SeriesId)
                     .Select(group => new SeriesTally
@@ -244,5 +248,13 @@ public sealed class SeriesServiceTests
         public Task<IReadOnlyList<MatchDto>> GetBySeriesAsync(string seriesId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<MatchDto>>(
                 [.. held.Where(match => match.SeriesId == seriesId).OrderBy(match => match.StartTimeUtc)]);
+
+        public Task<IReadOnlyList<TeamTally>> GetTeamTalliesAsync(
+            IReadOnlyCollection<string> excluding,
+            CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<TeamTally>>([]);
+
+        public Task<IReadOnlyList<MatchDto>> GetByTeamAsync(string teamId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<MatchDto>>([]);
     }
 }

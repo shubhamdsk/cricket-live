@@ -45,6 +45,36 @@ internal sealed class ArchivedMatch
     /// </summary>
     public required string SeriesName { get; set; }
 
+    /// <summary>
+    /// The two sides, as the slug ids a team page is addressed by, indexed so that page can find
+    /// its matches without reading every payload.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Home and away are separate columns rather than one list because a match has exactly two
+    /// sides and SQLite has no array type worth the trouble. Reading a team's matches therefore
+    /// means a union of two index lookups, which is what <c>GetByTeamAsync</c> does.
+    /// </para>
+    /// <para>
+    /// Unlike <see cref="SeriesId"/> these were backfilled when the columns were added: the
+    /// payload already held the teams, so the migration extracted them with SQLite's
+    /// <c>json_extract</c> rather than leaving history unreachable. That is the promise the
+    /// payload-plus-columns split was made for.
+    /// </para>
+    /// </remarks>
+    public required string HomeTeamId { get; set; }
+
+    public required string AwayTeamId { get; set; }
+
+    /// <summary>
+    /// Kept beside the ids for the same reason <see cref="SeriesName"/> is: a list of teams needs
+    /// something to display, and deriving a name back from a slug would mangle every side whose
+    /// name is not plain words — "St Kitts &amp; Nevis" among them.
+    /// </summary>
+    public required string HomeTeamName { get; set; }
+
+    public required string AwayTeamName { get; set; }
+
     /// <summary>The serialised <c>MatchDetailsDto</c>. The archive's actual content.</summary>
     public required string Payload { get; set; }
 

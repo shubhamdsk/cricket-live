@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CricketLive.Api.Controllers;
 
 [ApiController]
-[Route("api/health")]
+[Route(ApiRoutes.Health)]
 public sealed class HealthController(IHostEnvironment environment) : ControllerBase
 {
     [HttpGet]

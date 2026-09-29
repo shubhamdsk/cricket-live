@@ -2,6 +2,17 @@ import type { ApiResponse } from '@/types/api'
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL
 
+/**
+ * Turns a path from `endpoints` into the URL to call.
+ *
+ * Exported because the live stream is opened by `EventSource` rather than `fetch` and so cannot go
+ * through `apiGet`, but must still resolve against the same API. This is the only place the base
+ * URL is read.
+ */
+export function apiUrl(path: string): string {
+  return `${baseUrl}${path}`
+}
+
 export class ApiError extends Error {
   readonly status: number
   readonly errors?: string[]
@@ -22,7 +33,7 @@ export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> 
   let response: Response
 
   try {
-    response = await fetch(`${baseUrl}${path}`, {
+    response = await fetch(apiUrl(path), {
       signal,
       headers: { Accept: 'application/json' },
     })

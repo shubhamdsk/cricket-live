@@ -4,9 +4,12 @@ using CricketLive.Application.Matches;
 using CricketLive.Infrastructure.Cricbuzz;
 using CricketLive.Infrastructure.CricketData;
 using CricketLive.Infrastructure.Live;
+using CricketLive.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CricketLive.Infrastructure;
@@ -61,7 +64,16 @@ public static class DependencyInjection
             resilience.TotalRequestTimeout.Timeout = (attempt * 2) + TimeSpan.FromSeconds(2);
         });
 
-        services.AddScoped<ICricketDataProvider, CricketDataProvider>();
+        AddArchive(services, configuration);
+
+        // Registered as the decorator, so nothing that asks for cricket data has to know that
+        // finished matches are being kept on the way past.
+        services.AddScoped<CricketDataProvider>();
+        services.AddScoped<ICricketDataProvider>(provider => new ArchivingCricketDataProvider(
+            provider.GetRequiredService<CricketDataProvider>(),
+            provider.GetRequiredService<IMatchArchive>(),
+            provider.GetRequiredService<ILogger<ArchivingCricketDataProvider>>()));
+
         services.AddScoped<IMatchService, MatchService>();
 
         services
@@ -78,6 +90,43 @@ public static class DependencyInjection
         AddCricbuzzEnrichment(services, configuration);
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the store that keeps finished matches after the provider's window moves on.
+    /// </summary>
+    /// <remarks>
+    /// SQLite because it is a file. There is nothing to install, nothing to run alongside the API
+    /// and nothing to provision, and a few thousand finished matches is not a workload that needs
+    /// more. The abstraction is <see cref="IMatchArchive"/>, so swapping the provider at deployment
+    /// changes this method and nothing else.
+    /// </remarks>
+    private static void AddArchive(IServiceCollection services, IConfiguration configuration)
+    {
+        var connection = configuration.GetConnectionString("Archive")
+            ?? "Data Source=cricket-live.db";
+
+        services.AddDbContext<CricketLiveDbContext>(options => options.UseSqlite(connection));
+        services.AddScoped<IMatchArchive, SqlMatchArchive>();
+    }
+
+    /// <summary>
+    /// Brings the archive's schema up to date, creating the file if it is not there yet.
+    /// </summary>
+    /// <remarks>
+    /// Migrating on startup suits a single instance writing to a local file and would not suit a
+    /// cluster, where two instances racing the same migration is a real failure. That is a
+    /// deployment-time change, and it belongs with the change of provider.
+    /// </remarks>
+    public static async Task MigrateArchiveAsync(
+        this IServiceProvider services,
+        CancellationToken cancellationToken = default)
+    {
+        await using var scope = services.CreateAsyncScope();
+
+        await scope.ServiceProvider
+            .GetRequiredService<CricketLiveDbContext>()
+            .Database.MigrateAsync(cancellationToken);
     }
 
     /// <summary>

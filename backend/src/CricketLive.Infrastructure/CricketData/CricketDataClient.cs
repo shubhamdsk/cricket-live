@@ -19,7 +19,12 @@ internal sealed class CricketDataClient(
     CricketDataHitBudget budget,
     ILogger<CricketDataClient> logger)
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    /// <summary>
+    /// The framework's shared web defaults, which is also what ASP.NET Core serialises with. Not a
+    /// private copy: every one of these in the solution wants the same behaviour, and a copy is
+    /// only a place for them to drift apart.
+    /// </summary>
+    private static readonly JsonSerializerOptions SerializerOptions = JsonSerializerOptions.Web;
 
     public async Task<T?> GetAsync<T>(
         string path,

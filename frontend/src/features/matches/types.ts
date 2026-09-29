@@ -48,6 +48,20 @@ export interface Match {
   statusText: string
 }
 
+/**
+ * One page of a list the API does not return whole.
+ *
+ * `total` is what the archive holds, so it grows as matches finish and is not a fixed number the
+ * UI can plan around. `hasMore` is the API's own answer rather than something derived here.
+ */
+export interface Paged<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  total: number
+  hasMore: boolean
+}
+
 export interface Batter {
   name: string
   runs: number

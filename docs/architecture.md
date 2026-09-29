@@ -25,10 +25,20 @@ ASP.NET Core API (:5140)
         │  one call per refresh, in-memory cache, daily budget guard
         ▼
 api.cricapi.com (CricketData)
+        │
+        └─► every finished match that passes ──► SQLite (cricket-live.db)
 ```
 
-No Redis and no PostgreSQL. PostgreSQL arrives in Sprint 7; Redis waits for a second API instance
-([D-014](./decisions.md)). Every screen renders provider data end to end and no mock data remains.
+No Redis. SQLite holds the match archive, which is a file rather than a service
+([D-017](./decisions.md)); PostgreSQL is still the deployment target. Redis waits for a second API
+instance ([D-014](./decisions.md)). Every screen renders provider data end to end and no mock data
+remains.
+
+**Results outlive the provider's window.** The window is a few days wide, so without keeping
+anything, "recent results" would mean "since the day before yesterday" and a finished match page
+would stop resolving. An `ICricketDataProvider` decorator writes every completed match it sees to
+the archive on the way past, which is why `recent` is the one paged endpoint and why the archive
+fills whether or not anyone is watching live cricket.
 
 **Two loops, and only one of them costs anything.** Browsers attach over SSE, which never touches
 the provider, so a thousand connected clients cost exactly what one does. The provider is reached
@@ -76,14 +86,20 @@ Solution `backend/CricketLive.slnx`, the XML solution format the .NET 10 SDK emi
 ```text
 backend/
 ├── src/
-│   ├── CricketLive.Api              controllers, middleware, DI wiring
-│   ├── CricketLive.Application      DTOs, abstractions, the response envelope
+│   ├── CricketLive.Api              controllers, middleware, DI wiring, ApiRoutes
+│   ├── CricketLive.Application      DTOs, abstractions, the response envelope, paging
 │   ├── CricketLive.Domain           entities — empty until there is something to own
-│   └── CricketLive.Infrastructure   CricketData/ — client, models, mapper, budget, DI
+│   └── CricketLive.Infrastructure   CricketData/, Cricbuzz/, Live/, Persistence/
 └── tests/
     ├── CricketLive.Api.Tests             xUnit
+    ├── CricketLive.Application.Tests     xUnit — service and paging behaviour
     └── CricketLive.Infrastructure.Tests  xUnit — mapper tests over captured fixtures
 ```
+
+`ApiRoutes` holds every route prefix, because matches are served by two controllers — one
+returning the envelope, one streaming frames — and that is exactly where the same string gets
+typed twice and only one copy gets updated. `PageRequest` holds the page bounds for the same
+reason: a controller default and a service default that disagree are a bug nobody notices.
 
 Dependencies point inward: `Api` → `Application` and `Infrastructure`; `Infrastructure` →
 `Application`; `Application` → `Domain`.
@@ -129,7 +145,7 @@ frontend/src/
 ├── components/     common/, layout/, match/
 ├── features/       matches/ (api, components, hooks, types, utils)
 ├── pages/          Home, Live, Matches, MatchDetails, NotFound
-├── services/       apiClient
+├── services/       apiClient, endpoints
 ├── store/          uiStore
 ├── types/          api envelope
 ├── utils/          cn
@@ -138,6 +154,14 @@ frontend/src/
 
 React 19, Vite, Tailwind CSS v4, React Router, TanStack Query, Zustand, Lucide. The `@/` alias
 points at `src/`. Details in [frontend.md](./frontend.md).
+
+**Three layers, and each knows one thing.** `services/endpoints.ts` is the only file containing a
+path; `services/apiClient.ts` is the only file that knows the base URL, unwraps the envelope and
+turns a failure into an `ApiError`; `features/matches/api/matchesApi.ts` is the only file that
+calls the matches API, and every hook and component goes through it. The live stream is the case
+that proves the split is worth having: `EventSource` cannot use `fetch`, so it needs the URL
+without the request — it takes the same path from `endpoints` and the same base URL from
+`apiClient` rather than assembling a second one by hand.
 
 ---
 

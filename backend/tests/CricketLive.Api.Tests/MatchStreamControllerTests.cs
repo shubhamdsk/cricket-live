@@ -1,6 +1,7 @@
 using System.Text;
 using System.Threading.Channels;
 using CricketLive.Api.Controllers;
+using CricketLive.Application.Common;
 using CricketLive.Application.Live;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
@@ -228,8 +229,10 @@ public sealed class MatchStreamControllerTests
         public Task<IReadOnlyList<MatchDto>> GetUpcomingAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MatchDto>>([]);
 
-        public Task<IReadOnlyList<MatchDto>> GetRecentAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<MatchDto>>([]);
+        public Task<(IReadOnlyList<MatchDto> Matches, int Total)> GetResultsAsync(
+            PageRequest page,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<(IReadOnlyList<MatchDto>, int)>(([], 0));
 
         public Task<MatchDetailsDto?> GetByIdAsync(string matchId, CancellationToken cancellationToken) =>
             Task.FromResult(match);

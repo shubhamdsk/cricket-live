@@ -14,7 +14,7 @@ namespace CricketLive.Api.Controllers;
 /// here uses the response envelope: the body is a stream of frames, not a JSON document.
 /// </summary>
 [ApiController]
-[Route("api/matches")]
+[Route(ApiRoutes.Matches)]
 public sealed class MatchStreamController(
     IMatchService matches,
     IMatchBroadcaster broadcaster,
@@ -22,7 +22,11 @@ public sealed class MatchStreamController(
     TimeProvider timeProvider,
     ILogger<MatchStreamController> logger) : ControllerBase
 {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    /// <summary>
+    /// The same shared web defaults MVC serialises the envelope endpoints with, so a match arriving
+    /// over the stream is byte-identical to one fetched over <c>GET</c>.
+    /// </summary>
+    private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
 
     /// <param name="matchId">Either the provider id or one of our slugs, which end in that id.</param>
     [HttpGet("{matchId}/stream")]

@@ -5,6 +5,56 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-017 — Results are kept in a SQLite file, and only from today forward
+
+**Status:** accepted
+**Extends:** D-012
+
+The provider's current-matches window is a few days wide, so "recent results" meant "results since
+the day before yesterday" and nothing more. A match that finished last week was gone, and so was
+its match page, because the only place we had ever held it was the window.
+
+**We keep what passes through rather than fetching history.** No source available to us can supply
+completed matches with results. CricketData's `recent-matches` route was measured and returns the
+same short window under a different name; Cricbuzz's own listing mixes live and upcoming fixtures,
+carries no result sentence in the one part of the page we are willing to read, and dates entries
+relatively ("Today", "Yesterday"). Anything we presented as older history would therefore have been
+assembled from fragments, and a wrong result is worse than a missing one.
+
+So the archive **accumulates forward**. It began empty on the day it shipped. Matches played before
+that cannot appear, which is stated on the results page rather than hidden, and `total` in the API
+is explicitly "what we hold" rather than "what was played".
+
+**SQLite because it is a file.** Nothing to install, nothing to run alongside the API, nothing to
+provision. A few thousand finished matches a year is not a workload that needs more. PostgreSQL is
+still the deployment target from D-004; `IMatchArchive` is the seam, so that swap changes one
+registration and the migration, and nothing above Infrastructure.
+
+**Each match is stored whole, as JSON, beside a handful of indexed columns.** The columns — id,
+slug, start time, series — are the ones we sort, page and look up by. The payload is the entire
+serialised match and is what gets returned. Normalising instead would mean deciding today how every
+field maps, and any field mapped carelessly would be silently lost for good; this way an archived
+match reads back byte-identical to a live one, and a column can be promoted out of the payload
+later without a backfill.
+
+**Archiving is a decorator over the data provider, not a step inside it.** Fetching cricket and
+keeping cricket are different jobs. It is deliberately not in the live poller either, because the
+poller only runs while somebody is watching a live match — history would then depend on whether
+anyone happened to be watching. Every window fetch passes through the decorator, so anyone opening
+the site contributes.
+
+**A failed write never fails a read.** The decorator logs and returns the provider's data. Losing a
+match from history is a much smaller harm than a home page that will not load, and the results
+endpoint separately merges any finished match the window still holds but the archive does not, so
+a failed write costs history rather than today's results.
+
+**Cost:** `GET /api/matches/recent` is now paged and returns an envelope instead of a bare array,
+which is a breaking change to that one endpoint. A finished match is never rewritten, so a later
+provider correction to a completed match will not be picked up — accepted, because a finished match
+does not change, and keeping what we recorded at the time is the more defensible of the two.
+
+---
+
 ## D-016 — Matches are paired on title and series, or not at all
 
 **Status:** accepted

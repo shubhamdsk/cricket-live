@@ -1,0 +1,30 @@
+using Microsoft.EntityFrameworkCore;
+
+namespace CricketLive.Infrastructure.Persistence;
+
+internal sealed class CricketLiveDbContext(DbContextOptions<CricketLiveDbContext> options)
+    : DbContext(options)
+{
+    public DbSet<ArchivedMatch> ArchivedMatches => Set<ArchivedMatch>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        var match = builder.Entity<ArchivedMatch>();
+
+        match.ToTable("archived_matches");
+        match.HasKey(entity => entity.Id);
+
+        match.Property(entity => entity.Id).HasMaxLength(64);
+        match.Property(entity => entity.Slug).HasMaxLength(256);
+        match.Property(entity => entity.SeriesName).HasMaxLength(256);
+        match.Property(entity => entity.Payload).IsRequired();
+
+        // The results list is "most recently played first" and nothing else, so this one index is
+        // what every read of the archive actually uses.
+        match.HasIndex(entity => entity.StartTimeUtc)
+            .HasDatabaseName("ix_archived_matches_start_time");
+
+        match.HasIndex(entity => entity.SeriesName)
+            .HasDatabaseName("ix_archived_matches_series");
+    }
+}

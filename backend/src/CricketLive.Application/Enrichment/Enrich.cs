@@ -16,7 +16,14 @@ public static class Enrich
         IMatchEnrichmentProvider enrichment,
         CancellationToken cancellationToken)
     {
-        var batters = await enrichment.GetCurrentBattersAsync(match.Id, cancellationToken);
+        var identity = new MatchIdentity(
+            match.Id,
+            match.MatchTitle,
+            match.SeriesName,
+            match.Home.Team.ShortName,
+            match.Away.Team.ShortName);
+
+        var batters = await enrichment.GetCurrentBattersAsync(identity, cancellationToken);
 
         // Returning the original instance when there is nothing to add keeps the common case free
         // of an allocation, and keeps reference equality meaningful for callers that compare.

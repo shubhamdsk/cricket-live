@@ -96,14 +96,20 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddHttpClient<IMatchEnrichmentProvider, CricbuzzEnrichmentProvider>((provider, client) =>
+        services.AddHttpClient<IMatchEnrichmentProvider, CricbuzzEnrichmentProvider>(Configure);
+
+        // Its own client so the listing and the scorecards do not share a connection budget, and
+        // so a slow listing cannot time out a scorecard that was already in flight.
+        services.AddHttpClient<CricbuzzMatchDirectory>(Configure);
+
+        static void Configure(IServiceProvider provider, HttpClient client)
         {
             var cricbuzz = provider.GetRequiredService<IOptions<CricbuzzOptions>>().Value;
 
             client.BaseAddress = new Uri(cricbuzz.BaseUrl.TrimEnd('/') + '/');
             client.Timeout = TimeSpan.FromSeconds(cricbuzz.TimeoutSeconds);
             client.DefaultRequestHeaders.UserAgent.ParseAdd(cricbuzz.UserAgent);
-        });
+        }
 
         // Deliberately no retry. This reads someone else's website, and a page that did not answer
         // is not an invitation to ask again — the caller loses two player names, which is nothing.

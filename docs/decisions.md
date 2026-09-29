@@ -5,6 +5,51 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-016 — Matches are paired on title and series, or not at all
+
+**Status:** accepted
+**Extends:** D-015
+
+Enrichment needs to know which Cricbuzz match is which of ours, and the two providers share no
+identifier. The first version required somebody to write each pair into configuration, which meant
+no match was ever enriched unless a human had been watching.
+
+Measuring a real listing of 26 Cricbuzz matches against our window settled how to do better, and
+also ruled out the obvious approach:
+
+**The team pair is not a key.** `ind` appeared on three of the 26 fixtures, `skr` on four, and two
+were `tbc-vs-tbc` because Cricbuzz lists finals before the finalists are known. Our own
+`IND v WI, 1st ODI` matched two entries on teams alone — the 2nd and 3rd ODIs, **both wrong**,
+because the 1st had already dropped off the listing. That join does not fail; it puts another
+match's batters on the page and looks right doing it.
+
+**The slug tail is a key, and we can reproduce it exactly.** Cricbuzz links read
+`/live-cricket-scores/151543/ind-vs-wi-2nd-odi-west-indies-tour-of-india-2026`. Everything after
+the teams is the match title and series name, and slugifying CricketData's own `matchTitle` and
+`seriesName` produces the identical string once punctuation is dropped. Across the 26 fixtures this
+gave 24 distinct values, the only two collisions being group-stage fixtures sharing "Pool A" and
+"Pool B" within one tournament — and those have different teams, so teams plus tail is unique
+across the whole listing.
+
+So: exact match on title and series; teams consulted only to break a collision, because the two
+providers do not always abbreviate alike and demanding agreement up front would reject good matches.
+
+**A unique answer or no answer.** Zero candidates means no enrichment. Two candidates the teams
+cannot separate means no enrichment. There is no best guess, because declining costs two player
+names and guessing tells the reader something false about a match they are watching.
+
+**Cost:** one request for a listing that serves every match, cached for thirty minutes, rather than
+one request per match. Which fixtures exist changes over hours; only the scores move quickly, and
+those are fetched separately. `Cricbuzz:MatchIds` survives as an override for when resolution
+declines, and `Cricbuzz:AutoResolve` turns the whole mechanism off independently of `Enabled`,
+because it is a separate risk from reading the site at all.
+
+**Verified** against live Cricbuzz: resolution found `155422` for "2nd unofficial Test / Australia A
+tour of India 2026" from the title and series alone. The unit tests use the real 26-match listing,
+including both `tbc-vs-tbc` fixtures and the Pool A collision.
+
+---
+
 ## D-015 — Batters come from a second source that is off by default
 
 **Status:** accepted
@@ -42,12 +87,10 @@ reproduced; a test asserts we send neither header. Cricbuzz was verified to answ
 with HTTP 200, so the disguise bought nothing anyway. If an honest agent is ever blocked, that is
 an answer about whether the data is ours to take, and the response is to stop rather than to hide.
 
-**It ships disabled, and matches are mapped by hand.** Whether to read a public website is a
-judgement about someone else's terms, not a technical default, so `Cricbuzz:Enabled` is `false`.
-The two providers share no key, and guessing the pairing from team names and dates fails silently
-by showing one match's batters on another match's page — worse than showing none. The hand-written
-map doubles as the rate limiter: load is bounded by an act of typing rather than by how popular the
-app becomes.
+**It ships disabled.** Whether to read a public website is a judgement about someone else's terms,
+not a technical default, so `Cricbuzz:Enabled` is `false`.
+
+**Matches are paired on title and series, and never by guesswork.** See D-016.
 
 **Cost:** the port reads a presentation detail of someone else's HTML and will break without
 warning. The tests are the alarm, and the feature degrades to absence rather than to error — an

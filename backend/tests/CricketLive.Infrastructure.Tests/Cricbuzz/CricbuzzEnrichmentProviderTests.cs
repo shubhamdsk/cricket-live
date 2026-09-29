@@ -15,6 +15,13 @@ public class CricbuzzEnrichmentProviderTests
     /// <summary>Cricbuzz's id for the same match, as somebody wrote it down in configuration.</summary>
     private const string CricbuzzId = "155422";
 
+    /// <summary>
+    /// These tests pin the fetching and caching behaviour, so they pair matches through the
+    /// hand-written map and leave automatic resolution to <see cref="CricbuzzSlugTests"/>.
+    /// </summary>
+    private static MatchIdentity Identity(string matchId = MatchId) =>
+        new(matchId, "2nd unofficial Test", "Australia A tour of India 2026", "INDA", "AUSA");
+
     private const string LivePage =
         """<html><head><meta property="og:title" content="AUSA 97/3 (32.4) (Jason Sangha 46(74) Nathan McSweeney 32(72)) | India A vs Australia A"></head></html>""";
 
@@ -23,7 +30,7 @@ public class CricbuzzEnrichmentProviderTests
     {
         var harness = new Harness(enabled: false);
 
-        var batters = await harness.Provider.GetCurrentBattersAsync(MatchId, default);
+        var batters = await harness.Provider.GetCurrentBattersAsync(Identity(), default);
 
         Assert.Empty(batters);
         Assert.Equal(0, harness.Requests);
@@ -34,7 +41,7 @@ public class CricbuzzEnrichmentProviderTests
     {
         var harness = new Harness();
 
-        var batters = await harness.Provider.GetCurrentBattersAsync(MatchId, default);
+        var batters = await harness.Provider.GetCurrentBattersAsync(Identity(), default);
 
         Assert.Equal(
             [new BatterDto("Jason Sangha", 46, 74), new BatterDto("Nathan McSweeney", 32, 72)],
@@ -48,7 +55,7 @@ public class CricbuzzEnrichmentProviderTests
         // a site that never agreed to serve us bounded by hand rather than by traffic.
         var harness = new Harness();
 
-        var batters = await harness.Provider.GetCurrentBattersAsync("some-other-match", default);
+        var batters = await harness.Provider.GetCurrentBattersAsync(Identity("some-other-match"), default);
 
         Assert.Empty(batters);
         Assert.Equal(0, harness.Requests);
@@ -69,7 +76,7 @@ public class CricbuzzEnrichmentProviderTests
         // could be steered somewhere other than a scorecard.
         var harness = new Harness(map: new Dictionary<string, string> { [MatchId] = configured });
 
-        var batters = await harness.Provider.GetCurrentBattersAsync(MatchId, default);
+        var batters = await harness.Provider.GetCurrentBattersAsync(Identity(), default);
 
         Assert.Empty(batters);
         Assert.Equal(0, harness.Requests);
@@ -82,7 +89,7 @@ public class CricbuzzEnrichmentProviderTests
 
         for (var i = 0; i < 25; i++)
         {
-            await harness.Provider.GetCurrentBattersAsync(MatchId, default);
+            await harness.Provider.GetCurrentBattersAsync(Identity(), default);
         }
 
         Assert.Equal(1, harness.Requests);
@@ -96,8 +103,8 @@ public class CricbuzzEnrichmentProviderTests
         var harness = new Harness(
             page: """<html><head><meta property="og:title" content="BAN vs MLY, 4th Quarter-Final"></head></html>""");
 
-        Assert.Empty(await harness.Provider.GetCurrentBattersAsync(MatchId, default));
-        Assert.Empty(await harness.Provider.GetCurrentBattersAsync(MatchId, default));
+        Assert.Empty(await harness.Provider.GetCurrentBattersAsync(Identity(), default));
+        Assert.Empty(await harness.Provider.GetCurrentBattersAsync(Identity(), default));
         Assert.Equal(1, harness.Requests);
     }
 
@@ -106,7 +113,7 @@ public class CricbuzzEnrichmentProviderTests
     {
         var harness = new Harness(status: HttpStatusCode.Forbidden);
 
-        Assert.Empty(await harness.Provider.GetCurrentBattersAsync(MatchId, default));
+        Assert.Empty(await harness.Provider.GetCurrentBattersAsync(Identity(), default));
     }
 
     [Fact]
@@ -116,7 +123,7 @@ public class CricbuzzEnrichmentProviderTests
         // caller as two missing names and nothing else.
         var harness = new Harness(throws: new HttpRequestException("no route to host"));
 
-        Assert.Empty(await harness.Provider.GetCurrentBattersAsync(MatchId, default));
+        Assert.Empty(await harness.Provider.GetCurrentBattersAsync(Identity(), default));
     }
 
     [Fact]
@@ -127,7 +134,7 @@ public class CricbuzzEnrichmentProviderTests
         await cancelled.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => harness.Provider.GetCurrentBattersAsync(MatchId, cancelled.Token));
+            () => harness.Provider.GetCurrentBattersAsync(Identity(), cancelled.Token));
     }
 
     [Fact]
@@ -135,7 +142,7 @@ public class CricbuzzEnrichmentProviderTests
     {
         var harness = new Harness();
 
-        await harness.Provider.GetCurrentBattersAsync(MatchId, default);
+        await harness.Provider.GetCurrentBattersAsync(Identity(), default);
 
         var sent = Assert.Single(harness.Sent);
         Assert.Contains("cricket-live", sent.Headers.UserAgent.ToString());
@@ -151,7 +158,7 @@ public class CricbuzzEnrichmentProviderTests
     {
         var harness = new Harness();
 
-        await harness.Provider.GetCurrentBattersAsync(MatchId, default);
+        await harness.Provider.GetCurrentBattersAsync(Identity(), default);
 
         Assert.Equal(
             "https://www.cricbuzz.com/live-cricket-scores/155422",
@@ -175,6 +182,10 @@ public class CricbuzzEnrichmentProviderTests
             {
                 Enabled = enabled,
                 MatchIds = map ?? new Dictionary<string, string> { [MatchId] = CricbuzzId },
+
+                // Off so a declined lookup cannot quietly become a second request and muddle the
+                // counts these tests assert on. Resolution has its own tests.
+                AutoResolve = false,
             };
 
             var client = new HttpClient(_handler)
@@ -184,8 +195,18 @@ public class CricbuzzEnrichmentProviderTests
 
             client.DefaultRequestHeaders.UserAgent.ParseAdd(options.UserAgent);
 
+            var directory = new CricbuzzMatchDirectory(
+                new HttpClient(new RecordingHandler("", HttpStatusCode.NotFound, null))
+                {
+                    BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + '/'),
+                },
+                new MemoryCache(new MemoryCacheOptions()),
+                Options.Create(options),
+                NullLogger<CricbuzzMatchDirectory>.Instance);
+
             Provider = new CricbuzzEnrichmentProvider(
                 client,
+                directory,
                 new MemoryCache(new MemoryCacheOptions()),
                 Options.Create(options),
                 NullLogger<CricbuzzEnrichmentProvider>.Instance);

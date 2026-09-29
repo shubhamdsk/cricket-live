@@ -1,5 +1,7 @@
+using CricketLive.Application.Enrichment;
 using CricketLive.Application.Live;
 using CricketLive.Application.Matches;
+using CricketLive.Infrastructure.Cricbuzz;
 using CricketLive.Infrastructure.CricketData;
 using CricketLive.Infrastructure.Live;
 using Microsoft.Extensions.Configuration;
@@ -73,6 +75,37 @@ public static class DependencyInjection
         services.AddSingleton<IMatchBroadcaster, MatchBroadcaster>();
         services.AddHostedService<LiveMatchPoller>();
 
+        AddCricbuzzEnrichment(services, configuration);
+
         return services;
+    }
+
+    /// <summary>
+    /// Registers the supplementary batter source, which stays dormant until switched on.
+    /// </summary>
+    /// <remarks>
+    /// Registered unconditionally so the shape of the graph does not change with configuration, and
+    /// so a match page behaves the same either way. The provider itself returns nothing while
+    /// disabled, which costs one boolean and saves a nullable dependency everywhere it is used.
+    /// </remarks>
+    private static void AddCricbuzzEnrichment(IServiceCollection services, IConfiguration configuration)
+    {
+        services
+            .AddOptions<CricbuzzOptions>()
+            .Bind(configuration.GetSection(CricbuzzOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddHttpClient<IMatchEnrichmentProvider, CricbuzzEnrichmentProvider>((provider, client) =>
+        {
+            var cricbuzz = provider.GetRequiredService<IOptions<CricbuzzOptions>>().Value;
+
+            client.BaseAddress = new Uri(cricbuzz.BaseUrl.TrimEnd('/') + '/');
+            client.Timeout = TimeSpan.FromSeconds(cricbuzz.TimeoutSeconds);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(cricbuzz.UserAgent);
+        });
+
+        // Deliberately no retry. This reads someone else's website, and a page that did not answer
+        // is not an invitation to ask again — the caller loses two player names, which is nothing.
     }
 }

@@ -22,6 +22,17 @@ internal static class MatchSignature
         Append(builder, match.Home);
         builder.Append('|');
         Append(builder, match.Away);
+        builder.Append('|');
+
+        // A run scored off a single ball moves no other field here, so leaving the batters out
+        // would mean the one thing enrichment exists to show never triggered a push.
+        foreach (var batter in match.CurrentBatters)
+        {
+            builder
+                .Append(batter.Name).Append(':')
+                .Append(batter.Runs).Append('(')
+                .Append(batter.Balls).Append(") ");
+        }
 
         return builder.ToString();
     }

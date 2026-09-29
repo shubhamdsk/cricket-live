@@ -88,7 +88,13 @@ function AtTheCrease({ match }: { match: MatchDetails }) {
   // Absent rather than empty. An empty list means the supplementary source had nothing for us,
   // which is not the same as nobody batting, and a card reading "no batters" would assert the
   // second while only knowing the first.
-  if (match.currentBatters.length === 0) {
+  //
+  // Read defensively despite the type promising an array, because the field is newer than the
+  // deployed API may be. A frontend that is one release ahead would otherwise crash the whole
+  // match page over a section that is meant to be optional.
+  const batters = match.currentBatters ?? []
+
+  if (batters.length === 0) {
     return null
   }
 
@@ -97,7 +103,7 @@ function AtTheCrease({ match }: { match: MatchDetails }) {
       <h2 className="text-base font-semibold tracking-tight text-ink">At the crease</h2>
 
       <dl className="mt-3 divide-y divide-line">
-        {match.currentBatters.map((batter) => (
+        {batters.map((batter) => (
           <div key={batter.name} className="flex items-baseline justify-between gap-4 py-2.5">
             <dt className="min-w-0 truncate text-sm font-medium text-ink">{batter.name}</dt>
             <dd className="score-figures shrink-0 font-medium text-ink">

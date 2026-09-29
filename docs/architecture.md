@@ -36,6 +36,20 @@ only by the poller, and only while at least one client is subscribed — and eve
 passes through the same five-minute cache the HTTP endpoints use, capping spend at twelve calls an
 hour regardless of tick rate. Idle days cost nothing.
 
+A second, optional source sits beside the provider and supplies one field:
+
+```text
+        │   LiveMatchPoller ──► IMatchBroadcaster ──► connected clients
+        │        │
+        │        └─► IMatchEnrichmentProvider ──► cricbuzz.com   (off by default,
+        │            batters at the crease only                   hand-mapped matches only)
+```
+
+It is not a second provider in any meaningful sense: it cannot list matches, so it can never
+replace the first. It contributes `currentBatters` and nothing else, because that was the only
+field it produced reliably when tested against real pages. The reasoning, the evidence and the
+terms question are in [D-015](./decisions.md).
+
 The match list pages still poll over plain HTTP once a minute; only the match detail page streams.
 That is deliberate rather than unfinished: those requests hit our own cache, and a stream per list
 page would keep the poller awake for people browsing fixtures rather than watching cricket.

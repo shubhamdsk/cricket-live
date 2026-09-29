@@ -5,6 +5,60 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-015 — Batters come from a second source that is off by default
+
+**Status:** accepted
+
+The question was whether to replace CricketData with a self-hosted scraper to escape the hundred
+calls a day. The answer is no, and the reason is structural rather than a matter of taste: the
+scraper proposed (`mskian/live-cricket-score-api`) exposes exactly one route, `GET /?score={id}`,
+which needs a Cricbuzz match id. It cannot answer "what is on right now", so it cannot implement
+`GetCurrentMatchesAsync`, so it cannot be a replacement for anything.
+
+It was run anyway, against real pages, because arguing from a README is not evidence. Of five
+matches sampled, none returned fully clean data and every failure was reported as HTTP 200 with
+`"status": "success"`:
+
+- team abbreviations over four letters were silently truncated — `INDWA 136/4` came back as `NDWA`
+- Test matches, with two innings in the title, could not be parsed at all
+- every bowler name carried page furniture, as in `Tushar Deshpande View match performance View profile`
+- a lone batter was discarded entirely, because it kept results only in pairs
+- names were HTML-escaped rather than decoded, so an O'Brien would reach the browser as `O&#x27;Brien`
+
+One field survived: the batters at the crease, which is also the one thing CricketData does not
+give us. So that field, and only that field, is taken — from a C# port rather than by running the
+Python service, because the useful logic is about forty lines and porting it costs no new runtime,
+no third process, and lands the parsing in the test suite where a markup change fails CI instead of
+quietly returning placeholder text to users. The five defects above are fixed in the port and each
+has a test.
+
+**Only the `og:title` meta tag is read, never the page body.** That is what makes the bowler
+pollution impossible rather than merely fixed: a meta tag has no link labels next to the name.
+Anything that cannot be taken from that tag belongs to the primary provider.
+
+**We identify ourselves honestly.** The original sends a browser user agent with `Referer` and
+`Origin` set to cricbuzz.com so its traffic reads as the site's own. That is evasion and it is not
+reproduced; a test asserts we send neither header. Cricbuzz was verified to answer an honest agent
+with HTTP 200, so the disguise bought nothing anyway. If an honest agent is ever blocked, that is
+an answer about whether the data is ours to take, and the response is to stop rather than to hide.
+
+**It ships disabled, and matches are mapped by hand.** Whether to read a public website is a
+judgement about someone else's terms, not a technical default, so `Cricbuzz:Enabled` is `false`.
+The two providers share no key, and guessing the pairing from team names and dates fails silently
+by showing one match's batters on another match's page — worse than showing none. The hand-written
+map doubles as the rate limiter: load is bounded by an act of typing rather than by how popular the
+app becomes.
+
+**Cost:** the port reads a presentation detail of someone else's HTML and will break without
+warning. The tests are the alarm, and the feature degrades to absence rather than to error — an
+empty list renders as no section at all, never as "nobody is batting", because those are different
+claims and we only know the first.
+
+**Reopen this when:** Cricbuzz blocks an honest agent, the parser tests start failing for reasons
+other than our own changes, or a provider appears that supplies batters under terms that permit it.
+
+---
+
 ## D-014 — Live state stays in process; Redis waits for a second instance
 
 **Status:** accepted

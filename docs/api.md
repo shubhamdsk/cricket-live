@@ -197,6 +197,21 @@ implements a client against a guess.
 | `GET /api/matches/{matchId}/stats` | 6 |
 | `GET /api/series…`, `/api/teams…`, `/api/players…` | 7 |
 
+---
+
+## `currentBatters` on a match detail
+
+`GET /api/matches/{matchId}` and the `match` stream event both carry `currentBatters`, an array of
+`{ name, runs, balls }`. `balls` is a count of whole deliveries, so unlike `overs` it is a number
+you may do arithmetic on.
+
+**It is almost always empty, and empty means "we do not know".** It comes from a supplementary
+source that is disabled by default and only knows matches an operator has mapped by hand, so a
+client must render an empty array as absence — never as "nobody is batting", which is a different
+claim. See [D-015](./decisions.md).
+
+---
+
 `features/matches/types.ts` mirrors the shapes documented here and is the frontend's only match
 contract. Sprint 4 reconciled the two: `logoUrl` and `number` were added, `hasBallByBall` and
 `hasSquads` replaced `tossText`, `summary`, `currentBatters` and `currentBowler`, and `OTHER`

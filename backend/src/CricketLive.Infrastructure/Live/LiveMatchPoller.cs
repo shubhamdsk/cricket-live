@@ -1,3 +1,4 @@
+using CricketLive.Application.Enrichment;
 using CricketLive.Application.Live;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
@@ -96,6 +97,7 @@ internal sealed class LiveMatchPoller(
         // for the lifetime of the application.
         using var scope = scopes.CreateScope();
         var provider = scope.ServiceProvider.GetRequiredService<ICricketDataProvider>();
+        var enrichment = scope.ServiceProvider.GetRequiredService<IMatchEnrichmentProvider>();
 
         try
         {
@@ -116,9 +118,16 @@ internal sealed class LiveMatchPoller(
         var changed = new List<MatchDetailsDto>();
         var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var match in window)
+        foreach (var bare in window)
         {
-            present.Add(match.Id);
+            present.Add(bare.Id);
+
+            // Enrichment happens before the fingerprint, because the batters are part of what a
+            // watcher notices changing. It costs nothing for the unmapped matches that make up
+            // almost all of the window, and nothing at all while the second source is switched off.
+            var match = bare.Status == MatchStatus.Live
+                ? await Enrich.WithBattersAsync(bare, enrichment, cancellationToken)
+                : bare;
 
             var signature = MatchSignature.For(match);
 

@@ -16,20 +16,29 @@ React (Vite dev server, :5173)
         ▼
 ASP.NET Core API (:5140)
         │   ├── GET /api/health
-        │   └── GET /api/matches/{live,upcoming,recent,{matchId}}
+        │   ├── GET /api/matches/{live,upcoming,recent,{matchId}}
+        │   └── GET /api/matches/{matchId}/stream   ← SSE
+        │
+        │   LiveMatchPoller ──► IMatchBroadcaster ──► connected clients
+        │   (only while someone is subscribed)
         │
         │  one call per refresh, in-memory cache, daily budget guard
         ▼
 api.cricapi.com (CricketData)
 ```
 
-No Redis, no PostgreSQL, no background service, no SSE — those arrive in Sprints 5 and 7. Every
-screen now renders provider data end to end; no mock data remains anywhere in the frontend.
+No Redis and no PostgreSQL. PostgreSQL arrives in Sprint 7; Redis waits for a second API instance
+([D-014](./decisions.md)). Every screen renders provider data end to end and no mock data remains.
 
-The browser polls, which is the honest description of Sprint 4's freshness story. Live lists refresh
-once a minute and everything else far less often, because the API caches a provider response for
-five minutes and polling faster would return the same bytes. Sprint 5 inverts this: a background
-service polls the provider and pushes over SSE, and the interval on the client goes away.
+**Two loops, and only one of them costs anything.** Browsers attach over SSE, which never touches
+the provider, so a thousand connected clients cost exactly what one does. The provider is reached
+only by the poller, and only while at least one client is subscribed — and even then each tick
+passes through the same five-minute cache the HTTP endpoints use, capping spend at twelve calls an
+hour regardless of tick rate. Idle days cost nothing.
+
+The match list pages still poll over plain HTTP once a minute; only the match detail page streams.
+That is deliberate rather than unfinished: those requests hit our own cache, and a stream per list
+page would keep the poller awake for people browsing fixtures rather than watching cricket.
 
 ### Ports
 

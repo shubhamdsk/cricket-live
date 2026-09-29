@@ -1,5 +1,7 @@
+using CricketLive.Application.Live;
 using CricketLive.Application.Matches;
 using CricketLive.Infrastructure.CricketData;
+using CricketLive.Infrastructure.Live;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -59,6 +61,17 @@ public static class DependencyInjection
 
         services.AddScoped<ICricketDataProvider, CricketDataProvider>();
         services.AddScoped<IMatchService, MatchService>();
+
+        services
+            .AddOptions<LiveOptions>()
+            .Bind(configuration.GetSection(LiveOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Singleton because it is the process's list of connected clients; the poller and every
+        // request handler must see the same one.
+        services.AddSingleton<IMatchBroadcaster, MatchBroadcaster>();
+        services.AddHostedService<LiveMatchPoller>();
 
         return services;
     }

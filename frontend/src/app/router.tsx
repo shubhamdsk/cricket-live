@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createHashRouter } from 'react-router-dom'
 
 import { AppLayout } from '@/components/layout/AppLayout'
 import { HomePage } from '@/pages/Home/HomePage'
@@ -7,7 +7,8 @@ import { MatchDetailsPage } from '@/pages/MatchDetails/MatchDetailsPage'
 import { MatchesPage } from '@/pages/Matches/MatchesPage'
 import { NotFoundPage } from '@/pages/NotFound/NotFoundPage'
 
-export const router = createBrowserRouter([
+
+export const router = createHashRouter([
   {
     path: '/',
     element: <AppLayout />,

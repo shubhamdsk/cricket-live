@@ -166,18 +166,27 @@ makes it.
 All routing lives in `src/app/router.tsx`. Pages never decide routing.
 
 ```text
-/                 Home
-/live             Live matches
-/matches          All matches, filters from Sprint 7
-/match/:slug      Match details — Summary, Scorecard, Commentary, Stats
-/series/:slug     From Sprint 7
-/team/:slug       From Sprint 7
-/player/:slug     From Sprint 7
-*                 Not found
+/#/                 Home
+/#/live             Live matches
+/#/matches          All matches, filtered by status, date and series
+/#/match/:slug      Match details — Summary, Scorecard, Commentary, Stats
+/#/series/:slug     From Sprint 7
+/#/team/:slug       From Sprint 7
+/#/player/:slug     From Sprint 7
+/#/*                Not found
 ```
+
+**Routes live in the fragment** (`createHashRouter`), so a deep link resolves without the host
+being configured to rewrite unknown paths to `index.html` — see [D-019](./decisions.md). Write
+links as `<Link to="/matches">`; react-router adds the `#` itself, and no component should ever
+construct one.
 
 Matches are addressed by slug, not by provider id, so a URL survives a provider change and reads
 like something a person would send to a friend.
+
+**Filter state belongs in the URL, not in `useState`.** `useMatchFilters` reads and writes it
+through `useSearchParams`, which works inside the fragment exactly as it does on a path. That is
+what makes a filtered view linkable, reloadable and reachable with the back button.
 
 Route-level lazy loading arrives in Sprint 8, through the router's own `lazy` option, so each screen
 becomes its own chunk.

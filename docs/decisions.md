@@ -5,6 +5,34 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-019 — Routes live in the fragment
+
+**Status:** accepted
+**Extends:** D-018
+
+`createHashRouter` rather than `createBrowserRouter`. URLs read `/#/matches?status=completed`.
+
+**A path router needs the host to cooperate.** Every unknown path has to be rewritten to
+`index.html`, or reloading `/matches` is a 404 from the server before the app ever loads. That
+rewrite is a different setting on every host — a `_redirects` file, a `try_files` directive, a
+rewrite rule — and it is easy to deploy without. When it is missing, what breaks is reload, shared
+links and the back button, which are precisely the three things D-018 put filter state in the URL
+to preserve. The fragment is never sent to the server, so none of it can go wrong.
+
+**Search params still work.** They live inside the fragment and `useSearchParams` reads them
+unchanged; a deep link with two filters was verified restoring both.
+
+**Cost, and it is a real one: crawlers.** Search engines index the path, not the fragment, so every
+route collapses to one indexable URL. For a public scores site that is a genuine loss, and it is
+the reason this would be worth revisiting. Reopen if organic search becomes a goal, or when the
+deployment target is known to rewrite reliably — the change is one function name and nothing else,
+because no code reads `window.location` or builds a path by hand.
+
+Nothing else was affected: links are `<Link to="/matches">` and react-router adds the `#` itself,
+and the API base URL is unrelated to how the app routes.
+
+---
+
 ## D-018 — One filter, applied twice, and dates cross the wire as instants
 
 **Status:** accepted

@@ -117,14 +117,21 @@ public sealed class ArchivingCricketDataProviderTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<MatchDto>> GetFinishedAsync(int skip, int take, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<MatchDto>> GetFinishedAsync(
+            MatchFilter filter,
+            int skip,
+            int take,
+            CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<MatchDto>>([]);
 
         public Task<MatchDetailsDto?> GetAsync(string matchId, CancellationToken cancellationToken)
             => Task.FromResult(Held?.Id == matchId ? Held : null);
 
-        public Task<int> CountFinishedAsync(CancellationToken cancellationToken)
+        public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
             => Task.FromResult(0);
+
+        public Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<string>>([]);
     }
 
     private sealed class ThrowingArchive : IMatchArchive
@@ -135,13 +142,20 @@ public sealed class ArchivingCricketDataProviderTests
             throw new InvalidOperationException("The archive is unavailable");
         }
 
-        public Task<IReadOnlyList<MatchDto>> GetFinishedAsync(int skip, int take, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<MatchDto>> GetFinishedAsync(
+            MatchFilter filter,
+            int skip,
+            int take,
+            CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<MatchDto>>([]);
 
         public Task<MatchDetailsDto?> GetAsync(string matchId, CancellationToken cancellationToken)
             => Task.FromResult<MatchDetailsDto?>(null);
 
-        public Task<int> CountFinishedAsync(CancellationToken cancellationToken)
+        public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
             => Task.FromResult(0);
+
+        public Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<string>>([]);
     }
 }

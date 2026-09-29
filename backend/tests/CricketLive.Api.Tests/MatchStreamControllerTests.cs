@@ -223,16 +223,24 @@ public sealed class MatchStreamControllerTests
 
     private sealed class StubMatchService(MatchDetailsDto? match) : IMatchService
     {
-        public Task<IReadOnlyList<MatchDto>> GetLiveAsync(CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<MatchDto>> GetLiveAsync(
+            MatchFilter filter,
+            CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MatchDto>>([]);
 
-        public Task<IReadOnlyList<MatchDto>> GetUpcomingAsync(CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<MatchDto>> GetUpcomingAsync(
+            MatchFilter filter,
+            CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MatchDto>>([]);
 
         public Task<(IReadOnlyList<MatchDto> Matches, int Total)> GetResultsAsync(
+            MatchFilter filter,
             PageRequest page,
             CancellationToken cancellationToken) =>
             Task.FromResult<(IReadOnlyList<MatchDto>, int)>(([], 0));
+
+        public Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
 
         public Task<MatchDetailsDto?> GetByIdAsync(string matchId, CancellationToken cancellationToken) =>
             Task.FromResult(match);

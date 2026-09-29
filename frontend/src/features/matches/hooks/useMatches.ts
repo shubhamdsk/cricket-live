@@ -4,9 +4,11 @@ import {
   getLiveMatches,
   getMatchDetails,
   getRecentMatches,
+  getSeriesNames,
   getUpcomingMatches,
 } from '@/features/matches/api/matchesApi'
 import type { MatchDetails } from '@/features/matches/types'
+import type { MatchFilterParams } from '@/services/endpoints'
 
 /**
  * Refetch intervals are set against what the data can actually do, not against how live the page
@@ -16,18 +18,24 @@ import type { MatchDetails } from '@/features/matches/types'
  */
 const MINUTE = 60_000
 
+/**
+ * The filter is part of every list key. Leaving it out would let a filtered list be served from
+ * the cache of an unfiltered one, which looks like the filter silently failing.
+ */
 export const matchKeys = {
   all: ['matches'] as const,
-  live: () => [...matchKeys.all, 'live'] as const,
-  upcoming: () => [...matchKeys.all, 'upcoming'] as const,
-  recent: (pageSize: number) => [...matchKeys.all, 'recent', pageSize] as const,
+  live: (filter: MatchFilterParams) => [...matchKeys.all, 'live', filter] as const,
+  upcoming: (filter: MatchFilterParams) => [...matchKeys.all, 'upcoming', filter] as const,
+  recent: (pageSize: number, filter: MatchFilterParams) =>
+    [...matchKeys.all, 'recent', pageSize, filter] as const,
+  series: () => [...matchKeys.all, 'series'] as const,
   details: (slug: string) => [...matchKeys.all, 'details', slug] as const,
 }
 
-export function useLiveMatches() {
+export function useLiveMatches(filter: MatchFilterParams = {}) {
   return useQuery({
-    queryKey: matchKeys.live(),
-    queryFn: ({ signal }) => getLiveMatches(signal),
+    queryKey: matchKeys.live(filter),
+    queryFn: ({ signal }) => getLiveMatches(filter, signal),
     staleTime: MINUTE,
     refetchInterval: MINUTE,
     // Coming back to the tab is the moment a stale score is most obvious.
@@ -35,12 +43,26 @@ export function useLiveMatches() {
   })
 }
 
-export function useUpcomingMatches() {
+export function useUpcomingMatches(filter: MatchFilterParams = {}) {
   return useQuery({
-    queryKey: matchKeys.upcoming(),
-    queryFn: ({ signal }) => getUpcomingMatches(signal),
+    queryKey: matchKeys.upcoming(filter),
+    queryFn: ({ signal }) => getUpcomingMatches(filter, signal),
     // A fixture list changes when a match starts, not minute to minute.
     staleTime: 5 * MINUTE,
+  })
+}
+
+/**
+ * The series a reader can filter by.
+ *
+ * Long stale time because which tournaments exist changes over days, while their scores change
+ * over minutes — and this is read on every visit to the matches page.
+ */
+export function useSeriesNames() {
+  return useQuery({
+    queryKey: matchKeys.series(),
+    queryFn: ({ signal }) => getSeriesNames(signal),
+    staleTime: 30 * MINUTE,
   })
 }
 
@@ -52,10 +74,10 @@ export function useUpcomingMatches() {
  * list is naturally short. Infinite rather than numbered pages because nobody navigates results by
  * page number — they scroll until they find the match they remember.
  */
-export function useRecentMatches(pageSize = 12) {
+export function useRecentMatches(pageSize = 12, filter: MatchFilterParams = {}) {
   return useInfiniteQuery({
-    queryKey: matchKeys.recent(pageSize),
-    queryFn: ({ pageParam, signal }) => getRecentMatches(pageParam, pageSize, signal),
+    queryKey: matchKeys.recent(pageSize, filter),
+    queryFn: ({ pageParam, signal }) => getRecentMatches(pageParam, pageSize, filter, signal),
     initialPageParam: 1,
     // hasMore comes from the API, which knows the total; guessing from a short page would stop
     // early the moment an unreadable row is dropped from one.

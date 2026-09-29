@@ -67,11 +67,12 @@ internal sealed class SqlMatchArchive(
     }
 
     public async Task<IReadOnlyList<MatchDto>> GetFinishedAsync(
+        MatchFilter filter,
         int skip,
         int take,
         CancellationToken cancellationToken)
     {
-        var payloads = await database.ArchivedMatches
+        var payloads = await Apply(filter)
             .OrderByDescending(archived => archived.StartTimeUtc)
             .Skip(skip)
             .Take(take)
@@ -91,8 +92,63 @@ internal sealed class SqlMatchArchive(
         return payload is null ? null : Deserialize(payload);
     }
 
-    public Task<int> CountFinishedAsync(CancellationToken cancellationToken)
-        => database.ArchivedMatches.CountAsync(cancellationToken);
+    public Task<int> CountFinishedAsync(MatchFilter filter, CancellationToken cancellationToken)
+        => Apply(filter).CountAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
+        => await database.ArchivedMatches
+            .Select(archived => archived.SeriesName)
+            .Distinct()
+            .OrderBy(name => name)
+            .ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// Narrows the query before it runs, so a filtered page is a full page.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every clause here is on an indexed column. <see cref="MatchFilter.Status"/> is deliberately
+    /// not one of them: the archive only ever holds completed matches, so status is either
+    /// satisfied by every row or by none, and expressing that as a column would be storing the
+    /// same value a few thousand times.
+    /// </para>
+    /// <para>
+    /// Series is plain equality. Case-insensitivity comes from the column's collation rather than
+    /// from the comparison, which is what lets it stay index-backed and match what
+    /// <see cref="MatchFilter.Matches"/> does in memory. <c>LIKE</c> would have been the obvious
+    /// alternative and is the wrong tool twice over: a series name containing <c>%</c> would
+    /// become a wildcard, and its case sensitivity differs between SQLite and PostgreSQL.
+    /// </para>
+    /// </remarks>
+    private IQueryable<ArchivedMatch> Apply(MatchFilter filter)
+    {
+        var query = database.ArchivedMatches.AsQueryable();
+
+        if (filter.Status is { } status && status != MatchStatus.Completed)
+        {
+            // Asking the archive for live matches is a coherent question with an empty answer,
+            // not a mistake. Answering it honestly beats ignoring the clause.
+            return query.Where(_ => false);
+        }
+
+        if (filter.FromUtc is { } from)
+        {
+            query = query.Where(archived => archived.StartTimeUtc >= from.UtcDateTime);
+        }
+
+        if (filter.ToUtc is { } to)
+        {
+            query = query.Where(archived => archived.StartTimeUtc < to.UtcDateTime);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.SeriesName))
+        {
+            var series = filter.SeriesName;
+            query = query.Where(archived => archived.SeriesName == series);
+        }
+
+        return query;
+    }
 
     private MatchDetailsDto? Deserialize(string payload)
     {

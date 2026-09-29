@@ -12,12 +12,14 @@
 const root = '/api'
 const matches = `${root}/matches`
 
+type QueryValue = string | number | undefined
+
 /** Drops parameters that are not set, so an absent one produces no key rather than `=undefined`. */
-function withQuery(path: string, params: Record<string, string | number | undefined>): string {
+function withQuery(path: string, params: Record<string, QueryValue>): string {
   const query = new URLSearchParams()
 
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
+    if (value !== undefined && value !== '') {
       query.set(key, String(value))
     }
   }
@@ -26,14 +28,32 @@ function withQuery(path: string, params: Record<string, string | number | undefi
   return search ? `${path}?${search}` : path
 }
 
+/**
+ * The filter, as the API spells it.
+ *
+ * `from` and `to` are ISO instants rather than dates. A calendar day is a different interval in
+ * every timezone and the server cannot know which one the reader meant, so converting a local day
+ * into a range is this side's job.
+ */
+export interface MatchFilterParams {
+  status?: 'live' | 'upcoming' | 'completed'
+  from?: string
+  to?: string
+  series?: string
+}
+
 export const endpoints = {
   matches: {
-    live: () => `${matches}/live`,
-    upcoming: () => `${matches}/upcoming`,
+    live: (filter: MatchFilterParams = {}) => withQuery(`${matches}/live`, { ...filter }),
+    upcoming: (filter: MatchFilterParams = {}) =>
+      withQuery(`${matches}/upcoming`, { ...filter }),
 
     /** Paged, because results accumulate rather than fitting in the provider's window. */
-    recent: (page: number, pageSize: number) =>
-      withQuery(`${matches}/recent`, { page, pageSize }),
+    recent: (page: number, pageSize: number, filter: MatchFilterParams = {}) =>
+      withQuery(`${matches}/recent`, { ...filter, page, pageSize }),
+
+    /** The series that have a match behind them. Never a fixed list. */
+    series: () => `${matches}/series`,
 
     /** `idOrSlug` accepts either; the API resolves both. */
     details: (idOrSlug: string) => `${matches}/${encodeURIComponent(idOrSlug)}`,

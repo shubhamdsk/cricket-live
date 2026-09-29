@@ -5,6 +5,90 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-019 — Routes live in the fragment
+
+**Status:** accepted
+**Extends:** D-018
+
+`createHashRouter` rather than `createBrowserRouter`. URLs read `/#/matches?status=completed`.
+
+**A path router needs the host to cooperate.** Every unknown path has to be rewritten to
+`index.html`, or reloading `/matches` is a 404 from the server before the app ever loads. That
+rewrite is a different setting on every host — a `_redirects` file, a `try_files` directive, a
+rewrite rule — and it is easy to deploy without. When it is missing, what breaks is reload, shared
+links and the back button, which are precisely the three things D-018 put filter state in the URL
+to preserve. The fragment is never sent to the server, so none of it can go wrong.
+
+**Search params still work.** They live inside the fragment and `useSearchParams` reads them
+unchanged; a deep link with two filters was verified restoring both.
+
+**Cost, and it is a real one: crawlers.** Search engines index the path, not the fragment, so every
+route collapses to one indexable URL. For a public scores site that is a genuine loss, and it is
+the reason this would be worth revisiting. Reopen if organic search becomes a goal, or when the
+deployment target is known to rewrite reliably — the change is one function name and nothing else,
+because no code reads `window.location` or builds a path by hand.
+
+Nothing else was affected: links are `<Link to="/matches">` and react-router adds the `#` itself,
+and the API base URL is unrelated to how the app routes.
+
+---
+
+## D-018 — One filter, applied twice, and dates cross the wire as instants
+
+**Status:** accepted
+**Extends:** D-017
+
+Matches live in two places now — the provider's window in memory and the archive on disk — and
+filtering has to mean the same thing in both.
+
+**The filter is described once and applied twice.** `MatchFilter` carries the four conditions and
+owns the in-memory predicate; `SqlMatchArchive` translates the same conditions into a `WHERE`. Two
+implementations were unavoidable, because filtering the archive after reading a page gives a page
+with holes in it — ask for twenty, discard nine, serve eleven, and the count no longer agrees with
+what came back. What was avoidable is two *descriptions*, which is how a LINQ predicate and a SQL
+clause end up quietly disagreeing about case sensitivity. The tests for the two halves cover the
+same cases deliberately.
+
+**Dates cross the wire as instants, not as a date.** A calendar day is a different interval in
+every timezone: the same match starts on the 27th in London and the 28th in Sydney. A server given
+`date=2026-09-27` has to guess whose 27th that is, and any guess is wrong for most readers. The API
+therefore takes `from` and `to` as instants and the browser — the only participant that knows the
+reader's timezone — converts its local day into them. The range is half-open so consecutive days
+abut without overlapping or leaving a gap, and a match starting exactly at midnight belongs to the
+later day only.
+
+**Series is matched whole, not as a substring.** `tour of India` would pull in every touring series
+at once, which is a filter quietly becoming a search and returning more than was asked for.
+
+**Case-insensitivity comes from the column's collation, not from the comparison.** `NOCASE` on
+`SeriesName` keeps the match index-backed while agreeing with `OrdinalIgnoreCase` in memory.
+`LIKE` was the obvious alternative and is the wrong tool twice over: a series named `100% Cricket
+League` would become a wildcard matching everything, and `LIKE` is case-insensitive in SQLite but
+case-sensitive in PostgreSQL. This is the one provider-specific line in the model, and it is in the
+model precisely so the PostgreSQL swap has one place to look.
+
+**The series list is read from the rows, never held as a list**, and drawn from both sources since
+neither is a superset of the other. The filter can then only offer selections with something behind
+them.
+
+**Contradictions are answered, not rejected.** Asking the archive for live matches, or `/upcoming`
+for live ones, returns empty — a coherent question with an empty answer. The second case returns
+empty *without calling the provider*, which matters because provider calls are the budgeted
+resource and a client sending one filter to all three lists should not spend calls on the two it
+excluded. An inverted date range is different and returns **400**: it selects nothing, and serving
+an empty list for it would look like an answer.
+
+**Filter state lives in the URL.** A filtered view is then linkable, reloadable and reachable with
+the back button. Component state would break all three silently. Changes `replace` rather than
+`push`, so adjusting a dropdown does not bury the previous page under a dozen history entries.
+
+**Cost:** four new query parameters on three endpoints, one new endpoint, and a migration for the
+collation. A filter naming a series that has since aged out of both sources shows an empty list;
+the filter bar keeps the name visible as an option so the reader can see what they are filtered to
+rather than facing a blank dropdown above nothing.
+
+---
+
 ## D-017 — Results are kept in a SQLite file, and only from today forward
 
 **Status:** accepted

@@ -73,11 +73,41 @@ endpoint answers only "the process is up and serving".
 
 ## Matches
 
+### Filtering
+
+All three list endpoints accept the same four parameters. None are required, and omitting them all
+means "everything".
+
+| Parameter | Notes |
+| --- | --- |
+| `status` | `live`, `upcoming` or `completed`. Redundant on `/live` and `/upcoming`, accepted there so one filter can be sent to all three. |
+| `from` | Inclusive lower bound on start time, as an ISO instant. |
+| `to` | Exclusive upper bound, so consecutive days abut without overlapping. |
+| `series` | An exact name from `GET /api/matches/series`. Matched whole and case-insensitively. |
+
+**`from` and `to` are instants, not dates**, and this is deliberate. A calendar day is a different
+interval in every timezone — the same match starts on the 27th in London and the 28th in Sydney —
+and the server has no way to know which one the caller meant. Converting a local day into a range
+is therefore the client's job:
+
+```text
+GET /api/matches/recent?from=2026-09-27T00:00:00%2B05:30&to=2026-09-28T00:00:00%2B05:30
+```
+
+**`series` is a filter, not a search.** `tour of India` matches nothing; the whole name must be
+given. A substring would silently widen the result to every touring series at once.
+
+A range where `from` is not earlier than `to` returns **400**. It selects nothing, and serving an
+empty list for it would look like an answer rather than a mistake.
+
 ### `GET /api/matches/live` · `GET /api/matches/upcoming`
 
-Two lists, no parameters, each returning `data` as an array of matches. They are partitions of a
+Two lists, each returning `data` as an array of matches. They are partitions of a
 single upstream response, so asking for both costs one provider call rather than two — see
 [D-012](./decisions.md).
+
+A `status` that contradicts the endpoint — `/upcoming?status=live` — returns an empty array
+**without calling the provider**, which matters because provider calls are the budgeted resource.
 
 **Either can legitimately return an empty array.** The provider's current-matches window held
 ten matches one day and one the next, and no live matches at all across two days of the Sprint 3
@@ -150,10 +180,27 @@ the two lists above return.
 }
 ```
 
-`total` is what the archive currently holds, and it grows as matches finish. **It is not the number
-of matches ever played.** The archive accumulates forward from the day it was switched on, so an
-early `total` being small is expected rather than a sign of missing data. Page through with
-`hasMore` rather than by comparing counts.
+`total` is what the archive currently holds **that matches the filter**, so it shrinks as a filter
+narrows and grows as matches finish. **It is not the number of matches ever played.** The archive
+accumulates forward from the day it was switched on, so an early `total` being small is expected
+rather than a sign of missing data. Page through with `hasMore` rather than by comparing counts.
+
+Filtering happens in the database rather than over the returned page, so a filtered page is a full
+page and `total` agrees with what came back.
+
+### `GET /api/matches/series`
+
+Every series that currently has a match behind it, sorted, as `data`:
+
+```json
+{ "success": true, "data": ["West Indies tour of India, 2026"], "message": "Success" }
+```
+
+Read from the matches themselves rather than kept as a list, and drawn from **both** the provider's
+window and the archive, because neither is a superset of the other: the archive has not heard of a
+tournament that started this morning, and the window has forgotten one that ended last week. A
+fixed list would go stale the first time a tournament ended, and would offer selections returning
+nothing.
 
 ### `GET /api/matches/{matchId}`
 

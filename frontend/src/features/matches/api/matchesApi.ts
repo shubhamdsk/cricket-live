@@ -1,5 +1,6 @@
 import type { Match, MatchDetails, Paged } from '@/features/matches/types'
 import { apiGet, apiUrl } from '@/services/apiClient'
+import type { MatchFilterParams } from '@/services/endpoints'
 import { endpoints } from '@/services/endpoints'
 
 /**
@@ -10,20 +11,32 @@ import { endpoints } from '@/services/endpoints'
  * window, so the list has no natural end and is the one list that is paged.
  */
 
-export function getLiveMatches(signal?: AbortSignal): Promise<Match[]> {
-  return apiGet<Match[]>(endpoints.matches.live(), signal)
+export function getLiveMatches(
+  filter: MatchFilterParams = {},
+  signal?: AbortSignal,
+): Promise<Match[]> {
+  return apiGet<Match[]>(endpoints.matches.live(filter), signal)
 }
 
-export function getUpcomingMatches(signal?: AbortSignal): Promise<Match[]> {
-  return apiGet<Match[]>(endpoints.matches.upcoming(), signal)
+export function getUpcomingMatches(
+  filter: MatchFilterParams = {},
+  signal?: AbortSignal,
+): Promise<Match[]> {
+  return apiGet<Match[]>(endpoints.matches.upcoming(filter), signal)
 }
 
 export function getRecentMatches(
   page: number,
   pageSize: number,
+  filter: MatchFilterParams = {},
   signal?: AbortSignal,
 ): Promise<Paged<Match>> {
-  return apiGet<Paged<Match>>(endpoints.matches.recent(page, pageSize), signal)
+  return apiGet<Paged<Match>>(endpoints.matches.recent(page, pageSize, filter), signal)
+}
+
+/** The series that can be filtered to, read from the matches that exist. */
+export function getSeriesNames(signal?: AbortSignal): Promise<string[]> {
+  return apiGet<string[]>(endpoints.matches.series(), signal)
 }
 
 /** Accepts the readable slug or the bare match id; the API resolves either. */

@@ -3,6 +3,7 @@ using System;
 using CricketLive.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CricketLive.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CricketLiveDbContext))]
-    partial class CricketLiveDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929122335_SeriesNameCaseInsensitive")]
+    partial class SeriesNameCaseInsensitive
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.12");

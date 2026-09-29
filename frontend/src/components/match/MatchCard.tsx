@@ -14,7 +14,7 @@ export function MatchCard({ match }: { match: Match }) {
     <Link
       to={`/match/${match.slug}`}
       className={cn(
-        'flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card transition-colors hover:border-brand-line hover:bg-brand-soft',
+        'flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card transition duration-200 ease-out hover:-translate-y-0.5 hover:border-brand-line hover:bg-brand-soft hover:shadow-lift active:translate-y-0',
         focusRing,
       )}
     >

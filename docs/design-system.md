@@ -54,9 +54,45 @@ Every colour that carries text clears 4.5:1 on `pitch`, which is why `brand` fil
   else: these numbers change while someone is looking at them.
 - **Radius:** `card` (0.75rem) for cards, inputs, and badges' containers; `panel` (1rem) for the
   featured match; full rounding for pills and buttons.
-- **Shadow:** `card` for resting surfaces. No heavy or coloured shadows.
-- **Motion:** roughly 200ms, and it communicates state — a live pulse, a skeleton, a hover. It never
-  decorates, and all motion respects `prefers-reduced-motion`.
+- **Shadow:** `card` for resting surfaces, `lift` only while an interactive surface is hovered. No
+  heavy or coloured shadows, and nothing rests at `lift` — it exists to answer "is this clickable".
+- **Motion:** 150–360ms, and it communicates state — a live pulse, a skeleton, a hover, content
+  arriving. It never decorates, and all motion respects `prefers-reduced-motion`.
+
+#### The motion vocabulary
+
+Four things move, and nothing else does:
+
+| Token | Where | Why |
+| --- | --- | --- |
+| `animate-rise` | route content, each match card in a list | content arriving from below, settling |
+| `animate-drop` | the mobile nav | it hangs off the header, so it comes from above |
+| `hover:-translate-y-0.5` + `shadow-lift` | match cards, featured match | the surface responds before it is clicked |
+| `active:scale-[0.98]` | buttons | a press should feel pressed |
+
+One easing, `--ease-settle`, is shared by all of it. It decelerates hard, which reads as settling
+into place rather than sliding, and using a single curve is most of what stops a set of animations
+from feeling like they came from different applications.
+
+Entrance animations use `animation-fill-mode: both`. That is what lets the global
+`prefers-reduced-motion` rule collapse the duration to nothing and land on the final frame, rather
+than skipping the element and leaving it invisible.
+
+Lists stagger at 40ms per card, capped at the eighth. The cap is the part that matters: a busy day
+returns dozens of matches, and an uncapped stagger would leave the last card waiting seconds while
+the page still looked half-loaded.
+
+#### Scrollbars are hidden, scrolling is not
+
+`scrollbar-width: none` and `::-webkit-scrollbar { display: none }` are applied to every element,
+not just the document, so a scroll container added later does not reintroduce one. Wheel, trackpad,
+touch, keyboard, and anchor navigation are all untouched.
+
+Two consequences worth knowing. The page no longer shifts sideways by the scrollbar's width when
+moving between a short route and a long one, because the bar never reserves space. And the visual
+cue that content continues below is gone, so **a screen that scrolls must not depend on the
+scrollbar to say so** — the content itself has to run visibly past the fold rather than ending on a
+clean boundary that looks like the end.
 
 ### Spacing
 

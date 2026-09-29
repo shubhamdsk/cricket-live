@@ -24,12 +24,13 @@ namespace CricketLive.Infrastructure.Cricbuzz;
 /// </remarks>
 internal sealed partial class CricbuzzEnrichmentProvider(
     HttpClient client,
+    CricbuzzMatchDirectory directory,
     IMemoryCache cache,
     IOptions<CricbuzzOptions> options,
     ILogger<CricbuzzEnrichmentProvider> logger) : IMatchEnrichmentProvider
 {
     public async Task<IReadOnlyList<BatterDto>> GetCurrentBattersAsync(
-        string matchId,
+        MatchIdentity match,
         CancellationToken cancellationToken)
     {
         if (!options.Value.Enabled)
@@ -37,8 +38,11 @@ internal sealed partial class CricbuzzEnrichmentProvider(
             return [];
         }
 
-        // An unlisted match is the normal case, not a failure. Most matches will never be mapped.
-        if (!options.Value.MatchIds.TryGetValue(matchId, out var sourceMatchId))
+        var sourceMatchId = await ResolveAsync(match, cancellationToken);
+
+        // Not knowing which Cricbuzz match this is, is the normal case rather than a failure. The
+        // two providers cover overlapping but different sets of cricket.
+        if (sourceMatchId is null)
         {
             return [];
         }
@@ -48,8 +52,8 @@ internal sealed partial class CricbuzzEnrichmentProvider(
             // The id is interpolated into a URL, so this is the boundary that keeps a typo in
             // configuration from steering the request somewhere other than a scorecard.
             logger.LogWarning(
-                "Cricbuzz match id configured for {MatchId} is not a plain number; ignoring it",
-                matchId);
+                "Cricbuzz match id for {MatchId} is not a plain number; ignoring it",
+                match.MatchId);
 
             return [];
         }
@@ -66,6 +70,25 @@ internal sealed partial class CricbuzzEnrichmentProvider(
         // both need to stop the next viewer causing another request.
         cache.Set(cacheKey, batters, TimeSpan.FromSeconds(options.Value.CacheSeconds));
         return batters;
+    }
+
+    /// <summary>
+    /// The hand-written pair if there is one, otherwise whatever the listing can prove.
+    /// </summary>
+    /// <remarks>
+    /// Configuration wins, because it is the override an operator reaches for precisely when
+    /// automatic resolution has let them down.
+    /// </remarks>
+    private async Task<string?> ResolveAsync(MatchIdentity match, CancellationToken cancellationToken)
+    {
+        if (options.Value.MatchIds.TryGetValue(match.MatchId, out var configured))
+        {
+            return configured;
+        }
+
+        return options.Value.AutoResolve
+            ? await directory.ResolveAsync(match, cancellationToken)
+            : null;
     }
 
     private async Task<IReadOnlyList<BatterDto>> ReadBattersAsync(

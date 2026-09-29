@@ -20,12 +20,12 @@ public interface IMatchEnrichmentProvider
     /// cannot act differently on the two, and inventing a distinction the source does not reliably
     /// signal would be inventing information.
     /// </remarks>
-    /// <param name="matchId">
-    /// Our match id. Whether a second source knows this match, and by what identifier, is entirely
-    /// the implementation's problem — nothing above Infrastructure should learn another provider's
-    /// numbering scheme.
+    /// <param name="match">
+    /// Enough to recognise the fixture. Whether a second source knows this match, and by what
+    /// identifier, is entirely the implementation's problem — nothing above Infrastructure should
+    /// learn another provider's numbering scheme.
     /// </param>
     Task<IReadOnlyList<BatterDto>> GetCurrentBattersAsync(
-        string matchId,
+        MatchIdentity match,
         CancellationToken cancellationToken);
 }

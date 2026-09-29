@@ -37,7 +37,7 @@ When a requirement is genuinely uncertain, prefer the reversible choice.
 | Database | PostgreSQL with EF Core |
 | Cache and live state | Redis |
 | Live updates | Server-Sent Events |
-| Cricket data | SportScore, behind our own provider interface |
+| Cricket data | CricketData (CricAPI), behind our own provider interface |
 
 Additions not on this list require a recorded decision in [decisions.md](./decisions.md).
 
@@ -48,8 +48,8 @@ Additions not on this list require a recorded decision in [decisions.md](./decis
 Every rule in this document bends around one fact: the cricket data comes from someone else, on
 their schedule, in their shape, under their rate limit.
 
-- **React never calls SportScore.** The path is React → our API → SportScore, always.
-- **Provider-specific code stays in `Infrastructure/SportScore`.** Nothing above it knows the
+- **React never calls the provider.** The path is React → our API → the provider, always.
+- **Provider-specific code stays in `Infrastructure/CricketData`.** Nothing above it knows the
   provider's name.
 - **Provider response models are never exposed.** They are mapped to our own DTOs, and only our DTOs
   cross the wire to React.

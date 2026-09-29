@@ -9,7 +9,7 @@ what it does when something breaks. The code-level view of what exists today is 
 ## 1. System context
 
 ```text
-        SportScore                      Browser
+       CricketData                      Browser
       cricket provider                (phone first)
              │                              │
              │ HTTPS, metered               │ HTTPS
@@ -76,7 +76,7 @@ provider, and that seam is `ICricketDataProvider` ([D-002](./decisions.md)).
 
 | Component | Owns |
 | --- | --- |
-| Provider client | Talking to SportScore, mapping its shapes to ours |
+| Provider client | Talking to CricketData, mapping its shapes to ours |
 | Background service | Polling live matches, detecting change, writing Redis |
 | REST API | Reads, served from Redis or PostgreSQL where possible |
 | SSE endpoint | Pushing changes to connected clients |

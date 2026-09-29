@@ -4,3 +4,35 @@ GET {{CricketLive.Api_HostAddress}}/api/health
 Accept: application/json
 
 ###
+
+# The three lists are partitions of one upstream response, so calling all three
+# costs a single provider call while the cache is warm.
+
+GET {{CricketLive.Api_HostAddress}}/api/matches/live
+Accept: application/json
+
+###
+
+GET {{CricketLive.Api_HostAddress}}/api/matches/upcoming
+Accept: application/json
+
+###
+
+GET {{CricketLive.Api_HostAddress}}/api/matches/recent
+Accept: application/json
+
+###
+
+# Accepts the bare provider id or the full slug. Take one from a list above.
+
+GET {{CricketLive.Api_HostAddress}}/api/matches/india-vs-west-indies-90ae280c-cb10-4d58-9bcc-ec95294819e6
+Accept: application/json
+
+###
+
+# Not a GUID, so this is refused without spending a provider call. Expect 404.
+
+GET {{CricketLive.Api_HostAddress}}/api/matches/not-a-real-match
+Accept: application/json
+
+###

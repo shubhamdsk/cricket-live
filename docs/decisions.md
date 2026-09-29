@@ -5,6 +5,45 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-012 — CricketData replaces SportScore as the cricket provider
+
+**Status:** accepted
+**Supersedes the provider named in:** D-002, `project-plan.md`
+
+`project-plan.md` names SportScore. The Sprint 3 spike measured it and four alternatives against
+real responses, and SportScore turned out to be unusable for cricket.
+
+What was measured, not read off a landing page:
+
+| Provider | Free tier | One call returns all live scores | Innings with overs | Verdict |
+| --- | --- | --- | --- | --- |
+| **CricketData / CricAPI** | 100/day, permanent | yes | yes | **chosen** |
+| SportScore | keyless, ~10k/day | yes | no — one string, `"54/7"` | rejected |
+| Cricwix | 7-day trial, 100/day | — | — | rejected |
+| Big Balls Data | 250/day (500 with GitHub) | no — one call per match | yes | rejected |
+| Roanuz | limited trial | — | — | rejected |
+
+SportScore returns `incidents: []`, `stats: []` and `lineups: null` on every live cricket match, has
+no venue, no format and no over count, and reports a Test match's score as `"-"`. Its `status_text`
+— the field our design treats as the provider's authoritative sentence — returns values such as
+`"Abnormal"` and `"Cut in half"`. Cricwix advertises 1,000 calls a day with "no trial clock" and
+delivers a seven-day trial at 100. Big Balls Data has excellent scorecards but serves live state one
+match at a time, so a five-match evening exhausts its allowance before lunch.
+
+CricketData wins on one structural property rather than generosity: `/currentMatches` returns every
+match in the window with per-innings runs, wickets and overs **in a single call**. Our cost per
+refresh is therefore flat no matter how much cricket is being played, which is the only reason a
+hundred calls a day is survivable. `/api/matches/live`, `/upcoming` and `/recent` are partitions of
+that one response, not three upstream requests.
+
+**Cost:** a hundred calls a day caps refresh at roughly five minutes, which Sprint 5 must design
+around rather than against. The provider states its free data is "always a few minutes behind
+real-time" regardless of plan, so paying would raise volume without improving freshness. Ball-by-ball
+is gated behind a `bbbEnabled` flag that was `false` on every match observed, so Sprint 6's scorecard
+and commentary scope is not yet supported by any evidence.
+
+---
+
 ## D-011 — The reference documentation was adapted, not adopted
 
 **Status:** accepted
@@ -39,7 +78,7 @@ have to be kept honest sprint by sprint rather than written once.
 **Status:** accepted
 
 The backend test project and its CI gate remain and must keep passing. No new tests are added until
-Sprint 8, with one exception: the SportScore mappers in Sprint 3.
+Sprint 8, with one exception: the provider mappers in Sprint 3.
 
 Sprint time in the early sprints buys more from working software than from coverage of code that is
 still moving. The mappers are the exception because they are pure functions over a shape we do not
@@ -68,9 +107,10 @@ It also inverts a risk usefully: `features/matches/types.ts` becomes the contrac
 meet, written from what the screens actually need rather than from whatever shape the provider
 happens to return.
 
-**Cost:** the types were written before anyone had seen a SportScore response, so Sprint 3 will
-have to reconcile them — and where the provider cannot fill a field, the screen that assumed it has
-to change.
+**Cost:** the types were written before anyone had seen a provider response, so Sprint 3 had to
+reconcile them — and where the provider cannot fill a field, the screen that assumed it has to
+change. In the event they held up well: runs, wickets, overs, venue, format and team short names
+all exist. Toss, summary, current batters and current bowler do not, and those sections come out.
 
 ---
 
@@ -183,12 +223,14 @@ data every time a new one appears.
 
 **Status:** accepted
 
-`ICricketDataProvider` lives in `Application`. `SportScoreProvider` and every SportScore response
-model live in `Infrastructure/SportScore`, and those models are internal to that project.
+`ICricketDataProvider` lives in `Application`. The implementation and every provider response model
+live in `Infrastructure/<Provider>`, and those models are `internal` to that project — the API
+cannot reference them even by accident.
 
-SportScore's free tier, coverage, and commercial terms can all change, and a provider swap is
-therefore a question of when rather than if. Behind the interface it is a new implementation and a
-registration change; without it, it would reach the controllers and then the frontend.
+A provider's free tier, coverage, and commercial terms can all change, so a swap is a question of
+when rather than if. Behind the interface it is a new implementation and a registration change;
+without it, it would reach the controllers and then the frontend. D-012 is that swap happening
+before the first line of provider code was written, which is the cheapest moment it could have.
 
 The mappers are where the provider's quirks are absorbed, which is also why they are the one thing
 we test before Sprint 8 (D-010).

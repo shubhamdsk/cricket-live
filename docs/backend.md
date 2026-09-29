@@ -21,9 +21,10 @@ backend/
 │   ├── CricketLive.Api              controllers, middleware, DI wiring, SSE endpoints
 │   ├── CricketLive.Application      use cases, DTOs, abstractions (ICricketDataProvider…)
 │   ├── CricketLive.Domain           entities and invariants
-│   └── CricketLive.Infrastructure   SportScore client, Redis, EF Core, background services
+│   └── CricketLive.Infrastructure   CricketData client, Redis, EF Core, background services
 └── tests/
-    └── CricketLive.Api.Tests
+    ├── CricketLive.Api.Tests
+    └── CricketLive.Infrastructure.Tests
 ```
 
 One API, not a set of services. The product is a read-heavy funnel in front of one external
@@ -39,7 +40,7 @@ decision.
 | --- | --- | --- |
 | Domain | entities, value objects, invariants | nothing |
 | Application | use cases, DTOs, abstractions (`ICricketDataProvider`, caches, clock) | Domain |
-| Infrastructure | SportScore client and mappers, Redis, EF Core, background services | Application, Domain |
+| Infrastructure | provider client and mappers, Redis, EF Core, background services | Application, Domain |
 | Api | controllers, middleware, DI wiring | all of the above |
 
 Dependencies point inward. The Application layer states what it needs as an interface and
@@ -61,14 +62,14 @@ Rules:
 This is the rule the codebase exists to protect.
 
 ```text
-SportScore response  →  SportScoreProvider  →  Mapper  →  Application DTO  →  React
+CricketData response  →  CricketDataProvider  →  Mapper  →  Application DTO  →  React
 ```
 
 - `ICricketDataProvider` lives in `Application`. It is the only way anything above Infrastructure
   asks for cricket data.
-- `SportScoreProvider` and every SportScore response model live in
-  `Infrastructure/SportScore`, and those models are `internal`. If a SportScore type can be named
-  from `Application` or `Api`, the boundary has already leaked.
+- `CricketDataProvider` and every provider response model live in `Infrastructure/CricketData`, and
+  those models are `internal`. If a provider type can be named from `Application` or `Api`, the
+  boundary has already leaked. `InternalsVisibleTo` opens them to the test project and nothing else.
 - Mapping is explicit and tested. Mappers are pure functions over captured provider fixtures, which
   is why they are the one place we write tests before Sprint 8.
 - A second provider is added by implementing the interface, not by touching a controller or the
@@ -105,7 +106,7 @@ the provider's.
 | Unhandled failure | 500 |
 | The cricket provider is unreachable or refused us | 503 |
 
-503 matters more here than in most systems. When SportScore is down, our API is not broken and the
+503 matters more here than in most systems. When the provider is down, our API is not broken and the
 caller did nothing wrong; saying so lets the frontend show "scores are temporarily unavailable"
 rather than a generic error.
 
@@ -117,12 +118,31 @@ client can parse.
 
 ## 5. Caching and the request budget
 
-The provider's free tier is a fixed budget per day, and every design choice on this side is measured
-against it.
+The provider's free tier is a fixed budget per day — **100 calls** on CricketData — and every design
+choice on this side is measured against it.
 
 ```text
 Background service  →  polls the provider  →  detects change  →  writes Redis  →  fans out over SSE
 ```
+
+What is built today, before Redis exists:
+
+- **One call serves all three lists.** `/live`, `/upcoming` and `/recent` are partitions of a single
+  `currentMatches` response. This is the property the provider was chosen for ([D-012](./decisions.md)).
+- **A match already in that window costs nothing extra to open.** The detail endpoint is only called
+  for matches outside it.
+- **Concurrent cache misses share one in-flight request.** Without this, ten simultaneous visitors
+  on a cold cache would spend ten of the hundred.
+- **`CricketDataHitBudget` claims a call before each request** and reconciles against the provider's
+  own `hitsToday`, which is authoritative and survives our restarts. A claim is refunded when the
+  resilience pipeline rejects the call without sending it.
+- **Retry is capped at one attempt**, not the library default of three, because every attempt costs
+  a call. A circuit breaker stops us spending the allowance on a dead endpoint.
+- **Identifiers are validated before any call.** A match id must be a GUID, or a slug ending in one.
+- **The last good response is kept far longer than the live cache entry**, so an outage or an
+  exhausted allowance serves something rather than nothing.
+
+The general rules that follow from the same budget:
 
 - **One live match costs one poll**, no matter how many clients are connected. Clients read Redis
   through our API or receive an SSE push; they never cause a provider call.
@@ -170,7 +190,7 @@ match metadata — so that browsing the catalogue does not spend the provider bu
 ## 8. Testing
 
 The existing tests stay and must keep passing. The suite is not expanded until Sprint 8, with one
-planned exception: the SportScore mappers, tested against captured provider fixtures, because they
+planned exception: the provider mappers, tested against captured provider fixtures, because they
 are pure, high-risk, and cheap to cover.
 
 ---

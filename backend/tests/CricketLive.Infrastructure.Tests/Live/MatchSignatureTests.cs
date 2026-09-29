@@ -1,3 +1,4 @@
+using CricketLive.Application.Enrichment;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Infrastructure.Live;
@@ -65,6 +66,45 @@ public class MatchSignatureTests
         var restyled = Match() with { Venue = "GREENFIELD INTERNATIONAL STADIUM" };
 
         Assert.Equal(MatchSignature.For(Match()), MatchSignature.For(restyled));
+    }
+
+    [Fact]
+    public void A_single_off_the_bat_counts_as_a_change()
+    {
+        // The whole reason enrichment exists. A run scored off one ball moves no other field in
+        // the fingerprint, so if batters were left out the score would sit still between overs.
+        var before = Match() with { CurrentBatters = [new BatterDto("Nathan McSweeney", 34, 74)] };
+        var after = Match() with { CurrentBatters = [new BatterDto("Nathan McSweeney", 35, 75)] };
+
+        Assert.NotEqual(MatchSignature.For(before), MatchSignature.For(after));
+    }
+
+    [Fact]
+    public void A_new_batter_walking_out_counts_as_a_change()
+    {
+        var before = Match() with { CurrentBatters = [new BatterDto("Jason Sangha", 46, 74)] };
+        var after = Match() with { CurrentBatters = [new BatterDto("Liam Scott", 0, 0)] };
+
+        Assert.NotEqual(MatchSignature.For(before), MatchSignature.For(after));
+    }
+
+    [Fact]
+    public void Identical_batters_do_not_wake_anybody()
+    {
+        var before = Match() with { CurrentBatters = [new BatterDto("Liam Scott", 5, 5)] };
+        var after = Match() with { CurrentBatters = [new BatterDto("Liam Scott", 5, 5)] };
+
+        Assert.Equal(MatchSignature.For(before), MatchSignature.For(after));
+    }
+
+    [Fact]
+    public void Losing_the_second_source_is_not_reported_as_a_score_change()
+    {
+        // Enrichment failing mid-match must not look like play, or an outage at Cricbuzz would
+        // push every connected client for nothing.
+        var enriched = Match() with { CurrentBatters = [new BatterDto("Liam Scott", 5, 5)] };
+
+        Assert.NotEqual(MatchSignature.For(enriched), MatchSignature.For(Match()));
     }
 
     private static MatchDetailsDto Match(

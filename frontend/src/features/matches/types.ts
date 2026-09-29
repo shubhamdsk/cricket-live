@@ -48,8 +48,21 @@ export interface Match {
   statusText: string
 }
 
+export interface Batter {
+  name: string
+  runs: number
+  /** Balls faced. Whole deliveries, unlike overs, so arithmetic on it is safe. */
+  balls: number
+}
+
 export interface MatchDetails extends Match {
   /** What the provider claims to hold, not what we display. False everywhere so far. */
   hasBallByBall: boolean
   hasSquads: boolean
+  /**
+   * Batters at the crease, from a supplementary source that is off by default and only knows
+   * matches somebody mapped by hand. Empty means "we do not know", never "nobody is batting",
+   * so the UI omits the section rather than claiming the crease is empty.
+   */
+  currentBatters: Batter[]
 }

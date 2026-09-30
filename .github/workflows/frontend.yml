@@ -28,4 +28,10 @@ jobs:
 
       - run: npm run format:check
 
+      # The build refuses to run without this, because Vite inlines it and an unset variable
+      # becomes the literal string "undefined" in every request URL rather than an error. CI is
+      # checking that the code compiles, not producing a deployable bundle, so the value here is
+      # explicitly a stand-in. The real one belongs to the host and is task 8.25.
       - run: npm run build
+        env:
+          VITE_API_BASE_URL: http://localhost:5140

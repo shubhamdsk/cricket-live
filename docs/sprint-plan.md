@@ -865,13 +865,23 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | 4 — Home + Match | ✅ Complete |
 | 5 — Live Engine | ✅ Complete (Redis deferred, [D-014](./decisions.md)) |
 | 6 — Scorecard + Commentary | 🟡 Scorecard built and live; commentary will not be built, [D-027](./decisions.md) |
-| 7 — Cricket Ecosystem | 🟡 In Progress (persistence started early) |
+| 7 — Cricket Ecosystem | ✅ Complete (player pages have no source, [D-018](./decisions.md)) |
 | 8 — Production Hardening | ✅ Deployed, hardened, provider terms settled ([D-030](./decisions.md)) |
 
-**Current sprint:** Sprint 7 — the last sprint with open build work
-**Next action:** `7.12`, filters on `/matches`, now that the archive gives a list long enough to need them.
+**Every task in this plan is now ticked except `8.18`–`8.20`**, which are deferred under a standing
+instruction not to write new tests. `8.21`, the wiring those three would hang off, is done: both
+branches require `backend`, `frontend` and `scan`, so the 203 tests that already exist are a real
+merge gate rather than a report nobody was obliged to read ([D-032](./decisions.md)).
 
-One thing stays on the list without being a task: the archive surviving a Render spin-down is still unverified, because it needs twenty idle minutes nobody has spent yet.
+**Next action:** none is outstanding. The build work is finished, and what is left is a judgement
+call rather than a task — whether to unset `CricbuzzApi__Enabled` in production, where the
+recommendation on the record is yes. Anything beyond that is new scope, not remaining scope.
+
+The spin-down question is closed. It had sat on this list as "needs twenty idle minutes nobody has
+spent yet", and the reason nobody had spent them was that keep-warm made them impossible to spend.
+Disabling it and waiting 43 minutes produced the first genuine double cold start: `/api/health/ready`
+answered `Healthy` in 26.3 s with both Render and Neon suspended, so startup migrations do survive
+a sleeping database. Measurements in [deployment.md](./deployment.md).
 
 **The Cricbuzz review is now done too, in [D-031](./decisions.md), and it did not come out in the feature's favour.** Neither route to that data is licensed — Cricbuzz grants its site for "private viewing only" and RapidAPI's terms put the licence between the consumer and a publisher who is not Cricbuzz. The wrong default that [D-029](./decisions.md) found is fixed: `Cricbuzz:AutoResolve` was `true`, so switching on the scorecard was enough to start reading Cricbuzz's website, and it is now off like every other path to that site. What remains is not technical — whether to leave `CricbuzzApi:Enabled` set in production is the project owner's call, and the recommendation on the record is not to.
 

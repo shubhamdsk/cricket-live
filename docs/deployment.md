@@ -362,3 +362,32 @@ In order, because each step assumes the one above it.
    site cold tests the same thing and is closer to what will actually happen.
 8. Check the Neon dashboard shows a non-empty `archived_matches` table. If step 7 passed but
    this is empty, the site is serving from cache and you have not tested anything yet.
+
+### Measured: a genuine double cold start
+
+Step 7 was passing only in its weaker form. Redeploys had preserved the archive many times, but
+`.github/workflows/keep-warm.yml` pings `/api/health/live` every five minutes, so **Render had
+never actually idled** and one path had never run: startup migrations against a Neon compute that
+is itself suspended. `EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: 5s)` was the only
+thing standing between that and a service that fails to boot.
+
+Keep-warm was disabled, the site left alone for 43 minutes — past Render's ~15 minute idle and far
+past Neon's 5 minute scale-to-zero — and then hit cold:
+
+| Request | Result |
+| --- | --- |
+| `GET /api/health/ready` | `200 Healthy` in **26.3 s** |
+| `GET /api/matches/recent` | 4.9 s, both archived ODIs present |
+| `GET /api/crests/{token}` | `200 image/jpeg`, 1602 bytes, 582 ms |
+| the same crest again | 130 ms, served from the now-warm memory cache |
+
+The 26.3 s covers Render starting the container, the app booting, `MigrateArchiveAsync` reaching a
+suspended Neon and waiting for it to wake, and then the readiness probe querying it. It boots, and
+the retry policy is sufficient. Note what `Healthy` means here: readiness touches the database, so
+a 200 from that endpoint is itself proof the migration step got through.
+
+The archive came back with both matches and with crest paths already rewritten to `/api/crests/…`,
+which also exercises the rewrite-on-read in `SqlMatchArchive` against rows written before that
+code existed.
+
+**Re-enable keep-warm afterwards.** It is the only reason a visitor does not pay the 26 s.

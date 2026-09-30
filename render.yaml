@@ -59,6 +59,20 @@ services:
       - key: CricketData__ApiKey
         sync: false
 
+      # The supplementary scorecard source. Off by default in code; on here because the main
+      # provider's free plan carries no player-level data at all, so without it a match page can
+      # show a team total and nothing else.
+      #
+      # Read D-027 before changing this. The allowance is 200 requests a MONTH, not a day, which
+      # is why the frontend puts the card behind a press rather than loading it with the page.
+      # The source is also a reseller of a scrape rather than a licensed feed, so the attribution
+      # question is unresolved rather than answered.
+      - key: CricbuzzApi__Enabled
+        value: true
+
+      - key: CricbuzzApi__ApiKey
+        sync: false
+
       # The Neon connection string, which carries its own password and so belongs here rather
       # than in the file. Use the pooled host Neon offers and keep sslmode=require.
       #

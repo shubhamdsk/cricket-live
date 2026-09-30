@@ -73,6 +73,13 @@ public sealed class CricbuzzOptions
     /// site for "private viewing only". Every other path to that site is off until a deployment
     /// says otherwise, and this one now matches. See docs/decisions.md, D-031.
     /// </para>
+    /// <para>
+    /// <b>The default here is not on its own sufficient, and that is worth remembering.</b>
+    /// <c>appsettings.json</c> states every one of these settings explicitly, so a C# default is
+    /// only what applies when the key is absent — which, for this option, it is not. Both were
+    /// changed. A future switch flipped in one place and not the other would look correct in
+    /// review and do nothing at run time.
+    /// </para>
     /// </remarks>
     public bool AutoResolve { get; init; }
 

@@ -5,6 +5,64 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-029 — What the first deployment measured, including two predictions that were wrong
+
+**Status:** accepted. Corrects the risk recorded in [D-001](#d-001) and the caveat in
+[D-027](#d-027); neither decision changes.
+
+### Context
+
+Several things in this log were written as reasoning about how a host would behave rather than
+as observations of one. The first deployment — Render, Neon, Vercel — is the first chance to
+check them, and the results should be recorded whichever way they fell.
+
+### What was measured
+
+**SSE survives the proxy.** [D-001](#d-001) chose Server-Sent Events knowing that long-lived
+responses are the thing hosts buffer or terminate, and Sprint 5 was written to verify it early
+rather than discover it late. Measured with a plain HTTP client, so the browser could not
+confound the result: the connection held past **100 seconds**, keepalives arrived every 20, and
+the first `match` frame was delivered immediately rather than held. Render neither buffers
+`text/event-stream` nor cuts an idle stream. `X-Accel-Buffering: no` and `DisableBuffering()`
+were both in place, so this does not establish that they were *needed* — only that the
+arrangement works.
+
+**Automatic Cricbuzz pairing works.** [D-027](#d-027) built the scorecard but could only verify
+it by writing a Cricbuzz match id by hand, which left automatic resolution — the part that has
+to recognise the same match under two providers' naming — as the weakest link. It resolved
+`2nd ODI / West Indies tour of India, 2026` unaided and returned a live card. One case, not a
+guarantee, but it is the case the feature turns on.
+
+**Co-location matters more than the code does.** Every archive query against a Neon project in
+Ohio, from a Render container in Singapore, logs at exactly **202ms** — a single-row primary-key
+lookup that should be about 1ms. A figure constant to three digits is distance, not work.
+
+### The two predictions that were wrong
+
+Recorded because the reasoning behind them sounded plausible and was written down as though it
+were a finding, which is the mistake worth not repeating.
+
+- **"Cricbuzz will refuse a datacenter address."** It did not. The listing was served to
+  Render's Singapore IP without complaint.
+- **"The scraping ships disabled."** Only partly true, and the part that is false matters more.
+  `CricbuzzEnrichmentProvider` and the standings reader are both gated on `Cricbuzz:Enabled`,
+  but `CricbuzzMatchDirectory` is registered unconditionally and does the pairing by reading
+  Cricbuzz's public website. So enabling `CricbuzzApi:Enabled` alone begins reading that site.
+  The switch does not mean what its name implies, and anyone weighing the attribution question
+  in D-027 was, until now, weighing it with wrong information.
+
+### Cost
+
+- The wrong-switch finding is a design wrinkle left in place rather than fixed. Gating the
+  directory on `Cricbuzz:Enabled` would be more honest, but it would also mean the scorecard
+  silently does nothing unless *two* switches agree, which is its own trap. Documented instead.
+- One case does not verify pairing in general. A series the two providers name differently will
+  still decline, and declining remains the correct behaviour.
+- The region finding is recorded, not acted on. Neon cannot move a project between regions, so
+  fixing it means recreating the database.
+
+---
+
 ## D-028 — The archive moves to PostgreSQL, because the host has no disk
 
 **Status:** accepted. Supersedes the "SQLite because it is a file" half of [D-017](#d-017) for

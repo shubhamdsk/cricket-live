@@ -642,51 +642,73 @@ something you can send someone. Reasoning in [D-018](./decisions.md).
 * [ ] `8.20` Integration tests for the API endpoints
 * [ ] `8.21` Tests wired into CI as a merge gate
 
-### Deployment
+### Deployment — done, on Render, Neon and Vercel
 
-Every task below needs a host, so none of them can be done from here. They are left unchecked
-rather than reworded, because unlike Sprint 6 there is nothing wrong with the plan — there is just
-no server yet.
+**The site is live.** The API runs on Render, the archive in Neon PostgreSQL and the frontend on
+Vercel; all three are free and none asked for a card. The guide is
+[deployment.md](./deployment.md) and the reasoning behind the database is
+[D-028](./decisions.md).
 
-**The parts that do not need a host are done and are in [deployment.md](./deployment.md).** A
-container for the API, a `.dockerignore` that treats the build context as a security boundary,
-and a guide written around the four things most likely to go wrong rather than around a happy
-path. Three of those four fail quietly, which is why they are written up before anyone meets
-them:
-
-- **the archive disappears on every redeploy unless a volume is mounted at `/data`**, and it
-  looks like a fresh install rather than an error. The history cannot be backfilled, so the data
-  is gone for good
-- a frontend built without `VITE_API_BASE_URL` used to produce `undefined/api/...` and report
-  success; the build now refuses, which is the Lighthouse pass's finding
-- a CORS origin that does not match exactly presents as the backend being down, while the
-  backend's own health endpoints return 200
-- SSE buffered by a proxy (`8.26`) degrades to polling rather than failing, so nobody reports it
-  and the site merely feels behind
-
-None of it has been run against a real host, and the Dockerfile has not been built — there is no
-Docker on this machine. Treat it as a checklist to verify, not a transcript of something that
-worked.
-
-* [ ] `8.22` Deploy frontend to Vercel or Netlify
-* [ ] `8.23` Deploy backend to the chosen .NET host
-* [ ] `8.24` Provision managed PostgreSQL and Redis
-* [ ] `8.25` Production environment variables
-* [ ] `8.26` Verify SSE survives the production proxy — the most likely deployment failure
-* [ ] `8.27` Provider attribution visible in the UI, and its terms re-read before going public
-* [ ] `8.28` Smoke test the full live path in production
+* [x] `8.22` Deploy frontend to Vercel or Netlify — Vercel, from `master`
+* [x] `8.23` Deploy backend to the chosen .NET host — Render, Docker, Singapore
+* [x] `8.24` Provision managed PostgreSQL and Redis — PostgreSQL on Neon. **Redis was not
+  provisioned and is not needed**: [D-014](./decisions.md) keeps live state in process, and the
+  deployment is one instance, so the condition that would call for Redis has not arrived
+* [x] `8.25` Production environment variables
+* [x] `8.26` Verify SSE survives the production proxy — **measured, it survives**; see below
+* [ ] `8.27` Provider attribution visible in the UI, and its terms re-read before going public —
+  **the link is in place, the terms are still unread.** Now the most pressing open item, because
+  "before going public" has already happened
+* [x] `8.28` Smoke test the full live path in production
 
 ### Exit criteria
 
 ```text
-[ ] Application is publicly reachable            NEEDS A HOST
-[ ] Live scores update in production             NEEDS A HOST
-[x] Health checks report accurately              verified: /live, /ready and /api/health all 200
+[x] Application is publicly reachable            Vercel frontend, Render API, both responding
+[x] Live scores update in production             verified on IND vs WI, 2nd ODI
+[x] Health checks report accurately              /live and /ready both 200 against Neon
 [x] Lighthouse performance and accessibility reviewed  98/100/100/100, see below
 [x] No secrets in the repository                 enforced by the CI secret scan on both branches
 [ ] CI blocks merges on failing tests            tests deferred; the secret scan is the only gate
-[ ] Attribution requirements satisfied           8.27, with the deployment
+[ ] Attribution requirements satisfied           8.27, still open and now overdue
 ```
+
+### What the first deployment measured
+
+Four things were being carried as risks or assumptions. Three resolved in the deployment's
+favour, which is worth recording precisely because the prediction was the other way.
+
+**`8.26` — SSE survives the proxy.** Flagged since Sprint 5 as the biggest deployment risk.
+Measured with a plain HTTP client so the browser could not confound it: the connection stayed
+open past **100 seconds** with keepalive frames arriving every 20, and the `match` event was
+delivered immediately rather than buffered. Render does not buffer `text/event-stream` and does
+not cut idle connections.
+
+The browser looked worse than this at first — seven `stream` requests lasting between 1 and 13
+seconds. That was contention, not a fault: several tabs were open on the same match and the
+endpoint permits four concurrent streams per caller. The server's own log shows the pattern
+resolving as tabs closed, ending with a single connection held for 111 seconds.
+
+**Cricbuzz pairing works unaided.** [D-027](./decisions.md) recorded the scorecard as verified
+only through a hand-written match id, leaving automatic resolution as the feature's weakest
+link. On the deployed API it resolved `2nd ODI / West Indies tour of India, 2026` from Cricbuzz's
+listing on its own and returned a live card — West Indies 255/2 in 32.4, John Campbell 101 off
+68. The prediction that Cricbuzz would refuse a datacenter address was also wrong.
+
+**Enabling the scorecard turns on more than it says.** `CricbuzzMatchDirectory` performs the
+pairing by reading Cricbuzz's public website, and it is registered unconditionally rather than
+behind `Cricbuzz:Enabled`. So turning on `CricbuzzApi:Enabled` starts the very scraping that the
+other switch appears to govern. That is a larger step than the setting's name suggests, and it
+bears on the unresolved attribution question in D-027.
+
+**Co-locating the database is worth doing.** Render is in Singapore and the Neon project was
+created in Ohio. Every archive query logs at exactly **202ms** — for a single-row primary-key
+lookup, which should be about 1ms. A constant to three digits is distance, not work. The fix is
+to recreate the Neon project in Singapore, and the time to do it is while the archive is nearly
+empty.
+
+Still unverified: that the archive survives a container spin-down. It needs twenty idle minutes
+and has not been left alone that long yet.
 
 ### The Lighthouse pass, and the bug it found
 
@@ -795,12 +817,14 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | 3 — Cricket Data Integration | ✅ Complete |
 | 4 — Home + Match | ✅ Complete |
 | 5 — Live Engine | ✅ Complete (Redis deferred, [D-014](./decisions.md)) |
-| 6 — Scorecard + Commentary | ⬜ Not Started |
+| 6 — Scorecard + Commentary | 🟡 Scorecard built and live; commentary will not be built, [D-027](./decisions.md) |
 | 7 — Cricket Ecosystem | 🟡 In Progress (persistence started early) |
-| 8 — Production Hardening | ⬜ Not Started |
+| 8 — Production Hardening | 🟡 Deployed and hardened; `8.27` open |
 
-**Current sprint:** Sprint 7 — Cricket Ecosystem, persistence first
-**Next action:** finish what the archive opened up — filters on `/matches` (`7.12`) now that there is a list long enough to need them. Sprint 6 is still unscheduled: `bbbEnabled` was `false` on every match observed in the Sprint 3 spike, so ball-by-ball commentary has no evidence behind it yet and re-scoping it comes before starting it.
+**Current sprint:** Sprint 8 — deployed, with attribution outstanding
+**Next action:** `8.27`. The footer credits CricketData with a link, but the terms have not been read since Sprint 3 and the site is now public, so "re-read them before going public" is overdue rather than pending. The Cricbuzz scorecard source needs its own look, and [D-029](./decisions.md) makes that more pressing: enabling it also starts reading Cricbuzz's website, which is not what the setting's name suggests.
+
+After that, `7.12` — filters on `/matches`, now that the archive gives a list long enough to need them — and moving the Neon project to Singapore, which is costing 202ms on every archive query.
 
 Reasoning behind the choices below is recorded in [decisions.md](./decisions.md).
 

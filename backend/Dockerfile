@@ -35,10 +35,10 @@ RUN dotnet publish src/CricketLive.Api/CricketLive.Api.csproj \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
-# The archive is a SQLite file, and a container filesystem does not survive a redeploy. Mount a
-# volume here or the match history starts empty every time the service restarts — which is not a
-# crash, just a site that has quietly forgotten last week. See docs/deployment.md.
-ENV ConnectionStrings__Archive="Data Source=/data/cricket-live.db"
+# No ConnectionStrings__Archive here on purpose. The archive belongs in PostgreSQL when deployed,
+# the connection string carries a password, and a password does not go in an image. The host
+# supplies it; if it does not, the app falls back to a SQLite file in the container and the match
+# history quietly starts empty after every restart. See docs/deployment.md.
 
 # In-container HTTPS is not wanted: every host worth using terminates TLS at its edge and
 # forwards plain HTTP, and a self-signed certificate in here would only break that. The app still
@@ -53,12 +53,8 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 WORKDIR /app
 COPY --from=build /app .
 
-# The image ships with a non-root `app` user. The data directory has to exist and be owned before
-# the switch, because SQLite needs to create the database file and its -wal and -shm siblings.
-RUN mkdir -p /data && chown -R app:app /data
+# The image ships with a non-root `app` user, and nothing here needs to write outside /tmp.
 USER app
-
-VOLUME ["/data"]
 EXPOSE 8080
 
 # Deliberately no HEALTHCHECK instruction. The .NET runtime images do not ship curl or wget, so

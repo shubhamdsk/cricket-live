@@ -5,6 +5,70 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-028 — The archive moves to PostgreSQL, because the host has no disk
+
+**Status:** accepted. Supersedes the "SQLite because it is a file" half of [D-017](#d-017) for
+deployment only, and completes the swap [D-004](#d-004) and D-017 both anticipated.
+
+### Context
+
+D-017 chose SQLite and gave the reason plainly: it is a file, so there is nothing to install,
+nothing to run alongside the API and nothing to provision. **That reasoning has not been
+falsified.** SQLite is still the right database for this workload and is still what runs locally
+and in the tests.
+
+What changed is the host. Deployment had to be free and without a credit card, which rules out
+Fly.io — the one free tier that will keep a file. Render's free web services cannot attach a disk
+at all, and the container is rebuilt from the image whenever the service wakes from a spin-down,
+about fifteen minutes after the last visitor. So a SQLite archive would not be lost per release;
+it would be lost several times a day.
+
+That matters here more than it usually would. The archive is not a cache. D-017's whole premise
+is that no source available to us can supply completed matches, so the archive accumulates
+forward and anything lost is lost permanently. An archive that empties nightly is Sprint 7
+producing nothing while appearing to work.
+
+### Decision
+
+**PostgreSQL in deployment, on Neon's free plan. SQLite for local runs and for the tests.**
+
+D-017 predicted this would cost "one registration and the migration", and that was very nearly
+right. The registration picks a provider from the *shape* of the connection string rather than
+from a separate setting, because a provider setting and a connection string are two facts that
+can contradict each other and the contradiction would surface in production.
+
+Three things were not free:
+
+- **The one provider-specific line in the model.** `SeriesName` used SQLite's `NOCASE` collation
+  so series filtering is case-insensitive and still index-backed. PostgreSQL needs a collation
+  that exists before a column can reference it, so the model declares a non-deterministic ICU
+  collation and a migration creates it. The `DbContext` comment had already named this as the
+  line that would have to change.
+- **The migrations are PostgreSQL's alone.** They are provider-specific SQL and EF keeps one set
+  per assembly. The local SQLite database is built from the model with `EnsureCreated` instead.
+- **Connection URLs.** Every managed host issues `postgresql://…` and Npgsql parses only
+  `Host=…;Database=…`. The app converts. This is not a convenience: Npgsql reports the mismatch
+  by throwing with the whole connection string in the message, so the failure mode is a deploy
+  that prints the database password into a log. It did exactly that once while this was being
+  built, and that password had to be reset.
+
+### Cost
+
+- **Local and deployed now run different databases.** ASCII case folding in SQLite against
+  Unicode rules in PostgreSQL means an accented series name compares slightly differently in the
+  two. Matching them exactly would mean giving up index-backed filtering on one side.
+- **The PostgreSQL path has no automated coverage**, because the tests run on SQLite and there is
+  no test database. It was verified by rendering the migration to SQL and reading it. Deployment
+  is where it is really proven.
+- **A model change that breaks a migration will not show up locally.** It shows up on deploy.
+- **Idle suspension is now a runtime concern.** Neon force-suspends after five minutes, so EF's
+  retry-on-failure is enabled; without it the first visitor after a quiet spell gets an error and
+  everyone behind them is fine.
+- **A second service to keep alive**, with its own free-tier limits. The binding one is compute
+  at 100 CU-hours a month, not the 0.5 GB of storage, which is decades of matches.
+
+---
+
 ## D-027 — The scorecard is built; commentary is not, and the line between them is one request
 
 **Status:** accepted. Supersedes the "will not be built" half of [D-024](#d-024) for the

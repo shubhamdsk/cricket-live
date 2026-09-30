@@ -1,5 +1,6 @@
 import type { TeamInnings } from '@/features/matches/types'
 import { formatTeamScore } from '@/features/matches/utils/format'
+import { apiUrl } from '@/services/apiClient'
 import { cn } from '@/utils/cn'
 
 interface TeamScoreRowProps {
@@ -48,7 +49,9 @@ function TeamCrest({ side }: { side: TeamInnings }) {
 
   return (
     <img
-      src={side.team.logoUrl}
+      // A path on our API rather than a whole address, so it has to be resolved the same way a
+      // fetch would be. The provider's terms forbid the browser asking them for this directly.
+      src={apiUrl(side.team.logoUrl)}
       alt=""
       loading="lazy"
       // Decoded off the main thread, and sized in the markup as well as in CSS so a list of cards
@@ -56,9 +59,6 @@ function TeamCrest({ side }: { side: TeamInnings }) {
       decoding="async"
       width={20}
       height={20}
-      // The crest is served by the provider's CDN, which has no reason to be told which page of
-      // ours the reader is on.
-      referrerPolicy="no-referrer"
       className="size-5 shrink-0 self-center rounded-full object-cover"
     />
   )

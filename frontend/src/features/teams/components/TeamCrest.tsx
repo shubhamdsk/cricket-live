@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import type { Team } from '@/features/teams/types'
+import { apiUrl } from '@/services/apiClient'
 import { cn } from '@/utils/cn'
 
 /**
@@ -11,9 +12,10 @@ import { cn } from '@/utils/cn'
  * a made-up three-letter code looks exactly as authoritative as a real one.
  */
 export function TeamCrest({ team, className }: { team: Team; className?: string }) {
-  // The provider's crest URLs sometimes 404, which renders as a broken-image icon: worse than no
-  // crest, because it reads as our bug. Falling back to the same initials the no-crest case uses
-  // means a dead URL is indistinguishable from an absent one, which is how it should look.
+  // A crest sometimes 404s — the provider's address was dead, or ours could not fetch it — which
+  // renders as a broken-image icon: worse than no crest, because it reads as our bug. Falling
+  // back to the same initials the no-crest case uses means a dead URL is indistinguishable from
+  // an absent one, which is how it should look.
   const [failed, setFailed] = useState(false)
 
   const shape = cn(
@@ -24,14 +26,14 @@ export function TeamCrest({ team, className }: { team: Team; className?: string 
   if (team.logoUrl !== null && !failed) {
     return (
       <img
-        src={team.logoUrl}
+        // A path on our API rather than a whole address, so it has to be resolved the same way a
+        // fetch would be. The provider's terms forbid the browser asking them for this directly.
+        src={apiUrl(team.logoUrl)}
         // Empty, with the name carried by the text beside every use of this. A crest repeating
         // the name it sits next to is noise to a screen reader.
         alt=""
         loading="lazy"
         decoding="async"
-        // The provider's CDN has no reason to be told which page of ours the reader is on.
-        referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
         className={cn(shape, 'object-contain')}
       />

@@ -656,9 +656,9 @@ Vercel; all three are free and none asked for a card. The guide is
   deployment is one instance, so the condition that would call for Redis has not arrived
 * [x] `8.25` Production environment variables
 * [x] `8.26` Verify SSE survives the production proxy — **measured, it survives**; see below
-* [ ] `8.27` Provider attribution visible in the UI, and its terms re-read before going public —
-  **the link is in place, the terms are still unread.** Now the most pressing open item, because
-  "before going public" has already happened
+* [x] `8.27` Provider attribution visible in the UI, and its terms re-read before going public —
+  **read in full, and the re-read earned its place**: attribution turns out not to be required at
+  all, and the site was breaking a different clause instead. See [D-030](./decisions.md) and below
 * [x] `8.28` Smoke test the full live path in production
 
 ### Exit criteria
@@ -670,8 +670,35 @@ Vercel; all three are free and none asked for a card. The guide is
 [x] Lighthouse performance and accessibility reviewed  98/100/100/100, see below
 [x] No secrets in the repository                 enforced by the CI secret scan on both branches
 [ ] CI blocks merges on failing tests            tests deferred; the secret scan is the only gate
-[ ] Attribution requirements satisfied           8.27, still open and now overdue
+[x] Attribution requirements satisfied           none are imposed; the credit is given anyway
 ```
+
+### What re-reading the provider's terms found — `8.27`
+
+The task was written expecting to find an attribution requirement the footer might not meet. It
+found the opposite, and something worse elsewhere.
+
+**No attribution is owed.** No clause obliges an API consumer to display a credit. The footer stays
+because a project reading someone else's data for free should say so, not because it is made to.
+
+**The site was hot-linking the provider's images.** Their terms forbid it in as many words —
+*"Hot-linking of images we serve is not allowed ... Your domain may get blacklisted if you do
+this"* — and team crests were `<img src="https://g.cricapi.com/...">` in two components, so every
+visitor was spending their bandwidth. The penalty is aimed at the domain, so this was a way to lose
+the API, not just the pictures. Crests are now fetched once by `/api/crests/...` and served from our
+own origin, with archived rows rewritten on read so history is covered too. [D-030](./decisions.md)
+has the full reasoning, including why the route is not an open proxy.
+
+**Two standing conditions came out of it.** The free licence is personal and non-commercial, and
+their definition of commercial covers "any remuneration, whether in money or otherwise" — so
+advertising, donations or any paid use means buying credits first. And they explicitly disclaim
+copyright in match data as "purely factual information", which is firmer ground for the archive
+than the blanket copyright clause on the same page would suggest.
+
+**The lesson is about the five sprints, not the clause.** Sprint 3 wrote down a guess — that
+attribution was probably not required — flagged it as a guess, and it then survived unchallenged
+through a public deployment. The guess was right. The page it was guessing about contained a
+prohibition the project went on to break for five sprints.
 
 ### What the first deployment measured
 
@@ -819,12 +846,14 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | 5 — Live Engine | ✅ Complete (Redis deferred, [D-014](./decisions.md)) |
 | 6 — Scorecard + Commentary | 🟡 Scorecard built and live; commentary will not be built, [D-027](./decisions.md) |
 | 7 — Cricket Ecosystem | 🟡 In Progress (persistence started early) |
-| 8 — Production Hardening | 🟡 Deployed and hardened; `8.27` open |
+| 8 — Production Hardening | ✅ Deployed, hardened, provider terms settled ([D-030](./decisions.md)) |
 
-**Current sprint:** Sprint 8 — deployed, with attribution outstanding
-**Next action:** `8.27`. The footer credits CricketData with a link, but the terms have not been read since Sprint 3 and the site is now public, so "re-read them before going public" is overdue rather than pending. The Cricbuzz scorecard source needs its own look, and [D-029](./decisions.md) makes that more pressing: enabling it also starts reading Cricbuzz's website, which is not what the setting's name suggests.
+**Current sprint:** Sprint 7 — the last sprint with open build work
+**Next action:** `7.12`, filters on `/matches`, now that the archive gives a list long enough to need them.
 
-After that, `7.12` — filters on `/matches`, now that the archive gives a list long enough to need them — and moving the Neon project to Singapore, which is costing 202ms on every archive query.
+Two things stay on the list without being tasks. The Cricbuzz scorecard source has had no terms review of its own, and [D-029](./decisions.md) makes that more pressing than it looks: enabling it also starts reading Cricbuzz's website, which is not what the setting's name suggests. And the archive surviving a Render spin-down is still unverified, because it needs twenty idle minutes nobody has spent yet.
+
+The Neon project has since moved to Singapore, which took archive queries from 218ms to 2–3ms — see [D-029](./decisions.md).
 
 Reasoning behind the choices below is recorded in [decisions.md](./decisions.md).
 
@@ -849,7 +878,7 @@ Two data-quality problems had to be absorbed in the mapper. The `score[]` entrie
 
 **`3.4` Update frequency could not be measured directly** — the provider's window held no live matches on either day of the spike. It matters less than expected, because CricketData state that free data is "always a few minutes behind real-time" regardless of plan. The binding constraint is our 100-call budget, not their refresh rate: **Sprint 5 should poll no faster than every five minutes**, which is roughly 96 calls across an eight-hour window of cricket.
 
-**`3.5` Attribution** is not demanded by CricketData's published terms the way SportScore's badge is, but the terms have not been read in full and this is a licensing question rather than a technical one. Task `8.27` now requires re-reading them before anything is public.
+**`3.5` Attribution** is not demanded by CricketData's published terms the way SportScore's badge is, but the terms have not been read in full and this is a licensing question rather than a technical one. Task `8.27` now requires re-reading them before anything is public. **Confirmed in Sprint 8** — the guess was correct, and the same page turned out to forbid something the project was doing; see [D-030](./decisions.md).
 
 ### Sprint 3 notes — what was built
 

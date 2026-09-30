@@ -1,0 +1,13 @@
+# Cricket Live
+#
+# Everything is public and there is nothing here worth hiding from a crawler, so this allows all
+# of it. The file exists mainly so that a request for it returns a robots file rather than the
+# single-page app's index.html, which is what a catch-all route would otherwise serve — a crawler
+# then reads HTML as robots directives and treats every line as an error.
+#
+# There is no Sitemap line. Routes live in the URL fragment (/#/match/...), which is never sent to
+# a server and cannot be crawled, so a sitemap would list one page. See docs/decisions.md on the
+# hash router and what it costs us in SEO.
+
+User-agent: *
+Allow: /

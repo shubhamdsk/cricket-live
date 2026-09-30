@@ -662,11 +662,50 @@ no server yet.
 [ ] Application is publicly reachable            NEEDS A HOST
 [ ] Live scores update in production             NEEDS A HOST
 [x] Health checks report accurately              verified: /live, /ready and /api/health all 200
-[ ] Lighthouse performance and accessibility reviewed
+[x] Lighthouse performance and accessibility reviewed  98/100/100/100, see below
 [x] No secrets in the repository                 enforced by the CI secret scan on both branches
 [ ] CI blocks merges on failing tests            tests deferred; the secret scan is the only gate
 [ ] Attribution requirements satisfied           8.27, with the deployment
 ```
+
+### The Lighthouse pass, and the bug it found
+
+Run against the **production build** served by `vite preview`, not the dev server, because an
+unminified bundle with HMR attached makes the performance number meaningless.
+
+| Page | Performance | Accessibility | Best Practices | SEO |
+| --- | --- | --- | --- | --- |
+| Home | 98 | 100 | 100 | 100 |
+| Match details | 98 | 100 | 100 | 100 |
+
+Home: FCP 1.8 s, LCP 2.1 s, TBT 60 ms, CLS 0. Match details: FCP 1.8 s, LCP 2.0 s, TBT 10 ms,
+CLS 0.037.
+
+The first run scored 96/100/96/91, and two of the three gaps were real problems rather than
+scoring artefacts.
+
+**The production build could not reach the API at all.** Three requests went to
+`undefined/api/matches/live`. Vite inlines `import.meta.env.VITE_*` at build time, and an unset
+variable does not fail the build — it becomes the literal string `undefined`. `.env.development`
+covers `npm run dev`, nothing covered a production build, and `npm run build` had been reporting
+success while producing a bundle that could not fetch anything. This is exactly the failure `8.25`
+would have hit on the day of deployment, silently. `vite.config.ts` now validates the variable and
+refuses to build without it, also rejecting a non-absolute URL and a trailing slash; CI passes an
+explicit stand-in value with a comment saying it is one.
+
+**`robots.txt` reported 43 errors** because there was no such file, so the single-page app's
+catch-all served `index.html` and Lighthouse parsed HTML as robots directives. Added, with a note
+in it explaining why there is no `Sitemap` line: routes live in the URL fragment and are never
+sent to a server.
+
+**One contrast failure, which only appeared once the API worked.** The `completed` badge was
+`ink-subtle` on the muted badge background — 4.34:1 against a 4.5:1 floor at 12px. That colour is
+fine on white, which is why it had survived; the muted background is what pushed it under. Now
+`ink-muted`, which makes `completed` and `neutral` render identically.
+
+Remaining imperfect audits are all performance and all acceptable: `unused-javascript` reports
+~56 KiB, which is router and vendor code the other pages need, and the LCP of ~2 s is a local
+`vite preview` with no compression and no CDN.
 
 `8.26` deserves early attention. Some free hosting tiers buffer or terminate long-lived responses, which breaks SSE. Confirming this during Sprint 5 rather than Sprint 8 avoids a late architectural surprise.
 

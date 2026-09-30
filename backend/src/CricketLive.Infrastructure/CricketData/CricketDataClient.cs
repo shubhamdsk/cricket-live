@@ -26,6 +26,37 @@ internal sealed class CricketDataClient(
     /// </summary>
     private static readonly JsonSerializerOptions SerializerOptions = JsonSerializerOptions.Web;
 
+    /// <summary>
+    /// Says so when the provider had more rows than it sent, which is otherwise invisible.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The provider pages its list endpoints and we ask for one page. <c>totalRows</c> is how it
+    /// tells us the size of the whole answer, and until now it was parsed and thrown away — so a
+    /// reader looking for a match that exists, on a page we never fetched, would find nothing
+    /// and there would be no trace of why.
+    /// </para>
+    /// <para>
+    /// A warning rather than a fix, deliberately. Fetching the next page costs another call from
+    /// an allowance of a hundred a day that the poller already spends against, so whether it is
+    /// worth paying depends on how often this actually fires. That is the number this line
+    /// exists to produce. Silent when nothing is missing.
+    /// </para>
+    /// </remarks>
+    private void WarnIfTruncated(string path, CricketDataInfo info, object? data)
+    {
+        if (data is not System.Collections.ICollection received || info.TotalRows <= received.Count)
+        {
+            return;
+        }
+
+        logger.LogWarning(
+            "Cricket data {Path} returned {Received} of {TotalRows} rows; the rest are on pages we do not fetch",
+            path,
+            received.Count,
+            info.TotalRows);
+    }
+
     public async Task<T?> GetAsync<T>(
         string path,
         IReadOnlyDictionary<string, string>? query,
@@ -94,6 +125,7 @@ internal sealed class CricketDataClient(
         if (envelope.Info is { } info)
         {
             budget.Reconcile(info.HitsToday, info.HitsLimit);
+            WarnIfTruncated(path, info, envelope.Data);
         }
 
         if (!envelope.IsSuccess)

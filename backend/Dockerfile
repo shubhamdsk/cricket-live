@@ -50,6 +50,15 @@ ENV ASPNETCORE_ENVIRONMENT="Production"
 # formats for a culture: dates go out as ISO 8601 and the browser decides how to show them.
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
+# Npgsql probes for GSSAPI when it opens its first connection, and the runtime image does not ship
+# the library, so every boot logs `Cannot load library libgssapi_krb5.so.2` and then a line
+# beginning `Error:`. We authenticate with a password over TLS, so the probe is genuinely unused
+# and the failure changes nothing — but a log line saying `Error` on every single start is a trap
+# for whoever next opens these logs looking for a real one. About a megabyte to remove it.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY --from=build /app .
 

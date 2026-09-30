@@ -11,7 +11,8 @@ defaults:
     working-directory: frontend
 
 jobs:
-  build:
+  # See the note in backend.yml: this name is a required status check, so it has to be distinct.
+  frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

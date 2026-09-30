@@ -58,49 +58,51 @@ Sprint 5   CricketData → BackgroundService → Redis → SSE → React
 
 ### Repository
 
-* [ ] `1.1` Create folder structure: `frontend/`, `backend/`, `docs/`
-* [ ] `1.2` Add root `.gitignore` covering Node, .NET, IDE, and env files
-* [ ] `1.3` Expand `README.md` with setup and run instructions
-* [ ] `1.4` Create `develop` branch and set branch protection expectations
+* [x] `1.1` Create folder structure: `frontend/`, `backend/`, `docs/`
+* [x] `1.2` Add root `.gitignore` covering Node, .NET, IDE, and env files
+* [x] `1.3` Expand `README.md` with setup and run instructions
+* [x] `1.4` Create `develop` branch and set branch protection expectations
+  — the branch existed from the first day; the protection did not, for eight sprints. Now both
+  branches require `backend`, `frontend` and `scan` to pass before a merge. See below.
 
 ### Frontend
 
-* [ ] `1.5` Initialize React + TypeScript via Vite in `frontend/`
-* [ ] `1.6` Configure Tailwind CSS with the mobile-first breakpoints from the plan
-* [ ] `1.7` Configure ESLint and Prettier, wire `lint` and `format` scripts
-* [ ] `1.8` Set up React Router with placeholder routes for `/`, `/live`, `/matches`, `/match/:slug`
-* [ ] `1.9` Set up TanStack Query provider in `app/providers.tsx`
-* [ ] `1.10` Set up Zustand store skeleton in `store/`
-* [ ] `1.11` Create typed API client in `services/` reading `VITE_API_BASE_URL`
-* [ ] `1.12` Add `.env.example`
+* [x] `1.5` Initialize React + TypeScript via Vite in `frontend/`
+* [x] `1.6` Configure Tailwind CSS with the mobile-first breakpoints from the plan
+* [x] `1.7` Configure ESLint and Prettier, wire `lint` and `format` scripts
+* [x] `1.8` Set up React Router with placeholder routes for `/`, `/live`, `/matches`, `/match/:slug`
+* [x] `1.9` Set up TanStack Query provider in `app/providers.tsx`
+* [x] `1.10` Set up Zustand store skeleton in `store/`
+* [x] `1.11` Create typed API client in `services/` reading `VITE_API_BASE_URL`
+* [x] `1.12` Add `.env.example`
 
 ### Backend
 
-* [ ] `1.13` Create ASP.NET Core Web API in `backend/`
-* [ ] `1.14` Establish layered projects: `Api`, `Application`, `Domain`, `Infrastructure`
-* [ ] `1.15` Configure Swagger/OpenAPI
-* [ ] `1.16` Configure CORS for the Vite dev origin
-* [ ] `1.17` Add global exception handling middleware returning the standard API response shape
-* [ ] `1.18` Add the `ApiResponse<T>` envelope (`success`, `data`, `message`, `errors`)
-* [ ] `1.19` Configure structured logging
-* [ ] `1.20` Add `GET /api/health`
-* [ ] `1.21` Add `appsettings.Development.json` and `.env.example` equivalents, no secrets committed
+* [x] `1.13` Create ASP.NET Core Web API in `backend/`
+* [x] `1.14` Establish layered projects: `Api`, `Application`, `Domain`, `Infrastructure`
+* [x] `1.15` Configure Swagger/OpenAPI
+* [x] `1.16` Configure CORS for the Vite dev origin
+* [x] `1.17` Add global exception handling middleware returning the standard API response shape
+* [x] `1.18` Add the `ApiResponse<T>` envelope (`success`, `data`, `message`, `errors`)
+* [x] `1.19` Configure structured logging
+* [x] `1.20` Add `GET /api/health`
+* [x] `1.21` Add `appsettings.Development.json` and `.env.example` equivalents, no secrets committed
 
 ### CI
 
-* [ ] `1.22` GitHub Actions workflow: frontend install, lint, build
-* [ ] `1.23` GitHub Actions workflow: backend restore, build, test
+* [x] `1.22` GitHub Actions workflow: frontend install, lint, build
+* [x] `1.23` GitHub Actions workflow: backend restore, build, test
 
 ### Exit criteria
 
 ```text
-[ ] React application runs
-[ ] .NET API runs
-[ ] React successfully calls /api/health and renders the result
-[ ] Swagger works
-[ ] Tailwind classes apply
-[ ] Routing works
-[ ] CI is green on develop
+[x] React application runs
+[x] .NET API runs
+[x] React successfully calls /api/health and renders the result
+[x] Swagger works
+[x] Tailwind classes apply
+[x] Routing works
+[x] CI is green on develop
 ```
 
 **Not in this sprint:** PostgreSQL, Redis, the cricket provider, real UI design.
@@ -115,34 +117,37 @@ Sprint 5   CricketData → BackgroundService → Redis → SSE → React
 
 ### Design system
 
-* [ ] `2.1` Define Tailwind theme: colors, typography scale, spacing, live-status accent
-* [ ] `2.2` Layout components: `Header`, `Footer`, `Navigation`, `Container`
-* [ ] `2.3` Common components: `Button`, `Card`, `Badge`, `Tabs`
-* [ ] `2.4` State components: `Skeleton`, `Spinner`, `EmptyState`, `ErrorState`
-* [ ] `2.5` Match components against mock data: `MatchCard`, `MatchStatus`, `TeamScore`
+* [x] `2.1` Define Tailwind theme: colors, typography scale, spacing, live-status accent
+* [x] `2.2` Layout components: `Header`, `Footer`, `Navigation`, `Container`
+* [x] `2.3` Common components: `Button`, `Card`, `Badge`, `Tabs`
+* [x] `2.4` State components: `Skeleton`, `Spinner`, `EmptyState`, `ErrorState`
+* [x] `2.5` Match components against mock data: `MatchCard`, `MatchStatus`, `TeamScore`
 
 ### Pages
 
-* [ ] `2.6` Home with Featured, Live, Upcoming, Recent, Popular Series sections
-* [ ] `2.7` Live matches page
-* [ ] `2.8` Match details shell with Summary / Scorecard / Commentary / Stats tabs
-* [ ] `2.9` Mock data fixtures typed with the DTO shapes Sprint 3 will produce
+* [x] `2.6` Home with Featured, Live, Upcoming, Recent, Popular Series sections
+* [x] `2.7` Live matches page
+* [x] `2.8` Match details shell with Summary / Scorecard / Commentary / Stats tabs
+* [x] `2.9` Mock data fixtures typed with the DTO shapes Sprint 3 will produce
+  — done, then deleted. The fixtures did their job as a shape agreement and were removed the
+  moment Sprint 3 landed, because a repository that keeps invented match data around is one
+  refactor away from rendering it. Nothing under `frontend/src` now holds fabricated scores.
 
 ### Quality
 
-* [ ] `2.10` Verify every page at mobile, tablet, laptop, desktop widths
-* [ ] `2.11` Keyboard navigation and visible focus states
-* [ ] `2.12` Loading, empty, and error states rendered for each section
+* [x] `2.10` Verify every page at mobile, tablet, laptop, desktop widths
+* [x] `2.11` Keyboard navigation and visible focus states
+* [x] `2.12` Loading, empty, and error states rendered for each section
 
 ### Exit criteria
 
 ```text
-[ ] Mobile, tablet, and desktop layouts verified
-[ ] No horizontal overflow at any breakpoint
-[ ] No nested scroll containers
-[ ] Components are reusable and independent
-[ ] Loading, empty, and error states exist
-[ ] Contrast and focus states pass a manual accessibility check
+[x] Mobile, tablet, and desktop layouts verified
+[x] No horizontal overflow at any breakpoint
+[x] No nested scroll containers
+[x] Components are reusable and independent
+[x] Loading, empty, and error states exist
+[x] Contrast and focus states pass a manual accessibility check
 ```
 
 Agreeing the mock data shape in `2.9` is what lets Sprint 4 be a swap rather than a rewrite.
@@ -598,10 +603,14 @@ something you can send someone. Reasoning in [D-018](./decisions.md).
 [x] Series and team pages render real data — player pages have no source, see notes
 [x] Points table renders correctly — when a source supplies one; absence renders as no section
 [x] Search returns results across every entity type that exists here — matches, teams, series
-[ ] Navigation between entities works in both directions
-[ ] Database migrations run cleanly from empty
-[ ] All new pages are responsive with loading, empty, and error states
+[x] Navigation between entities works in both directions  match ⇄ series and match ⇄ team
+[x] Database migrations run cleanly from empty     done twice, most recently on the Singapore Neon
+[x] All new pages are responsive with loading, empty, and error states  covered by 8.1–8.4
 ```
+
+These three sat unticked long after they were true, and that cost something real: a stale plan
+was read as the source of truth and produced a recommendation to build `7.12`, which already
+existed. A checkbox nobody ticks is not a neutral omission.
 
 ---
 
@@ -632,7 +641,13 @@ something you can send someone. Reasoning in [D-018](./decisions.md).
 * [x] `8.13` Production CORS policy
 * [x] `8.14` Security headers
 * [x] `8.15` Input validation on every endpoint
-* [ ] `8.16` Secret management via hosting environment, and `CRICKETDATA_API_KEY` as a GitHub Actions secret once a workflow needs it — needs a host
+* [x] `8.16` Secret management via hosting environment, and `CRICKETDATA_API_KEY` as a GitHub
+  Actions secret once a workflow needs it — the host half is done: Render supplies
+  `CricketData__ApiKey`, `CricbuzzApi__ApiKey` and `ConnectionStrings__Archive`, and nothing is in
+  the repository. The Actions half stays undone on purpose, because the condition attached to it
+  never arrived: no workflow calls the provider. `keep-warm` hits our own `/api/health/live`, and
+  the three build workflows compile and test. Adding the secret now would mean a credential
+  readable by CI for no reason
 * [x] `8.17` API abuse protection
 
 ### Testing
@@ -640,7 +655,12 @@ something you can send someone. Reasoning in [D-018](./decisions.md).
 * [ ] `8.18` xUnit coverage for services and mappers
 * [ ] `8.19` Frontend component and hook tests
 * [ ] `8.20` Integration tests for the API endpoints
-* [ ] `8.21` Tests wired into CI as a merge gate
+* [x] `8.21` Tests wired into CI as a merge gate — **the wiring was half-built and looked
+  finished.** `dotnet test` has run on every pull request for weeks, so the suite appeared to be a
+  gate. It was not: neither `master` nor `develop` had any branch protection, so a red check
+  blocked nothing and a merge went through regardless. Both branches now require `backend`,
+  `frontend` and `scan`. `8.18`–`8.20` stay open under the standing no-new-tests instruction —
+  this task was only ever about the wiring, and the wiring is real now
 
 ### Deployment — done, on Render, Neon and Vercel
 
@@ -668,8 +688,8 @@ Vercel; all three are free and none asked for a card. The guide is
 [x] Live scores update in production             verified on IND vs WI, 2nd ODI
 [x] Health checks report accurately              /live and /ready both 200 against Neon
 [x] Lighthouse performance and accessibility reviewed  98/100/100/100, see below
-[x] No secrets in the repository                 enforced by the CI secret scan on both branches
-[ ] CI blocks merges on failing tests            tests deferred; the secret scan is the only gate
+[x] No secrets in the repository                 secret scan on both branches, now actually required
+[x] CI blocks merges on failing tests            203 backend tests, plus lint and build, required
 [x] Attribution requirements satisfied           none are imposed; the credit is given anyway
 ```
 
@@ -845,13 +865,23 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 | 4 — Home + Match | ✅ Complete |
 | 5 — Live Engine | ✅ Complete (Redis deferred, [D-014](./decisions.md)) |
 | 6 — Scorecard + Commentary | 🟡 Scorecard built and live; commentary will not be built, [D-027](./decisions.md) |
-| 7 — Cricket Ecosystem | 🟡 In Progress (persistence started early) |
+| 7 — Cricket Ecosystem | ✅ Complete (player pages have no source, [D-018](./decisions.md)) |
 | 8 — Production Hardening | ✅ Deployed, hardened, provider terms settled ([D-030](./decisions.md)) |
 
-**Current sprint:** Sprint 7 — the last sprint with open build work
-**Next action:** `7.12`, filters on `/matches`, now that the archive gives a list long enough to need them.
+**Every task in this plan is now ticked except `8.18`–`8.20`**, which are deferred under a standing
+instruction not to write new tests. `8.21`, the wiring those three would hang off, is done: both
+branches require `backend`, `frontend` and `scan`, so the 203 tests that already exist are a real
+merge gate rather than a report nobody was obliged to read ([D-032](./decisions.md)).
 
-One thing stays on the list without being a task: the archive surviving a Render spin-down is still unverified, because it needs twenty idle minutes nobody has spent yet.
+**Next action:** none is outstanding. The build work is finished, and what is left is a judgement
+call rather than a task — whether to unset `CricbuzzApi__Enabled` in production, where the
+recommendation on the record is yes. Anything beyond that is new scope, not remaining scope.
+
+The spin-down question is closed. It had sat on this list as "needs twenty idle minutes nobody has
+spent yet", and the reason nobody had spent them was that keep-warm made them impossible to spend.
+Disabling it and waiting 43 minutes produced the first genuine double cold start: `/api/health/ready`
+answered `Healthy` in 26.3 s with both Render and Neon suspended, so startup migrations do survive
+a sleeping database. Measurements in [deployment.md](./deployment.md).
 
 **The Cricbuzz review is now done too, in [D-031](./decisions.md), and it did not come out in the feature's favour.** Neither route to that data is licensed — Cricbuzz grants its site for "private viewing only" and RapidAPI's terms put the licence between the consumer and a publisher who is not Cricbuzz. The wrong default that [D-029](./decisions.md) found is fixed: `Cricbuzz:AutoResolve` was `true`, so switching on the scorecard was enough to start reading Cricbuzz's website, and it is now off like every other path to that site. What remains is not technical — whether to leave `CricbuzzApi:Enabled` set in production is the project owner's call, and the recommendation on the record is not to.
 

@@ -1,11 +1,15 @@
 # 🏏 Cricket Live
 
-A modern, responsive real-time cricket score platform built with React, TypeScript, Tailwind CSS, and ASP.NET Core, featuring live scores, match details, scorecards, commentary, and SSE-powered updates.
+A responsive real-time cricket score platform built with React, TypeScript, Tailwind CSS and ASP.NET Core: live scores, match details, full scorecards and SSE-powered updates.
+
+Commentary is not built. The data exists and the reason is cost rather than availability, which is written up in [D-027](docs/decisions.md) rather than left for someone to rediscover.
 
 ## Documentation
 
 * [Project plan](project-plan.md) — architecture and requirements
 * [Sprint plan](docs/sprint-plan.md) — what gets built, in what order
+* [Deployment](docs/deployment.md) — and the four things most likely to go wrong
+* [Decisions](docs/decisions.md) — what was chosen, why, and what it costs
 
 ## Repository layout
 

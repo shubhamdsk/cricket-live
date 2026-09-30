@@ -648,6 +648,26 @@ Every task below needs a host, so none of them can be done from here. They are l
 rather than reworded, because unlike Sprint 6 there is nothing wrong with the plan — there is just
 no server yet.
 
+**The parts that do not need a host are done and are in [deployment.md](./deployment.md).** A
+container for the API, a `.dockerignore` that treats the build context as a security boundary,
+and a guide written around the four things most likely to go wrong rather than around a happy
+path. Three of those four fail quietly, which is why they are written up before anyone meets
+them:
+
+- **the archive disappears on every redeploy unless a volume is mounted at `/data`**, and it
+  looks like a fresh install rather than an error. The history cannot be backfilled, so the data
+  is gone for good
+- a frontend built without `VITE_API_BASE_URL` used to produce `undefined/api/...` and report
+  success; the build now refuses, which is the Lighthouse pass's finding
+- a CORS origin that does not match exactly presents as the backend being down, while the
+  backend's own health endpoints return 200
+- SSE buffered by a proxy (`8.26`) degrades to polling rather than failing, so nobody reports it
+  and the site merely feels behind
+
+None of it has been run against a real host, and the Dockerfile has not been built — there is no
+Docker on this machine. Treat it as a checklist to verify, not a transcript of something that
+worked.
+
 * [ ] `8.22` Deploy frontend to Vercel or Netlify
 * [ ] `8.23` Deploy backend to the chosen .NET host
 * [ ] `8.24` Provision managed PostgreSQL and Redis

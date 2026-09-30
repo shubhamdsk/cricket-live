@@ -5,10 +5,39 @@ namespace CricketLive.Infrastructure.Persistence;
 internal sealed class CricketLiveDbContext(DbContextOptions<CricketLiveDbContext> options)
     : DbContext(options)
 {
+    /// <summary>
+    /// The collation PostgreSQL uses for case-insensitive comparison, defined below.
+    /// </summary>
+    /// <remarks>
+    /// Unlike SQLite's <c>NOCASE</c>, which is built in, this one has to be created in the
+    /// database before a column can reference it. The model declares it so a migration creates
+    /// it; there is nothing to remember at deploy time.
+    /// </remarks>
+    public const string PostgresCaseInsensitive = "case_insensitive";
+
     public DbSet<ArchivedMatch> ArchivedMatches => Set<ArchivedMatch>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
+        // SQLite's NOCASE only folds ASCII, and this one folds by Unicode rules, so a series name
+        // with an accent in it compares slightly differently between a local run and a
+        // deployment. Worth knowing, and not worth matching: the alternative is giving up
+        // index-backed filtering on one side or the other.
+        var postgres = Database.IsNpgsql();
+
+        if (postgres)
+        {
+            // Non-deterministic, which is what makes 'a' and 'A' equal rather than merely sorted
+            // together. level2 also ignores case while still respecting accents.
+            builder.HasCollation(
+                PostgresCaseInsensitive,
+                locale: "und-u-ks-level2",
+                provider: "icu",
+                deterministic: false);
+        }
+
+        var caseInsensitive = postgres ? PostgresCaseInsensitive : "NOCASE";
+
         var match = builder.Entity<ArchivedMatch>();
 
         match.ToTable("archived_matches");
@@ -16,10 +45,12 @@ internal sealed class CricketLiveDbContext(DbContextOptions<CricketLiveDbContext
 
         match.Property(entity => entity.Id).HasMaxLength(64);
         match.Property(entity => entity.Slug).HasMaxLength(256);
-        // NOCASE so filtering by series is case-insensitive in SQL the same way it is in memory,
-        // and stays index-backed while being so. This is the one provider-specific line in the
-        // model: PostgreSQL spells the same idea as a citext column or a lower() index.
-        match.Property(entity => entity.SeriesName).HasMaxLength(256).UseCollation("NOCASE");
+
+        // Filtering by series is case-insensitive in SQL the same way it is in memory, and stays
+        // index-backed while being so. This remains the one place the model has to know which
+        // database it is talking to, because the two spell the same idea differently and neither
+        // understands the other's spelling.
+        match.Property(entity => entity.SeriesName).HasMaxLength(256).UseCollation(caseInsensitive);
         // An opaque provider id, so no collation: it is compared whole or not at all.
         match.Property(entity => entity.SeriesId).HasMaxLength(64);
         // Slugs, so already lowercase and compared whole: no collation needed. The names beside

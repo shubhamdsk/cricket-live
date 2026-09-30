@@ -1,0 +1,83 @@
+# Render Blueprint for the Cricket Live API.
+#
+# At the repository root because the Dockerfile builds from there, so its context includes the
+# whole backend folder.
+#
+# Create the service with New > Blueprint in the Render dashboard and point it at this repo.
+# The three secrets below are marked sync: false and must be filled in there; everything else is
+# applied from this file.
+#
+# The archive lives in Neon, not on this host, because a free Render service has no disk and is
+# rebuilt from the image on every spin-down. See docs/deployment.md and D-028.
+
+services:
+  - type: web
+    name: cricket-live-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+
+    # Change this to whichever free region is closest to your readers.
+    region: singapore
+
+    # Render deploys on push to this branch by itself, so there is no deploy workflow in
+    # .github/workflows. One fewer thing holding a token.
+    branch: master
+    autoDeploy: true
+
+    # Liveness, deliberately: it reports whether the process is serving and nothing else, so a
+    # provider outage never fails a deploy or restarts a container that is working. Readiness
+    # also covers the request allowance, which refills on a clock a restart cannot hurry.
+    healthCheckPath: /api/health/live
+
+    envVars:
+      # Render sets PORT itself and expects the service to listen on it. Pinning it here to the
+      # port the image already binds keeps the two from disagreeing, which presents as a deploy
+      # that builds and then times out waiting for the service to come up.
+      - key: PORT
+        value: 8080
+
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+
+      - key: ASPNETCORE_URLS
+        value: http://+:8080
+
+      # Render terminates TLS at its edge and forwards plain HTTP. This restores the caller's
+      # real address, which rate limiting partitions on - without it every visitor lands in the
+      # proxy's bucket and the per-caller limit silently becomes one global cap.
+      #
+      # Safe here because a Render service is only reachable through that proxy, so nobody else
+      # can write these headers. It would not be safe on a host where the container is directly
+      # addressable.
+      - key: ForwardedHeaders__Enabled
+        value: true
+
+      # Set in the dashboard, not here. sync: false keeps the Blueprint from overwriting them and
+      # keeps the values out of a public repository.
+      - key: CricketData__ApiKey
+        sync: false
+
+      # The Neon connection string, which carries its own password and so belongs here rather
+      # than in the file. Use the pooled host Neon offers and keep sslmode=require.
+      #
+      # Its shape is also what selects the database provider at startup: anything that is not a
+      # "Data Source=" path is treated as PostgreSQL. Leaving this unset does not fail - it falls
+      # back to a SQLite file inside the container, which this host does not keep.
+      - key: ConnectionStrings__Archive
+        sync: false
+
+      # The Vercel origin. Exact scheme and host, no trailing slash. Startup fails outside
+      # development if this is empty, which is deliberate - an API that starts and then refuses
+      # every browser is much harder to diagnose than one that does not start.
+      - key: Cors__AllowedOrigins__0
+        sync: false
+
+    # No disk, and none needed: the only state worth keeping is the archive, and that is in Neon.
+    #
+    # Two things about the free plan that are not failures and will look like them. The service
+    # sleeps after about fifteen minutes idle, so the first request after a quiet spell waits
+    # through a cold start. And the container is rebuilt from the image when it wakes, so the
+    # in-memory caches and the provider call budget both start from zero - the budget is counted
+    # per process, which is only correct while there is exactly one.

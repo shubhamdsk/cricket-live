@@ -2,17 +2,22 @@
 
 Covers Sprint 8 tasks `8.22`–`8.28`.
 
-**The API runs on Fly.io and the frontend on Vercel.** Fly was chosen for one reason: the archive
-needs a disk that survives a redeploy, and free tiers that offer one are rare — Render's free web
-services cannot attach a disk at all, which would mean losing the match history on every ship.
+**The API runs on Render, the archive in Neon PostgreSQL, and the frontend on Vercel.** All three
+are free and none asks for a card.
 
-The general sections below still avoid naming a host, because the four failure modes they
-describe are not Fly's or Vercel's. The host-specific steps are at the end.
+That combination is a consequence of one constraint. The archive is the only thing here that
+cannot be rebuilt, and no free host will keep a file: Render's free web services cannot attach a
+disk at all, and the container is rebuilt from the image every time the service wakes from a
+spin-down, not merely on deploy. Fly.io can keep a file but wants a card. So the archive moved
+off the host's filesystem and into a managed database — [D-028](./decisions.md).
+
+The general sections below avoid naming a host, because the failure modes they describe are not
+any particular host's. The host-specific steps are at the end.
 
 Nothing in this document has been run against a real host. It is derived from the code and from
 how these platforms behave, and it should be treated as a checklist to verify rather than a
-transcript of something that worked. Fly's free allowance in particular has changed more than
-once — check what it is today before assuming this costs nothing.
+transcript of something that worked. Free allowances change — check what they are today before
+assuming this costs nothing.
 
 ---
 
@@ -24,48 +29,59 @@ Two deployables, and they are not symmetric.
 It talks to exactly one thing: our API.
 
 **The API** is a container. It talks to CricketData, optionally to the RapidAPI Cricbuzz listing,
-and writes a SQLite file.
+and writes to a PostgreSQL database that is not part of the container.
 
 The browser never talks to a cricket provider. That rule is what keeps the provider keys on the
 server, and it is not negotiable — see [security.md](./security.md).
 
 ---
 
-## 1. The archive disappears on redeploy unless you mount a volume
+## 1. The archive must live outside the container, and forgetting looks like nothing is wrong
 
-**This is the one that will cost you real data, and it looks like nothing is wrong.**
-
-The match archive is a SQLite file. Container filesystems do not survive a redeploy, so without a
-persistent volume the database is recreated empty every time you ship. The app will not error —
-`MigrateArchiveAsync` will happily create a fresh schema, `/api/matches/recent` will return an
-empty page, and the site will look like a new install that has not seen any cricket yet.
-
-You will not notice on the first deploy, because it is empty then anyway.
+**This is the one that will cost you real data.**
 
 The archive is not a cache. It is the only record of matches that have fallen out of the
-provider's few-day window, and it cannot be backfilled — CricketData does not serve history on the
-free plan. Data lost here is lost permanently. This is what Sprint 7 was for.
+provider's few-day window, and it cannot be backfilled — CricketData does not serve history on
+the free plan. Data lost here is lost permanently. This is what Sprint 7 was for.
 
-So: **mount a volume at `/data`.** The image already points the connection string there:
+Set `ConnectionStrings__Archive` to a PostgreSQL database. **If you do not, nothing fails**: the
+app falls back to a SQLite file inside the container, `MigrateArchiveAsync` creates a fresh
+schema, and the site looks like a new install that has not seen any cricket yet. You will not
+notice on the first deploy, because it is empty then anyway.
+
+On a free host that fallback is worse than it sounds. The container is rebuilt from the image
+when the service wakes from a spin-down, not only when you ship, so the history would reset
+several times a day rather than once a release.
+
+Either connection-string format works:
 
 ```
-ConnectionStrings__Archive=Data Source=/data/cricket-live.db
+ConnectionStrings__Archive=postgresql://user:password@host/dbname
+ConnectionStrings__Archive=Host=host;Database=dbname;Username=user;Password=...;SSL Mode=Require
 ```
 
-Every host spells this differently — a disk on Render, a volume on Fly, a persistent volume claim
-on Kubernetes — but all of them need to be told, and none of them do it by default.
+The first is what every managed host hands you, and Npgsql cannot parse it — the app converts it.
+That conversion is worth knowing about because of *how* Npgsql fails without it: it throws, and
+**the exception message contains the whole connection string, password included**, so a failed
+deploy writes the database password into the log. If you ever see that, treat the password as
+disclosed and reset it.
 
-If the chosen host has no persistent disk on its free tier, that is the moment to revisit
-[D-014](./decisions.md), which deferred PostgreSQL. The reasoning there was that SQLite is enough
-for this workload, which is still true; what would have changed is that the *host* cannot keep a
-file, which is a different argument entirely.
+The provider is chosen by the shape of the string — anything that is not a `Data Source=` path is
+treated as PostgreSQL. There is no separate provider setting, deliberately: two facts that can
+contradict each other is one more way for a deploy to fail.
 
-Two smaller consequences of SQLite worth knowing before you scale:
+This supersedes the SQLite half of [D-014](./decisions.md); see [D-028](./decisions.md). SQLite
+is still what local runs and the tests use.
 
-- **One instance only.** SQLite tolerates one writer, and the live poller and the archive writer
-  both live in the process. Two instances would also each believe they hold the whole provider
-  allowance — the same limitation as [D-014](./decisions.md) and `CricbuzzApiBudget`.
-- Back the volume up, or accept that the history is only as durable as one disk.
+Two consequences worth knowing before you scale:
+
+- **One instance only, still.** The reason is no longer the database. The live poller and the
+  provider call budget both live in the process, and `CricbuzzApiBudget` counts a monthly
+  allowance per process — two instances would each believe they held all of it and quietly spend
+  twice. Startup migration is also not safe with two instances racing it.
+- **Free PostgreSQL suspends when idle.** The app enables EF's retry-on-failure for exactly this:
+  the pool hands out a connection the server has already dropped, the first query fails, and the
+  retry lands after the database has woken.
 
 ## 2. The frontend build needs `VITE_API_BASE_URL`, and used to fail silently without it
 
@@ -134,25 +150,28 @@ If it is buffered:
 | --- | --- | --- | --- |
 | `CricketData__ApiKey` | API | **yes** | Startup fails without it |
 | `Cors__AllowedOrigins__0` | API | **yes** | Exact frontend origin; startup fails if the list is empty |
-| `ConnectionStrings__Archive` | API | no | Already `/data/cricket-live.db` in the image |
+| `ConnectionStrings__Archive` | API | **in practice yes** | Not required to start, but without it the archive is a file in a container that does not keep files |
 | `ASPNETCORE_URLS` | API | no | Already `http://+:8080`; override if the host insists on `$PORT` |
 | `CricbuzzApi__Enabled` | API | no | Default off. Read [D-027](./decisions.md) first |
 | `CricbuzzApi__ApiKey` | API | only if enabled | |
-| `ForwardedHeaders__Enabled` | API | behind a proxy | Already `true` in `fly.toml`; see below |
+| `ForwardedHeaders__Enabled` | API | behind a proxy | Already `true` in `render.yaml`; see below |
 | `VITE_API_BASE_URL` | frontend **build** | **yes** | Baked in; changing it means rebuilding |
 
 The double underscore is how .NET maps an environment variable onto a nested configuration key.
 
-Store both provider keys as the host's secrets, not as plain environment variables in a dashboard
-that logs them. Neither key is detectable by GitHub's secret scanning — one is a bare GUID and the
-other an opaque string, so neither matches a provider pattern and a clean alert list proves
-nothing.
+Store the provider keys and the connection string as the host's secrets, not as plain environment
+variables in a dashboard that logs them. Neither provider key is detectable by GitHub's secret
+scanning — one is a bare GUID and the other an opaque string, so neither matches a provider
+pattern and a clean alert list proves nothing.
+
+In `render.yaml` all three are marked `sync: false`, which means the Blueprint declares that they
+exist without carrying their values. That is what keeps them out of a public repository.
 
 ## 5. Forwarded headers, and the rate limiter that would quietly stop protecting anything
 
 The container serves plain HTTP on 8080 and carries no certificate; the platform terminates TLS
 at its edge and forwards plain HTTP inwards. Set `ForwardedHeaders__Enabled=true` when that is
-the arrangement. `fly.toml` already does.
+the arrangement. `render.yaml` already does.
 
 **The reason is rate limiting.** Partitions are keyed on the remote address, which behind a proxy
 is the proxy — for everybody. The limiter keeps working perfectly and becomes a single global cap
@@ -189,10 +208,11 @@ that is true. With the setting on, the app clears the known-proxy allow-list —
 have no stable addresses, so there is nothing to put on one — which means it will believe those
 headers from anyone who can reach it directly.
 
-**On Fly that is safe, because nobody can.** The internal port is not publicly routable; the only
-path in is through Fly's proxy. On a host where the container is directly reachable, leave it
-off: an attacker could otherwise rotate `X-Forwarded-For` and bypass rate limiting entirely,
-which is worse than the problem being solved.
+**On Render that is safe, because nobody can.** A free web service is only reachable through
+Render's edge; the container has no publicly routable address of its own. On a host where the
+container *is* directly reachable, leave it off: an attacker could otherwise rotate
+`X-Forwarded-For` and bypass rate limiting entirely, which is worse than the problem being
+solved.
 
 `ForwardLimit = 1` means only the nearest hop is trusted. Anything further left in the chain was
 written by the client.
@@ -213,58 +233,62 @@ defensible choice until someone decides otherwise.
 
 ---
 
-## Fly.io — the API
+## Neon — the archive
 
-`fly.toml` lives at the repository root, because the Dockerfile builds from there so its context
-includes the whole backend folder.
+Create a project, then take the **pooled** connection string from the dashboard. Paste it
+unmodified; the app accepts the URL form.
 
-**Create the volume before the first deploy.** A machine that declares a mount with no volume to
-satisfy it will not start.
+There is no migration step to run by hand. `MigrateArchiveAsync` applies pending migrations at
+startup, so the first successful deploy creates the schema, including the `case_insensitive`
+collation that series filtering depends on.
 
-```bash
-fly launch --no-deploy --copy-config
-fly volumes create cricket_data --size 1 --region sin
-fly secrets set CricketData__ApiKey=...
-fly secrets set Cors__AllowedOrigins__0=https://<your-app>.vercel.app
-fly deploy
-```
+Three limits on the free plan, and the obvious one is not the one that will stop you.
 
-Change `primary_region` in `fly.toml` first, to wherever your readers are. **A volume is pinned
-to its region**, and moving one later means creating a new one — which means losing the archive
-it holds.
+- **Storage, 0.5 GB per project.** Not a constraint here. A row is the match's scalar columns
+  plus a JSON payload, on the order of a couple of kilobytes, so this is six figures of finished
+  matches — decades of CricketData's coverage. This is an estimate from the schema rather than a
+  measurement against a full archive.
+- **Compute, 100 CU-hours per project per month.** This is the one to watch. At the 0.25 CU floor
+  it is roughly 400 awake-hours against a 730-hour month. Comfortable for a site that sleeps,
+  and it is consumed by the database being awake rather than by query volume.
+- **Scale to zero after 5 minutes, and it cannot be disabled.** Hence retry-on-failure, above.
 
-`fly secrets` rather than `[env]`, for anything that is a secret. Values in `fly.toml` are
-committed to a public repository; secrets are encrypted and injected at run time.
+Exceeding storage blocks writes; exceeding compute suspends the database until the next billing
+month. Both present as the archive failing while the rest of the site works, because live scores
+come from the provider and never touch it. `/api/health/ready` reports the archive separately —
+that is the endpoint that will tell you.
 
-Two settings in there are worth understanding rather than copying.
+**Do not reuse `neondb_owner` for the application** if you are willing to spend ten minutes on
+it. The app needs `SELECT`, `INSERT` and `UPDATE` on one table, not ownership of the database.
 
-**It scales to zero.** An idle machine stops and the next request starts it, which costs a few
-seconds of .NET cold start and saves paying for a process nobody is talking to. Nothing is lost:
-the archive is written as requests are served rather than on a timer, and the live poller only
-polls while a client is connected. Fly will not stop a machine holding an open connection, so a
-live stream keeps its own machine alive for as long as someone is watching.
+## Render — the API
 
-**Never scale past one machine.** SQLite takes one writer, the poller and the archive writer both
-run in-process, and the provider call budget is counted per process — two machines would each
-believe they held the whole daily allowance and quietly spend twice it. The single volume
-enforces this today, since a second machine would find no volume to mount, but it is a
-correctness constraint and not a happy accident.
+`render.yaml` is at the repository root, because the Dockerfile builds from there so its context
+includes the whole backend folder. Create the service with **New > Blueprint** and point it at
+the repository; everything except the three `sync: false` secrets is applied from that file.
 
-Concurrency is limited by **connections rather than requests**, because a live stream is one
-connection held open for the length of a match and a request-based limit would count it once and
-then stop noticing it.
+Set those three in the dashboard: `CricketData__ApiKey`, `Cors__AllowedOrigins__0`, and
+`ConnectionStrings__Archive`.
 
-### Deploying from CI
+Change `region` first, to wherever your readers are. Unlike a disk-backed deployment there is
+nothing pinned to it now, so this is a latency choice rather than a permanent one — but the Neon
+project has a region too, and the two should match or every query pays for the distance.
 
-`.github/workflows/deploy-api.yml` deploys on push to `master`, and only when something the image
-contains has changed — a docs-only commit should not restart the service. It then asks the
-deployed app for readiness from outside, rather than trusting the deploy command's own view.
+Render deploys on push to `master` by itself. **There is deliberately no deploy workflow in
+`.github/workflows`** — one fewer credential to hold, and Render's own build is the same
+Dockerfile CI would have used.
 
-It needs a `FLY_API_TOKEN` repository secret, scoped to this app rather than the whole account:
+Two things about the free plan that will look like faults:
 
-```bash
-fly tokens create deploy -a cricket-live-api
-```
+- **It sleeps after about 15 minutes idle**, and the next request pays a cold start for both the
+  container and the Neon compute behind it. The first visitor after a quiet night waits.
+- **The container is rebuilt from the image when it wakes.** In-memory caches start empty and
+  `CricbuzzApiBudget` — which counts a *monthly* allowance in process memory — resets with it.
+  It reconciles against the figure the gateway returns on the next call, so this self-corrects,
+  but it is not a counter you can trust across a restart.
+
+**Never scale past one instance.** The database no longer forces this, which makes it easier to
+get wrong: the live poller and the call budget are per-process, and startup migration would race.
 
 ## Vercel — the frontend
 
@@ -273,19 +297,18 @@ rest: Vite framework preset, `dist` output, immutable caching on hashed asset fi
 `no-cache` on `index.html`, which is the pairing that lets a deploy take effect immediately
 without re-downloading unchanged code.
 
-Set `VITE_API_BASE_URL` to `https://cricket-live-api.fly.dev` as a **build-time** environment
-variable. It is inlined into the bundle, so changing it requires a rebuild, not a restart.
+Set `VITE_API_BASE_URL` to `https://cricket-live-api.onrender.com` as a **build-time**
+environment variable. It is inlined into the bundle, so changing it requires a rebuild, not a
+restart.
 
 **There is deliberately no SPA rewrite.** Routes live in the URL fragment (`/#/match/...`), which
 is never sent to a server, so the only path Vercel ever serves is `/`. A catch-all rewrite would
 turn every mistyped URL into a 200 serving the app — a soft 404, which is worse for both readers
 and crawlers than the real one.
 
-Once the Vercel domain exists, put it in the API's CORS list and redeploy the API:
-
-```bash
-fly secrets set Cors__AllowedOrigins__0=https://<your-app>.vercel.app
-```
+Once the Vercel domain exists, set `Cors__AllowedOrigins__0` to it in the Render dashboard.
+Render restarts the service when an environment variable changes, so there is nothing else to
+do — but it *is* a restart, so the caches and the in-process call budget start over.
 
 Preview deployments get their own generated domains, which will **not** be in that list and will
 fail CORS. Either add them, or treat previews as build-only checks.
@@ -305,5 +328,9 @@ In order, because each step assumes the one above it.
 5. Open a match page and confirm the innings render.
 6. **Open a live match and watch the stream.** This is step 4 above and the one most likely to
    fail. Do not skip it because the scores updated.
-7. Redeploy, then check `/api/matches/recent` still holds what it held before. This is the volume
-   test, and it is the only way to catch a missing mount before it costs you the history.
+7. Redeploy, then check `/api/matches/recent` still holds what it held before. This is the test
+   that the archive is really in Neon and not in a file inside the container, and it is the only
+   way to catch that before it costs you the history. Waiting for a spin-down and hitting the
+   site cold tests the same thing and is closer to what will actually happen.
+8. Check the Neon dashboard shows a non-empty `archived_matches` table. If step 7 passed but
+   this is empty, the site is serving from cache and you have not tested anything yet.

@@ -14,6 +14,9 @@
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.12" />
+    <!-- PostgreSQL is what deployments use, because a free host will not keep a file. SQLite is
+         kept for local runs and for the archive tests, which build a schema in memory. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
 
   <PropertyGroup>

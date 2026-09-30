@@ -2,6 +2,7 @@ using CricketLive.Api;
 using CricketLive.Api.Middleware;
 using CricketLive.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,9 +40,48 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod());
 });
 
+// Whether a reverse proxy sits in front of us and may be believed about the original request.
+// Off by default, and opt-in rather than detected, because the headers it enables are sent by the
+// client and only a deployment can know whether something trustworthy overwrites them first.
+var behindProxy = builder.Configuration.GetValue("ForwardedHeaders:Enabled", false);
+
+if (behindProxy)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+        // One hop. Anything beyond the proxy that terminates TLS is a header the client wrote,
+        // and taking the leftmost entry is how X-Forwarded-For spoofing usually works.
+        options.ForwardLimit = 1;
+
+        // Platform proxies do not have stable addresses, so there is nothing to put on an
+        // allow-list and the defaults (loopback only) would reject every real request. This is
+        // the reason the whole block is opt-in: with it on, the app believes these headers from
+        // anyone who can reach it directly. Only enable it where the platform is the sole route
+        // in — on Fly, the internal port is not publicly reachable.
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
+
 var app = builder.Build();
 
 await app.Services.MigrateArchiveAsync();
+
+// Before anything reads the caller's address or the scheme.
+//
+// Rate limiting is the reason this exists. Partitions are keyed on the remote address, which
+// behind a proxy is the proxy for every visitor, so without this the per-caller limit silently
+// becomes one global cap shared by everybody.
+//
+// Not, as first assumed, to prevent a redirect loop: UseHttpsRedirection needs an HTTPS port to
+// redirect to, the container binds only HTTP, so it finds none and does nothing. Measured, and
+// written down in docs/deployment.md, because it is the kind of thing that gets re-assumed.
+if (behindProxy)
+{
+    app.UseForwardedHeaders();
+}
 
 // First, so its headers are set before anything can write a response — including the live stream,
 // whose headers go out with the first frame and cannot be changed afterwards.

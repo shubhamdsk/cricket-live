@@ -1,0 +1,92 @@
+# Fly.io configuration for the Cricket Live API.
+#
+# At the repository root rather than in backend/, because the Dockerfile builds from the repo root
+# so that its context includes the whole backend folder.
+#
+# First deploy:
+#
+#   fly launch --no-deploy --copy-config
+#   fly volumes create cricket_data --size 1 --region <your primary_region>
+#   fly secrets set CricketData__ApiKey=... Cors__AllowedOrigins__0=https://<your-app>.vercel.app
+#   fly deploy
+#
+# The volume must exist before the first deploy. A machine with a mount declared and no volume to
+# satisfy it will not start.
+
+app = "cricket-live-api"
+
+# Pick the region closest to your readers, not to you. Change it before the first deploy: a
+# volume is pinned to its region and moving one later means recreating it, which means losing the
+# archive it holds.
+primary_region = "sin"
+
+[build]
+  dockerfile = "backend/Dockerfile"
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://+:8080"
+
+  # Fly terminates TLS at its edge and forwards plain HTTP with X-Forwarded-Proto set. This
+  # restores the caller's real address, which rate limiting partitions on - without it every
+  # visitor lands in the proxy's bucket and the per-caller limit becomes one global cap. The
+  # limiter keeps working and stops protecting anything, which is why it is set here rather than
+  # left to be noticed.
+  #
+  # Safe here specifically because the internal port is not publicly reachable: the only route to
+  # the app is through Fly's proxy, so nobody else can write these headers. On a host where the
+  # container is directly reachable this must stay off, or X-Forwarded-For becomes a way around
+  # the rate limiter rather than a way to enforce it.
+  ForwardedHeaders__Enabled = "true"
+
+  ConnectionStrings__Archive = "Data Source=/data/cricket-live.db"
+
+# The archive. Without this the match history is recreated empty on every deploy, and it does not
+# error - it looks like a fresh install. It cannot be backfilled, because the provider does not
+# serve history on the free plan. See docs/deployment.md.
+[[mounts]]
+  source = "cricket_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+  # Scale to zero when idle, and start again on the next request. A cold start on .NET is a few
+  # seconds, which is the price of not paying for a machine that nobody is talking to.
+  #
+  # Nothing is lost by stopping. The archive is written as requests are served rather than on a
+  # timer, and the live poller only polls while a client is connected, so an idle process does no
+  # work worth keeping alive for. Fly will not stop a machine with an open connection, so a live
+  # stream keeps its own machine up for as long as someone is watching.
+  min_machines_running = 0
+  auto_start_machines = true
+  auto_stop_machines = "stop"
+
+  # Never scale this past one machine, and that is a correctness requirement rather than thrift.
+  # SQLite takes one writer; the poller and the archive writer both run in-process; and the
+  # provider call budget is counted per process, so two machines would each believe they held the
+  # whole daily allowance and quietly spend twice it. The single volume enforces this today -
+  # `fly scale count 2` would fail to find a second one - but the reasoning belongs written down
+  # rather than left as a side effect.
+
+  [http_service.concurrency]
+    # Connections, not requests. A live stream is one connection held open for the length of a
+    # match, so a request-based limit would count it once and then stop noticing it.
+    type = "connections"
+    soft_limit = 60
+    hard_limit = 80
+
+  # Liveness, deliberately: it reports whether the process is serving and nothing else, so a
+  # provider outage never restarts a machine that is working fine. Readiness also covers the
+  # request allowance, which refills on a clock that a restart cannot hurry.
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/api/health/live"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

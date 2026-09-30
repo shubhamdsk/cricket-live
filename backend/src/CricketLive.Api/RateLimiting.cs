@@ -16,11 +16,11 @@ namespace CricketLive.Api;
 /// the actual abuse and costs us a connection each.
 /// </para>
 /// <para>
-/// <b>Partitioned by remote IP, which behind a reverse proxy is the proxy.</b> Unless the host is
-/// configured to forward the client address and the app is told which proxies to trust, every
-/// visitor shares one partition and these limits become a single global cap. That is a deployment
-/// task — see <c>8.25</c> — and it is recorded here because the failure is silent: the limiter
-/// still works, it just protects the wrong thing.
+/// <b>Partitioned by remote IP, which behind a reverse proxy is the proxy.</b> Set
+/// <c>ForwardedHeaders:Enabled</c> when deploying behind one, or every visitor shares a single
+/// partition and these limits become one global cap. The failure is silent — the limiter keeps
+/// working, it just protects the wrong thing — which is why the setting is called out in
+/// <c>docs/deployment.md</c> rather than left to be noticed.
 /// </para>
 /// </remarks>
 internal static class RateLimiting

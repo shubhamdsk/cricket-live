@@ -5,6 +5,79 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-032 — Branch protection, and the second mechanism today that ran without having authority
+
+**Status:** accepted. Completes `1.4`, which was written in Sprint 1 and never done, and `8.21`.
+
+### Context
+
+The Sprint 8 exit criteria claimed "No secrets in the repository — enforced by the CI secret scan on
+both branches", and left "CI blocks merges on failing tests" unticked with the note "the secret scan
+is the only gate". Both statements were wrong in the same direction, and reconciling the plan
+against reality is what surfaced it.
+
+`.github/workflows/backend.yml` has run `dotnet test` on every pull request to `master` and
+`develop` since Sprint 1. All 203 tests run there. `secrets.yml` scans both branches. Four green
+checks appear on every PR. None of them gated anything:
+
+```
+$ gh api repos/shubhamdsk/cricket-live/branches/master/protection
+{"message":"Branch not protected","status":"404"}
+$ gh api repos/shubhamdsk/cricket-live/branches/develop/protection
+{"message":"Branch not protected","status":"404"}
+```
+
+Neither branch had ever been protected. A red check would have blocked nothing; every merge in this
+repository, including the six in the last session, would have gone through with a failing test suite
+and a triggered secret scan. The checks were **reporting**, and reporting had been read as
+**enforcing** — including by me, when I wrote that exit criterion.
+
+### Decision
+
+Protect both `master` and `develop`, requiring the three checks that mean something:
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Required checks | `backend`, `frontend`, `scan` | build, lint, the 203 tests, and the secret scan |
+| Strict (branch up to date) | off | a solo repository would spend its time rebasing for no safety gained |
+| Required reviews | none | there is one developer; requiring a second would mean disabling the rule to merge, which is worse than not having it |
+| Enforce for admins | off | the rule is here to catch mistakes, not to lock the only maintainer out of his own recovery path |
+| Force push, deletion | blocked | the one irreversible pair |
+
+The two build jobs were both named `build`, which made the status context ambiguous — requiring
+`build` would have matched either workflow. They are now `backend` and `frontend`, and the reason is
+written in the workflow files so nobody renames them back.
+
+### Cost, and what this does not do
+
+Protection with `enforce_admins` off is bypassable by the repository owner, deliberately. This is
+not a security boundary against a hostile maintainer and is not meant to be; it is a guard against a
+distracted one. Anyone treating it as the former has made the same mistake twice.
+
+### The pattern worth naming
+
+This is the **second** finding in a row with an identical shape, and the repetition is the
+interesting part:
+
+- [D-031](#d-031): `CricbuzzOptions.AutoResolve` was changed from `true` to `false` in C#. The
+  change was correct, reviewable, and inert, because `appsettings.json` stated the key explicitly
+  and a property initialiser only applies when the key is absent. Production kept serving
+  scorecards.
+- Here: `dotnet test` ran on every PR and passed. The run was real and the result was correct and
+  it bound nothing, because no rule required it.
+
+In both cases the visible artifact — a default in source, a green check on a PR — was not the thing
+that had authority, and in both cases reading the diff would never have revealed it. **Both were
+caught the same way: by querying the running system and comparing the answer against what the
+artifact implied.** One took a request to production; one took two API calls. Neither took cleverness.
+
+The generalisation for this project: when something is meant to *prevent* an outcome, the evidence
+that it works is the prevented outcome, not the presence of the mechanism. A test that runs, a
+default that is written, a scan that scans — none of those are the same as a merge that was
+actually refused.
+
+---
+
 ## D-031 — Cricbuzz's terms, read in full: neither route to that data is licensed
 
 **Status:** accepted. Strengthens [D-020](#d-020), [D-024](#d-024) and [D-027](#d-027) rather than

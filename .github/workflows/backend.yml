@@ -11,7 +11,9 @@ defaults:
     working-directory: backend
 
 jobs:
-  build:
+  # Named for the project rather than the verb, because this name is the status check that master
+  # and develop require, and "build" collided with the frontend workflow's job of the same name.
+  backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

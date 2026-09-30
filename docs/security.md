@@ -123,6 +123,14 @@ the deployment workflow in `8.16` that will actually read it.
 "assume it was harvested within minutes", which is why the scan below is a merge gate rather than
 advice.
 
+**It was advice, for eight sprints, while this document called it a gate.** The workflow ran on
+every push and pull request and reported correctly; neither `master` nor `develop` had any branch
+protection, so nothing required the result and a failing scan would not have stopped a merge. Both
+branches now require the `scan` check along with `backend` and `frontend`. The reasoning, and the
+more general bug this is the second instance of today, is in [D-032](./decisions.md#d-032) — the
+short version being that a scan which scans is not the same thing as a merge which was refused,
+and only one of those is observable from the pull request page.
+
 **A CI secret scan runs on every push and pull request** (`.github/workflows/secrets.yml`). It
 looks for the two shapes a CricketData key can take — `"apikey":"<guid>"` and `apikey=<guid>` —
 across tracked files only. It deliberately does not look for bare GUIDs: match ids are GUIDs and

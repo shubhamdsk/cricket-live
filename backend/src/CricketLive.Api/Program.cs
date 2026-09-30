@@ -1,4 +1,5 @@
 using CricketLive.Api;
+using CricketLive.Api.Controllers;
 using CricketLive.Api.Middleware;
 using CricketLive.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -32,6 +33,12 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddCricketLiveRateLimiter(builder.Configuration);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+
+// Fetches team crests so the browser does not, which CricketData's terms require. Deliberately
+// plain: no key, no provider headers, nothing that would matter if the address were ever wrong.
+builder.Services.AddHttpClient(
+    CrestsController.ClientName,
+    client => client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(CorsPolicyName, policy => policy

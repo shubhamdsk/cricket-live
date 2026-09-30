@@ -14,7 +14,10 @@ export interface Team {
   name: string
   /** An abbreviation such as IND, or the full name when no match supplied one. */
   shortName: string
-  /** Absent for most sides. The provider supplies crests only sometimes. */
+  /**
+   * A path on our API, not a whole address, so it needs `apiUrl()` before it reaches an `<img>`.
+   * Absent for most sides. The provider supplies crests only sometimes.
+   */
   logoUrl: string | null
   /**
    * How many matches of this team we can show, not how many it has played.

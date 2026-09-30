@@ -5,6 +5,96 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-030 — The provider's terms, read in full: no attribution owed, and one clause we were breaking
+
+**Status:** accepted. Settles `8.27` and the open question in [D-012](#d-012); confirms the guess
+recorded against `3.5`.
+
+### Context
+
+Task `8.27` carried two halves: make the attribution visible, and re-read the provider's terms
+before anything went public. The first was done in Sprint 3. The second never was — Sprint 3
+recorded that attribution "is not demanded by CricketData's published terms the way SportScore's
+badge is, but the terms have not been read in full", and that guess then sat unverified through
+five sprints and a public deployment. It has now been read end to end.
+
+### Attribution is not required, and the footer stays anyway
+
+There is no clause obliging an API consumer to display a credit. The only credit-related language
+runs the other way — a prohibition on removing *their* notices from material taken from the site —
+and the one link-back requirement is scoped narrowly to resharing content on social platforms. The
+Sprint 3 guess was right.
+
+The footer credit stays regardless. It costs nothing, it tells a reader where the numbers come
+from, and a project that reads someone else's data for free should say so whether or not it is
+made to.
+
+### Hot-linking their images is forbidden, and we were doing it
+
+> Hot-linking of images we serve is not allowed. Download the images we've provided and set up
+> your own CDN, you can use Amazon Cloudfront or other CDNs. Your domain may get blacklisted if
+> you do this.
+
+Team crests were rendered as `<img src="https://g.cricapi.com/iapi/...">` in two components, so
+every visitor to the public site was spending the provider's bandwidth directly. This is the one
+concrete breach the re-read found, and the stated penalty is aimed at the domain rather than the
+image — a blacklisting would have taken the API down with the pictures, which makes it a
+reliability problem as much as a licensing one.
+
+**Crests are now served from our own origin.** A DTO no longer carries a provider image address:
+it carries `/api/crests/<token>`, the token being the provider URL encoded, and `CrestsController`
+fetches the bytes once and serves them thereafter. Held in memory for a week, returned with
+`Cache-Control: public, max-age=604800, immutable`, so a reader fetches each crest once and a
+restart costs a handful of small requests rather than one per visitor per page view.
+
+**Archived rows are rewritten on the way out, not migrated.** The archive stores whole DTOs as
+JSON, and rows written before this change hold the absolute address. Translating on read keeps the
+payload an honest record of what the provider actually said, and the translation is idempotent so
+a newer row passing through twice is left alone.
+
+**The route is not a general proxy.** The address is recovered from the token and checked against a
+two-host allow-list before anything is requested — on the way in *and* again on the way out, since
+the token arrives from the caller. Without the second check, anyone could encode any address and
+have the deployment fetch it from inside the host's network. An unrecognised host is dropped rather
+than passed through, so the crest falls back to the side's initials, which is already what the many
+teams with no crest look like.
+
+### Two other clauses worth having written down
+
+**The licence is personal and non-commercial, and their definition of commercial is broad:** "Any
+use for which you receive any remuneration, whether in money or otherwise, is a commercial use for
+the purposes of this clause." A public, ad-free, donation-free site is within it. Advertising, a
+donate button, or any paid use is not, and the terms are explicit that such use is permitted only
+after buying credits. **So monetising this site in any form is a paid-plan decision first and a
+product decision second.**
+
+**They disclaim copyright in the data itself.** "Exclusive rights over Match Information generated
+during a cricket match, which is purely factual information, incapable of copyright protection — so
+basically what we collect and serve to you is PURELY FACTUAL INFORMATION." This sits oddly beside
+the blanket copyright clause elsewhere on the same page, and it is the firmer ground: it means
+[D-017](#d-017)'s archive of finished matches keeps facts they do not claim to own, rather than
+copies of their material.
+
+### Cost
+
+- **A restart re-fetches the crests**, because the cache is in memory and the host has no disk. A
+  handful of requests for a few kilobytes each, against one per visitor per page view before — but
+  it is not literally "your own CDN" as the clause describes, and a deployment with a disk or a CDN
+  in front of it should do better.
+- **An image route is a new shape of request to defend.** Counted in its own rate-limit bucket at a
+  much higher ceiling, because a list page asks for two crests per card and counting them alongside
+  everything else would let one page view spend the minute's allowance on pictures.
+- **The token is opaque**, so a crest URL is no longer readable at a glance. The alternative —
+  naming the file and rebuilding the provider's path — bakes their URL layout into our code and
+  breaks quietly when they change it.
+- **The Cricbuzz scorecard source still has no equivalent review.** It is a reseller of a scrape
+  ([D-027](#d-027)), and [D-029](#d-029) established that enabling it also starts reading Cricbuzz's
+  own website. No image of theirs reaches our DTOs, which was checked, so the hot-linking question
+  does not arise there — but the permission question is untouched and remains a reason to leave it
+  off.
+
+---
+
 ## D-029 — What the first deployment measured, including two predictions that were wrong
 
 **Status:** accepted. Corrects the risk recorded in [D-001](#d-001) and the caveat in
@@ -60,6 +150,25 @@ were a finding, which is the mistake worth not repeating.
   still decline, and declining remains the correct behaviour.
 - The region finding is recorded, not acted on. Neon cannot move a project between regions, so
   fixing it means recreating the database.
+
+### The region finding, acted on
+
+Recorded here rather than as a new entry because it is the same measurement taken twice.
+
+The 202ms figure understated the cost. A page load runs **six** queries, and each one logged
+197–220ms regardless of what it asked for — a `count(*)` over a single row cost the same as
+fetching a payload, which is what round-trip time looks like when the work is negligible. That is
+roughly **1.2 seconds per page load spent on distance alone**, and it moved the region change from
+a nicety to the obvious next thing to do.
+
+The project was recreated in Singapore and the schema reapplied. The same statements now log
+**2–3ms**, with the first query on a fresh connection at 90–101ms because it carries the TLS
+handshake, and an occasional 593ms when Neon is waking from scale-to-zero. Neither is distance.
+
+One thing was expected to be lost and was not: the single archived match was thought to be stranded
+in the old project, but the archiver re-captured it from the provider's window on the first poll
+after the switch. The `INSERT` in the log is the proof it was a fresh database — on the old one that
+row already existed and the existence check would have skipped it.
 
 ---
 

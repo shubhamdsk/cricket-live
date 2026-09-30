@@ -17,6 +17,9 @@ Last updated: Sprint 3.
 { "success": true, "data": { }, "message": "Success" }
 ```
 
+One route is exempt, because its caller is an `<img>` rather than our client: `/api/crests/...`
+returns image bytes or a bare 404. See [Crests](#crests).
+
 On failure, `data` is `null` and `message` carries text safe to show a person. `success` is the only
 thing that says whether a call worked: `data` is also `null` on a success that has nothing to
 return. Validation failures add an `errors` array; it is omitted otherwise.
@@ -127,11 +130,11 @@ spike. An empty list means no cricket in the window, not a failure.
       "venue": "Greenfield International Stadium, Thiruvananthapuram",
       "startTimeUtc": "2026-09-27T08:30:00+00:00",
       "home": {
-        "team": { "id": "india", "name": "India", "shortName": "IND", "logoUrl": "https://…" },
+        "team": { "id": "india", "name": "India", "shortName": "IND", "logoUrl": "/api/crests/…" },
         "innings": [{ "number": 1, "runs": 300, "wickets": 2, "overs": "41.4" }]
       },
       "away": {
-        "team": { "id": "west-indies", "name": "West Indies", "shortName": "WI", "logoUrl": "https://…" },
+        "team": { "id": "west-indies", "name": "West Indies", "shortName": "WI", "logoUrl": "/api/crests/…" },
         "innings": [{ "number": 1, "runs": 295, "wickets": 7, "overs": "50" }]
       },
       "statusText": "India won by 8 wkts"
@@ -149,7 +152,9 @@ Field notes worth knowing before building against this:
   arithmetic.
 - `innings` is an array because a Test side bats twice. It is empty for a side that has not batted.
 - `statusText` is the provider's own sentence. Display it verbatim; never paraphrase it.
-- `logoUrl` is nullable. The provider only has images for teams it holds a profile for.
+- `logoUrl` is nullable — the provider only has images for teams it holds a profile for — and is a
+  **path on this API, not a whole address**. Resolve it against the API's base URL the same way a
+  fetch would be. See [Crests](#crests).
 - `slug` always ends in `id`, so a pretty URL resolves without a lookup.
 
 ### `GET /api/matches/recent`
@@ -403,7 +408,7 @@ seen.
       "id": "india",
       "name": "India",
       "shortName": "IND",
-      "logoUrl": "https://g.cricapi.com/img/teams/…png",
+      "logoUrl": "/api/crests/aHR0cHM6Ly9nLmNyaWNhcGkuY29tL2lhcGkvMzEt…",
       "matchCount": 1,
       "firstMatchUtc": "2026-09-27T08:30:00+00:00",
       "lastMatchUtc": "2026-09-27T08:30:00+00:00",
@@ -415,9 +420,10 @@ seen.
 ```
 
 `matchCount` is **how many matches of this team we can show**, not how many it has played — the
-same caveat a series carries. `logoUrl` is `null` for most sides. `shortName` falls back to the
-full name when no match supplied an abbreviation; it is never invented from the name, because a
-made-up three-letter code reads as authoritatively as a real one.
+same caveat a series carries. `logoUrl` is `null` for most sides, and is a path on this API rather
+than a whole address — see [Crests](#crests). `shortName` falls back to the full name when no match
+supplied an abbreviation; it is never invented from the name, because a made-up three-letter code
+reads as authoritatively as a real one.
 
 ### `GET /api/teams/{teamId}`
 
@@ -492,6 +498,41 @@ to a page with nothing on it. Evidence in [D-023](./decisions.md).
 Matching is a substring scan in memory over the window plus the archive, not a text index — a
 sizing decision, since the window has to be fetched anyway and the set is hundreds of rows. If the
 archive grows enough for that to matter, `SearchService` is the seam to replace.
+
+---
+
+## Crests
+
+### `GET /api/crests/{token}`
+
+Serves a team crest as image bytes. The **one route that does not return the envelope** — its
+caller is an `<img>`, which has no use for JSON — and the one that returns a bare 404 with no body.
+
+```http
+GET /api/crests/aHR0cHM6Ly9nLmNyaWNhcGkuY29tL2lhcGkvMzEt…
+
+200 OK
+Content-Type: image/jpeg
+Cache-Control: public, max-age=604800, immutable
+```
+
+**Clients never construct these URLs.** The token arrives inside a response, as the `logoUrl` of
+any team, and is opaque. Resolve the path against the API's base URL and pass it to an `<img>`
+unchanged.
+
+**Why it exists.** CricketData's terms forbid hot-linking the images they serve and name domain
+blacklisting as the consequence, so the browser must not fetch them directly. This route fetches
+each crest once, holds it in memory for a week, and returns it with an immutable cache header so a
+reader asks for it once and never again. Reasoning in [D-030](./decisions.md).
+
+**Why it is not a proxy you can point anywhere.** The address is decoded from the token and checked
+against a two-host allow-list, both when the token is written and again when it is read. Anything
+else — an unknown host, a plain-HTTP address, a token that does not decode, a response that is not
+an image or is implausibly large — is a 404, and the UI falls back to the side's initials exactly as
+it does for the many teams that have no crest at all.
+
+Counted against its own rate-limit bucket at a much higher ceiling than the rest of the API, because
+a list page asks for two crests per card and they cost us a memory lookup.
 
 ---
 

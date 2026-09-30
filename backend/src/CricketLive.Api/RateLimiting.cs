@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
 using CricketLive.Application.Common;
+using CricketLive.Application.Media;
 
 namespace CricketLive.Api;
 
@@ -37,18 +38,27 @@ internal static class RateLimiting
         services.AddRateLimiter(options =>
         {
             options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    Client(context),
+            {
+                // Crests are counted in their own bucket, and far more generously. A list page
+                // asks for two of them per card, so counting them alongside everything else would
+                // let a reader scrolling one full page spend the minute's allowance on pictures
+                // and then find the API refusing to answer. They also cost us almost nothing: a
+                // memory hit at worst, and usually a browser that never asks a second time.
+                var images = context.Request.Path.StartsWithSegments("/" + CrestUrl.Path);
+
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    (images ? "crest:" : "api:") + Client(context),
                     _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = limits.RequestsPerMinute,
+                        PermitLimit = images ? limits.ImagesPerMinute : limits.RequestsPerMinute,
                         Window = TimeSpan.FromMinutes(1),
 
                         // No queue. Holding a request to answer it a minute late is worse than
                         // refusing it now: the caller has already given up and we would spend a
                         // connection finding that out.
                         QueueLimit = 0,
-                    }));
+                    });
+            });
 
             options.AddPolicy(Stream, context =>
                 RateLimitPartition.GetConcurrencyLimiter(
@@ -117,4 +127,14 @@ internal sealed class RateLimitOptions
     /// reconnect racing a stale connection that has not yet been cleaned up.
     /// </remarks>
     public int ConcurrentStreams { get; init; } = 4;
+
+    /// <summary>
+    /// Crest requests per minute per caller.
+    /// </summary>
+    /// <remarks>
+    /// High because a crest is served from memory and cached by the browser as immutable, so the
+    /// second page view asks for none of them. This is here to bound a script pulling every
+    /// image we hold, not to shape ordinary reading.
+    /// </remarks>
+    public int ImagesPerMinute { get; init; } = 600;
 }

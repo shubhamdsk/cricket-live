@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Media;
 using CricketLive.Application.Series;
 using CricketLive.Application.Teams;
 using Microsoft.EntityFrameworkCore;
@@ -300,7 +301,9 @@ internal sealed class SqlMatchArchive(
     {
         try
         {
-            return JsonSerializer.Deserialize<MatchDetailsDto>(payload, Format);
+            var match = JsonSerializer.Deserialize<MatchDetailsDto>(payload, Format);
+
+            return match is null ? null : WithOurOwnCrests(match);
         }
         catch (JsonException exception)
         {
@@ -310,4 +313,24 @@ internal sealed class SqlMatchArchive(
             return null;
         }
     }
+
+    /// <summary>
+    /// Points a stored match's crests at our own image route.
+    /// </summary>
+    /// <remarks>
+    /// Rows written before hot-linking was removed hold the provider's absolute image address,
+    /// because this class stores the DTO exactly as it was served and reads it back unchanged.
+    /// Rewriting on the way out rather than migrating the table keeps the payload an honest
+    /// record of what the provider said, and costs a few allocations per row. The translation is
+    /// safe to apply twice, so a newer row passing through here again is left alone.
+    /// </remarks>
+    private static MatchDetailsDto WithOurOwnCrests(MatchDetailsDto match)
+        => match with
+        {
+            Home = Rewritten(match.Home),
+            Away = Rewritten(match.Away),
+        };
+
+    private static TeamInningsDto Rewritten(TeamInningsDto side)
+        => side with { Team = side.Team with { LogoUrl = CrestUrl.ToProxyPath(side.Team.LogoUrl) } };
 }

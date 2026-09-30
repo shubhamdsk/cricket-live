@@ -217,19 +217,27 @@ solved.
 `ForwardLimit = 1` means only the nearest hop is trusted. Anything further left in the chain was
 written by the client.
 
-## Attribution — `8.27`
+## Provider terms
 
-The footer credits CricketData with a link, which is in place.
+Read in full and recorded in [D-030](./decisions.md). Three things bind a deployment.
 
-Before going public, **re-read the provider's terms** rather than assuming the footer satisfies
-them. Free tiers commonly require specific wording, a specific link target, or attribution on
-every page that shows their data rather than once in a footer. This has not been re-checked since
-Sprint 3.
+**Attribution is not required.** The footer credits CricketData with a link and that stays, but no
+clause demands it. Nothing to satisfy here.
 
-If the Cricbuzz scorecard source is enabled, that needs its own look. It is a reseller of a scrape
-rather than a licensed feed ([D-027](./decisions.md)), so there may be nobody who can grant
-permission and no correct attribution to give. Leaving it disabled in production is the
-defensible choice until someone decides otherwise.
+**Crests must not be hot-linked.** Their terms forbid it and name domain blacklisting as the
+penalty, which would take the API down with the images. Crests are therefore served from
+`/api/crests/...` and never as a provider address — see `CrestUrl`. **Nothing in a DTO should ever
+carry an image URL on someone else's host again.** The cache is in memory, so a restart re-fetches
+a handful of small files; a host with a disk or a CDN in front of it should improve on that.
+
+**The free licence is personal and non-commercial**, and "any use for which you receive any
+remuneration, whether in money or otherwise" counts as commercial. Advertising, donations or any
+paid use requires buying credits first. This is a licensing decision before it is a product one.
+
+If the Cricbuzz scorecard source is enabled, that needs its own review and has not had one. It is a
+reseller of a scrape rather than a licensed feed ([D-027](./decisions.md)), and enabling it also
+starts reading Cricbuzz's own website ([D-029](./decisions.md)). Leaving it off in production is
+the defensible choice until someone decides otherwise.
 
 ---
 

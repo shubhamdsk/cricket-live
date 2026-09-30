@@ -88,7 +88,9 @@ function check(label, actual, budget) {
   )
 
   if (over) {
-    failures.push(`${label.trim()} is ${actual.toFixed(1)} kB gzipped, over its ${budget} kB budget`)
+    failures.push(
+      `${label.trim()} is ${actual.toFixed(1)} kB gzipped, over its ${budget} kB budget`,
+    )
   }
 }
 

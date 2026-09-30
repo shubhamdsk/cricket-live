@@ -77,6 +77,14 @@ Every path to `www.cricbuzz.com` is now off until a deployment says otherwise: `
 for batters, `Cricbuzz:StandingsEnabled` for points tables, and now `Cricbuzz:AutoResolve` for
 pairing. `Cricbuzz:MatchIds` still pairs by hand, which reads no page and stays available.
 
+**It took two changes, not one, and the first one silently did nothing.** Flipping the C# default
+shipped, deployed, and left production behaving exactly as before, because `appsettings.json` states
+every one of these settings explicitly — so the property initialiser is only what applies when the
+key is absent, and for this key it was not. Caught by testing the deployed endpoint rather than by
+reasoning about the diff, which is the only reason it was caught at all. **A default and a committed
+configuration value are two places, and a switch changed in one of them looks correct in review and
+changes nothing at run time.**
+
 ### What does not change
 
 **The code stays.** Deleting it would make the repository a worse record than it is: D-020, D-024,

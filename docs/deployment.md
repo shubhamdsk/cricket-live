@@ -234,10 +234,30 @@ a handful of small files; a host with a disk or a CDN in front of it should impr
 remuneration, whether in money or otherwise" counts as commercial. Advertising, donations or any
 paid use requires buying credits first. This is a licensing decision before it is a product one.
 
-If the Cricbuzz scorecard source is enabled, that needs its own review and has not had one. It is a
-reseller of a scrape rather than a licensed feed ([D-027](./decisions.md)), and enabling it also
-starts reading Cricbuzz's own website ([D-029](./decisions.md)). Leaving it off in production is
-the defensible choice until someone decides otherwise.
+## The Cricbuzz scorecard source
+
+Reviewed in [D-031](./decisions.md), and the review did not come out in its favour. **Neither route
+to that data is licensed.** Cricbuzz grants the site "for non-commercial use only and private
+viewing only" and forbids communicating Materials to the public; their `robots.txt` disallows every
+agent it has not named, and ours is not named. The RapidAPI route supplies no permission either —
+RapidAPI's terms put the licence squarely between the consumer and the listing's publisher, who is
+not Cricbuzz.
+
+**The recommendation is to leave `CricbuzzApi__Enabled` unset in production.** A public site fails
+the "private viewing only" half of the grant no matter how little it polls.
+
+Three switches now govern every path to `www.cricbuzz.com`, and **all three are off by default**:
+
+| Setting | What it turns on |
+| --- | --- |
+| `Cricbuzz__Enabled` | Reading a match page for the batters at the crease |
+| `Cricbuzz__StandingsEnabled` | Reading a series page for a points table |
+| `Cricbuzz__AutoResolve` | Reading the listing pages to pair a match automatically |
+
+`Cricbuzz__AutoResolve` **used to default to `true`**, which meant setting `CricbuzzApi__Enabled`
+alone was enough to start reading Cricbuzz's website — a permission from one party granted by a
+switch named after another. If a deployment has the scorecard on and wants automatic pairing, it
+must now say so explicitly. `Cricbuzz__MatchIds` pairs by hand and reads no page.
 
 ---
 

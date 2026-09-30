@@ -56,15 +56,25 @@ public sealed class CricbuzzOptions
         = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Whether to pair matches automatically from Cricbuzz's own listing pages.
+    /// Whether to pair matches automatically by reading Cricbuzz's own listing pages.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Separate from <see cref="Enabled"/> because it is a separate risk. Resolution keys on the
     /// match title and series name, which the two providers happen to render identically, and it
-    /// declines rather than guessing when the answer is not unique. Turning this off leaves
-    /// <see cref="MatchIds"/> as the only way a match is ever enriched.
+    /// declines rather than guessing when the answer is not unique. With this off,
+    /// <see cref="MatchIds"/> is the only way a match is ever paired.
+    /// </para>
+    /// <para>
+    /// <b>This defaulted to true and should not have.</b> The scorecard source reaches a gateway
+    /// rather than Cricbuzz, so <c>CricbuzzApi:Enabled</c> reads as a decision about that gateway —
+    /// but pairing goes through here, so switching the scorecard on was enough to start reading
+    /// Cricbuzz's website, against a <c>robots.txt</c> that disallows us and terms that license the
+    /// site for "private viewing only". Every other path to that site is off until a deployment
+    /// says otherwise, and this one now matches. See docs/decisions.md, D-031.
+    /// </para>
     /// </remarks>
-    public bool AutoResolve { get; init; } = true;
+    public bool AutoResolve { get; init; }
 
     /// <summary>Listing pages to read match ids from, in order of preference.</summary>
     public IReadOnlyList<string> ListingPaths { get; init; } =

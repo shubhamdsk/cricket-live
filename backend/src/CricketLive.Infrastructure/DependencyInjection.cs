@@ -1,11 +1,14 @@
 using CricketLive.Application.Enrichment;
 using CricketLive.Application.Live;
 using CricketLive.Application.Matches;
+using CricketLive.Application.Scorecards;
 using CricketLive.Application.Search;
 using CricketLive.Application.Series;
 using CricketLive.Application.Teams;
 using CricketLive.Infrastructure.Cricbuzz;
+using CricketLive.Infrastructure.CricbuzzApi;
 using CricketLive.Infrastructure.CricketData;
+using CricketLive.Infrastructure.Health;
 using CricketLive.Infrastructure.Live;
 using CricketLive.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -94,7 +97,9 @@ public static class DependencyInjection
         services.AddHostedService<LiveMatchPoller>();
 
         AddCricbuzzEnrichment(services, configuration);
+        AddScorecards(services, configuration);
         AddStandings(services);
+        AddHealth(services);
 
         return services;
     }
@@ -115,6 +120,21 @@ public static class DependencyInjection
 
         services.AddDbContext<CricketLiveDbContext>(options => options.UseSqlite(connection));
         services.AddScoped<IMatchArchive, SqlMatchArchive>();
+    }
+
+    /// <summary>
+    /// The two things worth knowing about this service's dependencies.
+    /// </summary>
+    /// <remarks>
+    /// Registered here rather than in the API project because both checks read types that are
+    /// internal to this assembly — the <c>DbContext</c> and the call budget — and exposing either
+    /// one publicly to satisfy a health endpoint would be the wrong trade.
+    /// </remarks>
+    private static void AddHealth(IServiceCollection services)
+    {
+        services.AddHealthChecks()
+            .AddCheck<ArchiveHealthCheck>("archive", tags: ["ready"])
+            .AddCheck<ProviderBudgetHealthCheck>("provider-budget", tags: ["ready"]);
     }
 
     /// <summary>
@@ -169,6 +189,57 @@ public static class DependencyInjection
 
         // Deliberately no retry. This reads someone else's website, and a page that did not answer
         // is not an invitation to ask again — the caller loses two player names, which is nothing.
+    }
+
+    /// <summary>
+    /// Registers the scorecard source, which reaches a metered gateway and so ships switched off.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Conditional rather than dormant, like the standings reader and unlike enrichment. The
+    /// difference is that this one spends somebody's allowance: a registration that is merely
+    /// inert puts a single configuration flag between a deployment and a metered API. With the
+    /// switch off the client is not in the graph at all.
+    /// </para>
+    /// <para>
+    /// The budget is a singleton because it is the process's count of a monthly allowance, and two
+    /// of them would each believe they had the whole thing.
+    /// </para>
+    /// </remarks>
+    private static void AddScorecards(IServiceCollection services, IConfiguration configuration)
+    {
+        services
+            .AddOptions<CricbuzzApiOptions>()
+            .Bind(configuration.GetSection(CricbuzzApiOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddSingleton<NoMatchScorecardProvider>();
+        services.AddSingleton<CricbuzzApiBudget>();
+
+        services.AddHttpClient<CricbuzzApiClient>((provider, client) =>
+        {
+            var api = provider.GetRequiredService<IOptions<CricbuzzApiOptions>>().Value;
+
+            client.BaseAddress = new Uri(api.BaseUrl.TrimEnd('/') + '/');
+            client.Timeout = TimeSpan.FromSeconds(api.TimeoutSeconds);
+
+            // A header rather than a query string, which is the one thing this gateway does better
+            // than our main provider: the key never appears in a URL, so nothing that logs a URL
+            // can leak it.
+            client.DefaultRequestHeaders.Add("x-rapidapi-key", api.ApiKey);
+            client.DefaultRequestHeaders.Add("x-rapidapi-host", api.Host);
+        });
+
+        // Deliberately no resilience handler. Our main provider gets one because a hundred calls a
+        // day can absorb a retry; two hundred a month cannot, and a retry here would spend a
+        // second call re-asking a scraper that had just failed.
+        services.AddScoped<CricbuzzApiScorecardProvider>();
+
+        services.AddScoped<IMatchScorecardProvider>(provider =>
+            provider.GetRequiredService<IOptions<CricbuzzApiOptions>>().Value.Enabled
+                ? provider.GetRequiredService<CricbuzzApiScorecardProvider>()
+                : provider.GetRequiredService<NoMatchScorecardProvider>());
     }
 
     /// <summary>

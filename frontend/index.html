@@ -4,7 +4,38 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      Static, and deliberately so. Routes live in the fragment (docs/decisions.md, D-019), and a
+      crawler or a link unfurler is served this one document for every URL on the site — it never
+      sees which page the fragment asked for. Per-page tags injected at runtime would therefore be
+      written for an audience that cannot read them.
+
+      So the description below describes the site rather than a page, which is the only honest
+      thing it can say. Per-page naming is done through the document title instead, which reaches
+      tabs, history and screen readers: see src/hooks/usePageTitle.ts.
+    -->
     <title>Cricket Live</title>
+    <meta
+      name="description"
+      content="Live cricket scores, fixtures, results and series standings, updated while play continues."
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Cricket Live" />
+    <meta property="og:title" content="Cricket Live" />
+    <meta
+      property="og:description"
+      content="Live cricket scores, fixtures, results and series standings, updated while play continues."
+    />
+
+    <!-- No og:image. There is no asset to point at, and a tag resolving to a 404 makes a worse
+         link preview than no tag at all. -->
+    <meta name="twitter:card" content="summary" />
+
+    <!-- Matches the header's surface colour, so mobile browser chrome does not sit against it as
+         a visible seam. -->
+    <meta name="theme-color" content="#ffffff" />
   </head>
   <body>
     <div id="root"></div>

@@ -46,6 +46,25 @@ User secrets live outside the repository, at `%APPDATA%\Microsoft\UserSecrets\<U
 
 In deployed environments set the environment variable `CricketData__ApiKey` instead — the double underscore is how .NET maps an environment variable onto a nested configuration key.
 
+### Optional: scorecards
+
+Scorecards come from a second source and the app runs fine without them. If you skip this, the scorecard section on a match page says there is none.
+
+The source is the Cricbuzz listing on [RapidAPI](https://rapidapi.com/). It is a reseller of a scrape rather than a Cricbuzz product, and its free plan allows **200 requests per month** — not per day. That number is why the feature ships disabled and why the app never polls it. Read [D-027](docs/decisions.md) before turning it on.
+
+```bash
+cd backend
+dotnet user-secrets set "CricbuzzApi:ApiKey" "your-rapidapi-key" --project src/CricketLive.Api
+```
+
+Then enable it, either in `appsettings.Development.json` or with `CricbuzzApi__Enabled=true`:
+
+```json
+{ "CricbuzzApi": { "Enabled": true } }
+```
+
+Enabling this also enables reading Cricbuzz's own listing pages, because our match ids are CricketData GUIDs and the source uses Cricbuzz's integers, so something has to pair them. There is no way to use the source without it. See [D-020](docs/decisions.md).
+
 ## Running locally
 
 Run the backend and frontend in two terminals.

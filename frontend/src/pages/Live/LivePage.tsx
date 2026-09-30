@@ -1,7 +1,10 @@
 import { MatchListSection } from '@/features/matches/components/MatchListSection'
 import { useLiveMatches } from '@/features/matches/hooks/useMatches'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 export function LivePage() {
+  usePageTitle('Live matches')
+
   const liveQuery = useLiveMatches()
 
   return (

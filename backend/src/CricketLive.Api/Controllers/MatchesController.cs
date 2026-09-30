@@ -2,6 +2,7 @@ using CricketLive.Api.Contracts;
 using CricketLive.Application.Common;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Scorecards.Dtos;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CricketLive.Api.Controllers;
@@ -105,5 +106,38 @@ public sealed class MatchesController(IMatchService matches) : ControllerBase
         }
 
         return Ok(ApiResponse<MatchDetailsDto>.Ok(match));
+    }
+
+    /// <summary>
+    /// The full scorecard for a match, when one can be had.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Separate from the match itself because it comes from a different source with a small
+    /// request allowance, and asking for it should be the reader's choice rather than a cost every
+    /// match page pays.
+    /// </para>
+    /// <para>
+    /// 404 covers both an unknown match and a known match with no scorecard available, because a
+    /// client does the same thing with either: it shows no scorecard. Distinguishing them would
+    /// mean telling a caller about our budget, which is our problem and not theirs.
+    /// </para>
+    /// </remarks>
+    /// <param name="matchId">Either the provider id or one of our slugs, which end in that id.</param>
+    [HttpGet("{matchId}/scorecard")]
+    [ProducesResponseType<ApiResponse<ScorecardDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ScorecardDto>>> GetScorecard(
+        string matchId,
+        CancellationToken cancellationToken)
+    {
+        var scorecard = await matches.GetScorecardAsync(matchId, cancellationToken);
+
+        if (scorecard is null)
+        {
+            return NotFound(ApiResponse<ScorecardDto>.Fail("No scorecard is available for this match."));
+        }
+
+        return Ok(ApiResponse<ScorecardDto>.Ok(scorecard));
     }
 }

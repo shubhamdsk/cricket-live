@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import {
   getLiveMatches,
   getMatchDetails,
+  getMatchScorecard,
   getRecentMatches,
   getSeriesNames,
   getUpcomingMatches,
@@ -30,6 +31,7 @@ export const matchKeys = {
     [...matchKeys.all, 'recent', pageSize, filter] as const,
   series: () => [...matchKeys.all, 'series'] as const,
   details: (slug: string) => [...matchKeys.all, 'details', slug] as const,
+  scorecard: (slug: string) => [...matchKeys.all, 'scorecard', slug] as const,
 }
 
 export function useLiveMatches(filter: MatchFilterParams = {}) {
@@ -98,5 +100,29 @@ export function useMatchDetails(slug: string | undefined) {
       return match?.status === 'live' ? MINUTE : false
     },
     refetchOnWindowFocus: true,
+  })
+}
+
+/**
+ * The full card, fetched only once someone asks to see it.
+ *
+ * Everything unusual about this hook comes from the allowance behind the endpoint, which is two
+ * hundred requests a month rather than a day. So: `enabled` is the reader's choice rather than
+ * merely "is there a slug", there is no refetch interval at all, and the stale time is long
+ * enough that opening and closing the section a few times costs one request.
+ *
+ * It never retries. A failure here has already spent a request, and the usual reason for one is
+ * that the allowance is gone — which asking again cannot fix and does make worse.
+ */
+export function useMatchScorecard(slug: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: matchKeys.scorecard(slug ?? ''),
+    queryFn: ({ signal }) => getMatchScorecard(slug!, signal),
+    enabled: Boolean(slug) && enabled,
+    staleTime: 5 * MINUTE,
+    // A completed card cannot change, and a live one is served from a server-side cache of the
+    // same length, so refetching on focus would spend a request to be handed what we already hold.
+    refetchOnWindowFocus: false,
+    retry: false,
   })
 }

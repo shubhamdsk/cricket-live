@@ -1,5 +1,6 @@
+import type { Scorecard } from '@/features/matches/scorecardTypes'
 import type { Match, MatchDetails, Paged } from '@/features/matches/types'
-import { apiGet, apiUrl } from '@/services/apiClient'
+import { ApiError, apiGet, apiUrl } from '@/services/apiClient'
 import type { MatchFilterParams } from '@/services/endpoints'
 import { endpoints } from '@/services/endpoints'
 
@@ -42,6 +43,30 @@ export function getSeriesNames(signal?: AbortSignal): Promise<string[]> {
 /** Accepts the readable slug or the bare match id; the API resolves either. */
 export function getMatchDetails(slug: string, signal?: AbortSignal): Promise<MatchDetails> {
   return apiGet<MatchDetails>(endpoints.matches.details(slug), signal)
+}
+
+/**
+ * The full card, or null when there is none to be had.
+ *
+ * A 404 here is the ordinary case rather than a failure: the scorecard source is off by default,
+ * does not carry every match, and has a request allowance it can exhaust. All three arrive as a
+ * 404 and all three mean the same thing to a reader, so they are turned into null and the section
+ * is simply not rendered. Every other status still throws, because a scorecard endpoint returning
+ * a 500 is a real problem and hiding it would make it invisible.
+ */
+export async function getMatchScorecard(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<Scorecard | null> {
+  try {
+    return await apiGet<Scorecard>(endpoints.matches.scorecard(slug), signal)
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.status === 404) {
+      return null
+    }
+
+    throw cause
+  }
 }
 
 /**

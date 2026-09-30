@@ -7,12 +7,16 @@ import { focusRing } from '@/components/common/focusRing'
 import { MatchCard } from '@/components/match/MatchCard'
 import { TeamCrest } from '@/features/teams/components/TeamCrest'
 import { useTeamDetails } from '@/features/teams/hooks/useTeams'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { ApiError } from '@/services/apiClient'
 import { cn } from '@/utils/cn'
 
 export function TeamDetailsPage() {
   const { slug } = useParams<{ slug: string }>()
   const { data, isPending, isError, error, refetch } = useTeamDetails(slug)
+
+  // Null until the side has a name, so the tab does not read "undefined" on the way there.
+  usePageTitle(data?.team.name ?? null)
 
   if (isPending) {
     return (

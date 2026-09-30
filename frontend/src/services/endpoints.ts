@@ -63,6 +63,12 @@ export const endpoints = {
 
     /** Server-Sent Events for one match. Opened with `EventSource`, not `fetch`. */
     stream: (idOrSlug: string) => `${matches}/${encodeURIComponent(idOrSlug)}/stream`,
+
+    /**
+     * The full card. Separate from the details call because it comes from a different upstream
+     * with a small allowance, so it is only worth asking for when someone is looking at it.
+     */
+    scorecard: (idOrSlug: string) => `${matches}/${encodeURIComponent(idOrSlug)}/scorecard`,
   },
 
   series: {

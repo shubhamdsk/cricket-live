@@ -6,8 +6,11 @@ import {
   useRecentMatches,
   useUpcomingMatches,
 } from '@/features/matches/hooks/useMatches'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 export function HomePage() {
+  usePageTitle("Today's cricket")
+
   const liveQuery = useLiveMatches()
   const upcomingQuery = useUpcomingMatches()
   // A single row of results here; the matches page is where the rest of the archive lives.

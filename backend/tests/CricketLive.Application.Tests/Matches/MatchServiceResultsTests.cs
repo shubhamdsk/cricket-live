@@ -2,6 +2,8 @@ using CricketLive.Application.Common;
 using CricketLive.Application.Enrichment;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Scorecards;
+using CricketLive.Application.Scorecards.Dtos;
 using CricketLive.Application.Series;
 using CricketLive.Application.Teams;
 
@@ -114,7 +116,11 @@ public sealed class MatchServiceResultsTests
         // The saving here is a provider call, which is the scarce thing. A client sending one
         // filter to all three lists should not spend an API call on the two it excluded.
         var provider = new StubProvider([Live("playing", Day(2))]);
-        var service = new MatchService(provider, new NoEnrichment(), new StubArchive([]));
+        var service = new MatchService(
+            provider,
+            new NoEnrichment(),
+            new NoScorecards(),
+            new StubArchive([]));
 
         var upcoming = await service.GetUpcomingAsync(new MatchFilter(Status: MatchStatus.Live), default);
 
@@ -151,7 +157,11 @@ public sealed class MatchServiceResultsTests
     private static MatchService Build(
         IReadOnlyList<MatchDetailsDto> window,
         IReadOnlyList<MatchDetailsDto> archive)
-        => new(new StubProvider(window), new NoEnrichment(), new StubArchive(archive));
+        => new(
+            new StubProvider(window),
+            new NoEnrichment(),
+            new NoScorecards(),
+            new StubArchive(archive));
 
     private static DateTimeOffset Day(int day) => new(2026, 1, day, 9, 0, 0, TimeSpan.Zero);
 
@@ -273,5 +283,14 @@ public sealed class MatchServiceResultsTests
             MatchIdentity match,
             CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<BatterDto>>([]);
+    }
+
+    /// <summary>The disabled scorecard source, which is how this ships and what these tests want.</summary>
+    private sealed class NoScorecards : IMatchScorecardProvider
+    {
+        public Task<ScorecardDto?> GetScorecardAsync(
+            MatchIdentity match,
+            CancellationToken cancellationToken)
+            => Task.FromResult<ScorecardDto?>(null);
     }
 }

@@ -54,7 +54,11 @@ In deployed environments set the environment variable `CricketData__ApiKey` inst
 
 Scorecards come from a second source and the app runs fine without them. If you skip this, the scorecard section on a match page says there is none.
 
-The source is the Cricbuzz listing on [RapidAPI](https://rapidapi.com/). It is a reseller of a scrape rather than a Cricbuzz product, and its free plan allows **200 requests per month** — not per day. That number is why the feature ships disabled and why the app never polls it. Read [D-027](docs/decisions.md) before turning it on.
+The source is the Cricbuzz listing on [RapidAPI](https://rapidapi.com/). It is a reseller of a scrape rather than a Cricbuzz product, and its free plan allows **200 requests per month** — not per day. That number is why the feature ships disabled and why the app never polls it.
+
+**Read [D-031](docs/decisions.md) before turning it on, not just [D-027](docs/decisions.md).** The terms of all three parties have now been read, and neither route to Cricbuzz's data is licensed: Cricbuzz grants its site for "private viewing only", and RapidAPI's terms put the licence between you and the listing's publisher, who is not Cricbuzz. Running this locally against a handful of matches is one thing; serving it on a public site is the thing the grant excludes.
+
+Pairing needs a second switch. `Cricbuzz:AutoResolve` reads Cricbuzz's own listing pages to match a fixture to its Cricbuzz id, and it is **off by default** — so with only `CricbuzzApi:Enabled` set, the scorecard pairs nothing unless you write ids into `Cricbuzz:MatchIds` by hand.
 
 ```bash
 cd backend
@@ -67,7 +71,13 @@ Then enable it, either in `appsettings.Development.json` or with `CricbuzzApi__E
 { "CricbuzzApi": { "Enabled": true } }
 ```
 
-Enabling this also enables reading Cricbuzz's own listing pages, because our match ids are CricketData GUIDs and the source uses Cricbuzz's integers, so something has to pair them. There is no way to use the source without it. See [D-020](docs/decisions.md).
+For automatic pairing you must opt in separately, because it reads Cricbuzz's own listing pages rather than the gateway — a different party's permission, so a different switch:
+
+```json
+{ "CricbuzzApi": { "Enabled": true }, "Cricbuzz": { "AutoResolve": true } }
+```
+
+Our match ids are CricketData GUIDs and the source uses Cricbuzz's integers, so something has to pair them, and there is no way to use the source without pairing. See [D-020](docs/decisions.md) and [D-031](docs/decisions.md).
 
 ## Running locally
 

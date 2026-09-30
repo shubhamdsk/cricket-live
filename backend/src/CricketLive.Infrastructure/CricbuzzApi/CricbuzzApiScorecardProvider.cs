@@ -25,8 +25,14 @@ namespace CricketLive.Infrastructure.CricbuzzApi;
 /// uses Cricbuzz's integers, so the pairing comes from
 /// <see cref="CricbuzzMatchDirectory"/> — already built, already cached for half an hour, and free,
 /// because it reads a listing page rather than spending a gateway call. The consequence is worth
-/// stating: turning this on also turns on reading Cricbuzz's listing pages, which is the subject of
-/// D-020. There is no way to use this source without identifying matches in its terms.
+/// stating: pairing means reading Cricbuzz's listing pages, which is the subject of D-020, and
+/// there is no way to use this source without identifying matches in its terms.
+/// </para>
+/// <para>
+/// So this switch alone is not enough to pair a match. <c>Cricbuzz:AutoResolve</c> governs the
+/// listing read and is off by default, which leaves <c>Cricbuzz:MatchIds</c> as the only pairing a
+/// deployment gets for free. That is deliberate — see D-031 — because the two switches are
+/// permissions from two different parties and only one of them is the gateway's.
 /// </para>
 /// </remarks>
 internal sealed class CricbuzzApiScorecardProvider(

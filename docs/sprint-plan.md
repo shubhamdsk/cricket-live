@@ -851,7 +851,9 @@ Every task inherits the checklist from `project-plan.md`. A sprint closes only w
 **Current sprint:** Sprint 7 — the last sprint with open build work
 **Next action:** `7.12`, filters on `/matches`, now that the archive gives a list long enough to need them.
 
-Two things stay on the list without being tasks. The Cricbuzz scorecard source has had no terms review of its own, and [D-029](./decisions.md) makes that more pressing than it looks: enabling it also starts reading Cricbuzz's website, which is not what the setting's name suggests. And the archive surviving a Render spin-down is still unverified, because it needs twenty idle minutes nobody has spent yet.
+One thing stays on the list without being a task: the archive surviving a Render spin-down is still unverified, because it needs twenty idle minutes nobody has spent yet.
+
+**The Cricbuzz review is now done too, in [D-031](./decisions.md), and it did not come out in the feature's favour.** Neither route to that data is licensed — Cricbuzz grants its site for "private viewing only" and RapidAPI's terms put the licence between the consumer and a publisher who is not Cricbuzz. The wrong default that [D-029](./decisions.md) found is fixed: `Cricbuzz:AutoResolve` was `true`, so switching on the scorecard was enough to start reading Cricbuzz's website, and it is now off like every other path to that site. What remains is not technical — whether to leave `CricbuzzApi:Enabled` set in production is the project owner's call, and the recommendation on the record is not to.
 
 The Neon project has since moved to Singapore, which took archive queries from 218ms to 2–3ms — see [D-029](./decisions.md).
 

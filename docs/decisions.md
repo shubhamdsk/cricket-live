@@ -5,6 +5,106 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-031 — Cricbuzz's terms, read in full: neither route to that data is licensed
+
+**Status:** accepted. Strengthens [D-020](#d-020), [D-024](#d-024) and [D-027](#d-027) rather than
+reversing any of them, and fixes the wrong default that [D-029](#d-029) found.
+
+### Context
+
+[D-030](#d-030) read CricketData's terms and found a clause the project was breaking. It also noted
+that the Cricbuzz side had never had the same treatment. This is that review. There are **two**
+permissions to assess, not one, because the project can reach Cricbuzz's data two ways: by reading
+`www.cricbuzz.com` directly, and through a RapidAPI listing that reads it for us.
+
+### Reading the site directly is not licensed, and the terms say so more plainly than robots.txt did
+
+D-020 proceeded on the judgement that `robots.txt` is a crawling convention rather than a licence
+term. That judgement is still defensible, and it is now beside the point, because the licence term
+exists separately and says the same thing:
+
+> The Company grants You a personal, revocable, non-exclusive, non-transferable right to access and
+> use the Site, for non-commercial use only **and private viewing only**.
+
+> You shall not use, reproduce, redistribute, sell, offer on commercial, rental, ... adapt,
+> **communicate to the public**, make a derivative work ... in any manner whatsoever.
+
+> Except as stated herein, none of the Materials may be modified, copied, reproduced, distributed,
+> republished, downloaded, displayed, sold, compiled, posted or transmitted in any form or by any
+> means ... without the prior express written permission of the Company.
+
+"Private viewing only" and "communicate to the public" are the operative phrases. Serving
+Cricbuzz-derived content on a public website is the opposite of private viewing, whatever one
+thinks of `robots.txt`. The `robots.txt` was also re-read and is unchanged: `User-agent: *` followed
+by `Disallow: /`, with named exceptions for search engines and ours not among them.
+
+**The asymmetry with CricketData is the whole finding.** CricketData volunteers that match data is
+*"PURELY FACTUAL INFORMATION ... incapable of copyright protection"*. Cricbuzz claims the opposite —
+all Materials are its intellectual property — and backs it with a grievance officer and a
+copyright-complaint procedure. Two sources, the same underlying facts, and opposite positions on
+whether those facts are theirs. We are not obliged to accept Cricbuzz's characterisation, but we are
+not the right party to test it, and the terms are what a dispute would start from. Governing law is
+India, exclusive jurisdiction Bengaluru.
+
+### The RapidAPI route does not fix it, because RapidAPI grants nothing
+
+This was the interesting half. RapidAPI's own terms are explicit that it is not in the licence
+chain at all:
+
+> With respect to each API, API Consumers and the API Provider ... acknowledge and agree that the
+> terms and conditions applicable to the use of ... such API by each such API Consumer are solely
+> between each such API Consumer and such API Provider, **and not with Rapid**.
+
+> API Provider, not Rapid, is responsible for monitoring and enforcing the API Content/Terms
+> applicable to each API.
+
+So paying RapidAPI buys gateway access and no rights. Whatever permission we would have comes from
+the listing's publisher, who is not Cricbuzz and who warranted to RapidAPI that it holds rights it
+is in no position to hold. **The licence chain has a broken link in the middle, and being three
+parties away from Cricbuzz does not lengthen it into a licence.** D-027 called this source "a
+reseller of a scrape" on instinct; the terms of all three parties now say the same thing on the
+record.
+
+### What changes in the code
+
+**`Cricbuzz:AutoResolve` now defaults to `false`.** This is the [D-029](#d-029) finding turned into
+a fix. The scorecard reaches a gateway, so `CricbuzzApi:Enabled` reads as a decision about that
+gateway — but pairing goes through the listing reader, so that one switch was enough to start
+reading Cricbuzz's website. Two switches representing permissions from two different parties were
+collapsed into one, and the one that was visible belonged to the wrong party.
+
+Every path to `www.cricbuzz.com` is now off until a deployment says otherwise: `Cricbuzz:Enabled`
+for batters, `Cricbuzz:StandingsEnabled` for points tables, and now `Cricbuzz:AutoResolve` for
+pairing. `Cricbuzz:MatchIds` still pairs by hand, which reads no page and stays available.
+
+### What does not change
+
+**The code stays.** Deleting it would make the repository a worse record than it is: D-020, D-024,
+D-027 and this entry are the reasoning, and reasoning with the subject removed is hard to check.
+Everything is off by default, nothing polls, and the parser tests run against captured pages rather
+than live traffic.
+
+**D-020 is not reversed.** It remains a decision the project owner took knowingly, with the
+obligations written down. What this entry adds is that the `robots.txt` argument was never the
+strongest one against it — the licence grant was — and that the standings feature is therefore on
+weaker ground than it looked, not stronger.
+
+### Cost, and the recommendation
+
+- **A deployment with `CricbuzzApi:Enabled=true` loses automatic pairing** until it also sets
+  `Cricbuzz:AutoResolve=true`. That is the intended effect: it is a decision someone should make on
+  purpose. It is also a live behaviour change, not a theoretical one.
+- **The honest reading is that the scorecard should be off in production.** It is a public,
+  non-commercial site, which satisfies one half of Cricbuzz's grant and fails the other half —
+  "private viewing only" — and the RapidAPI route supplies no permission to make up the difference.
+  This entry does not switch it off, because that is the project owner's call and the switches now
+  present it as one, but it records that the technical work is finished and the remaining question
+  is not technical.
+- **No equivalent carve-out exists to lean on.** With CricketData there was one: they say the data
+  is not theirs to own. Cricbuzz says it is.
+
+---
+
 ## D-030 — The provider's terms, read in full: no attribution owed, and one clause we were breaking
 
 **Status:** accepted. Settles `8.27` and the open question in [D-012](#d-012); confirms the guess

@@ -170,6 +170,14 @@ above: **the site must not be monetised in any form while it runs on the free ke
 may carry an image URL on a host that is not ours**. The second has a guard in code; the first does
 not and cannot.
 
+The Cricbuzz sources had their own review in [D-031](./decisions.md), with the same outcome in a
+harder form: **neither route to that data is licensed**, so the condition there is that
+`CricbuzzApi__Enabled` should stay unset in production. Three switches now govern every path to
+`www.cricbuzz.com` — `Cricbuzz__Enabled`, `Cricbuzz__StandingsEnabled` and `Cricbuzz__AutoResolve` —
+and all three are off by default. The last of those was `true`, which meant a switch named after the
+RapidAPI gateway silently granted a permission belonging to Cricbuzz; that is the class of bug worth
+looking for elsewhere, where one flag stands in for two parties' consent.
+
 The crest route deserves a line of its own here, since it is the only endpoint that makes an
 outbound request on a caller's behalf. The address is never taken from the request: it is decoded
 from an opaque token and checked against a two-host allow-list both when the token is written and

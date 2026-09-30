@@ -5,6 +5,354 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-028 — The archive moves to PostgreSQL, because the host has no disk
+
+**Status:** accepted. Supersedes the "SQLite because it is a file" half of [D-017](#d-017) for
+deployment only, and completes the swap [D-004](#d-004) and D-017 both anticipated.
+
+### Context
+
+D-017 chose SQLite and gave the reason plainly: it is a file, so there is nothing to install,
+nothing to run alongside the API and nothing to provision. **That reasoning has not been
+falsified.** SQLite is still the right database for this workload and is still what runs locally
+and in the tests.
+
+What changed is the host. Deployment had to be free and without a credit card, which rules out
+Fly.io — the one free tier that will keep a file. Render's free web services cannot attach a disk
+at all, and the container is rebuilt from the image whenever the service wakes from a spin-down,
+about fifteen minutes after the last visitor. So a SQLite archive would not be lost per release;
+it would be lost several times a day.
+
+That matters here more than it usually would. The archive is not a cache. D-017's whole premise
+is that no source available to us can supply completed matches, so the archive accumulates
+forward and anything lost is lost permanently. An archive that empties nightly is Sprint 7
+producing nothing while appearing to work.
+
+### Decision
+
+**PostgreSQL in deployment, on Neon's free plan. SQLite for local runs and for the tests.**
+
+D-017 predicted this would cost "one registration and the migration", and that was very nearly
+right. The registration picks a provider from the *shape* of the connection string rather than
+from a separate setting, because a provider setting and a connection string are two facts that
+can contradict each other and the contradiction would surface in production.
+
+Three things were not free:
+
+- **The one provider-specific line in the model.** `SeriesName` used SQLite's `NOCASE` collation
+  so series filtering is case-insensitive and still index-backed. PostgreSQL needs a collation
+  that exists before a column can reference it, so the model declares a non-deterministic ICU
+  collation and a migration creates it. The `DbContext` comment had already named this as the
+  line that would have to change.
+- **The migrations are PostgreSQL's alone.** They are provider-specific SQL and EF keeps one set
+  per assembly. The local SQLite database is built from the model with `EnsureCreated` instead.
+- **Connection URLs.** Every managed host issues `postgresql://…` and Npgsql parses only
+  `Host=…;Database=…`. The app converts. This is not a convenience: Npgsql reports the mismatch
+  by throwing with the whole connection string in the message, so the failure mode is a deploy
+  that prints the database password into a log. It did exactly that once while this was being
+  built, and that password had to be reset.
+
+### Cost
+
+- **Local and deployed now run different databases.** ASCII case folding in SQLite against
+  Unicode rules in PostgreSQL means an accented series name compares slightly differently in the
+  two. Matching them exactly would mean giving up index-backed filtering on one side.
+- **The PostgreSQL path has no automated coverage**, because the tests run on SQLite and there is
+  no test database. It was verified by rendering the migration to SQL and reading it. Deployment
+  is where it is really proven.
+- **A model change that breaks a migration will not show up locally.** It shows up on deploy.
+- **Idle suspension is now a runtime concern.** Neon force-suspends after five minutes, so EF's
+  retry-on-failure is enabled; without it the first visitor after a quiet spell gets an error and
+  everyone behind them is fine.
+- **A second service to keep alive**, with its own free-tier limits. The binding one is compute
+  at 100 CU-hours a month, not the 0.5 GB of storage, which is decades of matches.
+
+---
+
+## D-027 — The scorecard is built; commentary is not, and the line between them is one request
+
+**Status:** accepted. Supersedes the "will not be built" half of [D-024](#d-024) for the
+scorecard only, on the measurement in [D-026](#d-026).
+
+### Context
+
+D-024 closed Sprint 6 unbuilt. D-026 corrected its premise: the data is real, live, and reachable
+through a RapidAPI listing that scrapes Cricbuzz. What remained was the price. The free plan is
+**200 requests a month**, about 6.6 a day — roughly fifteen times *worse* than our main provider's
+free tier, not better, which is the mistake this evaluation nearly made.
+
+The instruction was to build on the free plan regardless. So the question stopped being "can we
+afford live cricket data" and became "what can 200 requests a month actually buy".
+
+### Decision
+
+**Build the scorecard. Do not build commentary.**
+
+The split is not a judgement about which is more valuable. It falls straight out of the
+arithmetic:
+
+- A **scorecard** is a whole innings in one request. Every batter, every bowler, every wicket.
+  Once a match finishes it never changes again, so it is one request forever. A reader who opens a
+  completed match's card costs one request and the next hundred readers cost nothing.
+- **Commentary** is only worth anything if it keeps up. The spike measured nine balls in seventy
+  seconds, so following one innings honestly is roughly 120 requests an hour. The entire monthly
+  allowance is **three minutes** of one match. Commentary on this plan is not a reduced feature,
+  it is a broken one.
+
+Four consequences follow, each of which is in the code:
+
+1. **Nothing polls it.** `LiveMatchPoller` stays on our main provider. The new source is only ever
+   touched by a reader asking for something.
+2. **It is behind a button.** Not a lazy load, an explicit press. Fetching on page open would mean
+   every visit to every match page spends a request.
+3. **A live card is cached for five minutes.** Slow for live sport, and deliberate: thirty seconds
+   would empty the allowance before lunch on the first of the month.
+4. **Sixty requests are reserved for finished matches.** Without a reserve, one live match takes
+   everything — it keeps changing, so it keeps being worth re-fetching — and every completed
+   scorecard for the rest of the month shows nothing. A finished match is worth one request ever,
+   which is the best value in the whole budget, so it gets protected from the worst.
+
+The budget is reconciled against the gateway's own `x-ratelimit-requests-remaining` on every
+response rather than trusted from our own count, because the key is spent by anything holding it,
+including a spike script.
+
+### Costs
+
+- **The source is an unlicensed scraper.** It is not a Cricbuzz product; Cricbuzz has never
+  published a developer API. No SLA, no affiliation, and a history of going offline during major
+  tournaments. This is the same objection D-024 raised about scraping Cricbuzz ourselves, and
+  paying an intermediary to do it does not answer it. It is why the feature ships **disabled** and
+  why the registration is conditional rather than dormant: a deployment has to mean it.
+- **It drags Cricbuzz listing reads in with it.** Our ids are CricketData GUIDs, the source uses
+  Cricbuzz integers, and nothing maps between them. Resolution reuses `CricbuzzMatchDirectory`,
+  which scrapes the listing — free and cached for half an hour, but it means enabling scorecards
+  enables that reading too. There is no way to use this source without identifying matches in its
+  terms. See [D-020](#d-020).
+- **404 covers four different situations** — disabled, unmatched, out of budget, upstream silent —
+  and clients cannot tell them apart. That is intentional; the alternative is an API that reports
+  our billing state.
+- **The five-minute live cache will look wrong to anyone watching the match.** It is the honest
+  consequence of the plan and is stated in `docs/api.md` rather than hidden.
+- **Two instances would each believe they hold the whole monthly allowance**, and would overspend
+  it together. The same limitation as [D-014](#d-014); the fix is a shared counter, not a cleverer
+  local one.
+
+### What would change this
+
+A paid tier. At $9.99 a month the allowance buys about five and a half hours of live following a
+day, which makes commentary a real feature rather than a broken one, and lets the live cache drop
+to something that deserves the word. D-024's cost objection is unchanged and still nobody's to
+overrule but the project owner's.
+
+---
+
+## D-026 — Sprint 6's data exists and is live; what stops us is cost, not availability
+
+**Status:** accepted. Corrects the premise of [D-024](#d-024).
+
+D-024 closed Sprint 6 on the finding that the data could not be had. That finding was true of
+CricketData and false in general, and the difference matters enough to record properly: every
+struck-out task in Sprint 6 is buildable from a source we can reach today. We are still not
+building it, but the reason has changed from *cannot* to *will not pay*.
+
+### It was measured, not read about
+
+Four calls against RapidAPI's Cricbuzz listing, on a match in progress — Australia A v India A,
+day two — using a key held in user secrets:
+
+| | |
+| --- | --- |
+| First call | `340/8` at ball `1121`, `ismatchcomplete: false` |
+| 70 seconds later | `342/8` at ball `1130` |
+
+Nine balls bowled, and the payload moved with them. That rules out the explanation that mattered
+most: this is not a snapshot cached when the match started, it is a live feed.
+
+Commentary is there too, under `comwrapper[].commentary` rather than the `commentaryList` the
+listing's documentation implies:
+
+```json
+{ "commtxt": "Tanush Kotian to Rocchiccioli, 1 run",
+  "overnum": 109.6, "eventtype": "over-break",
+  "oversep": { "score": 339, "wickets": 8, "oversummary": "0 0 0 1 1 1 ",
+               "runs": 3, "batstrikerdetails": "119(205)" } }
+```
+
+The `oversep` block is `6.8` — over-by-over with a per-ball summary string and the striker's score
+— a task CricketData has no field for at any tier. Scorecards, fall of wickets, partnerships and
+extras all arrived in full on a separate finished-match call.
+
+### The arithmetic is the whole decision
+
+Nine balls in seventy seconds means following one innings honestly costs a call every thirty
+seconds: 120 an hour.
+
+| Plan | Cost | Calls per day | Hours of one live match |
+| --- | --- | --- | --- |
+| BASIC | free | ~6.6 | **3 minutes** |
+| PRO | $9.99/mo | ~660 | ~5.5 |
+| ULTRA | $29.99/mo | ~3,300 | ~27 |
+
+The free tier is not a small budget, it is an unusable one: 200 calls a month buys under two hours
+of a single match, once. PRO buys roughly one T20 a day with nothing spare for page loads. ULTRA is
+the first tier that could actually run this site.
+
+So the project spends nothing and stays on CricketData, as [D-025](#d-025) decided.
+
+### What still stands, and what does not
+
+No longer true, and struck from the record: that the data does not exist, that no source serves it,
+and that the ceiling is technical.
+
+Still true, and still sufficient on its own: the licensing objection in D-024. These listings are
+reverse-engineered scrapers of Cricbuzz with no affiliation and no SLA, and this repository is
+public. The frequency argument in D-024 is in fact *strengthened* by the measurement above — a
+call every thirty seconds for the duration of every match is exactly the imposition that section
+declined to make.
+
+One implementation cost is worth writing down in case this is ever revisited. Every field in these
+payloads is lowercase with no separators — `commtxt`, `overnum`, `strkrate`, `outdec`,
+`batteamsname`, `inningsid`. The solution serialises with `JsonSerializerOptions.Web`, which is
+camelCase, so a property named `StrkRate` would look for `strkRate`, find nothing, and bind zero
+without raising anything. Every property of every one of these DTOs would need an explicit
+`[JsonPropertyName]`, and a missing one fails silently as a plausible-looking number. That is a
+mapping layer of real size, not a quick bind.
+
+**What this costs:** nothing new. Sprint 6 was already closed. What changes is that the plan and
+the decision log now say why honestly, so nobody re-derives a false conclusion about what cricket
+data can be had.
+
+---
+
+## D-025 — The provider was reconsidered and kept; the alternatives were priced, not assumed
+
+**Status:** accepted
+
+CricketData stays. Two replacements were evaluated to see whether [D-024](#d-024) could be
+reopened, and both were declined — one on quota, one on cost.
+
+### Why it was reconsidered at all
+
+The motivation was sound: our ceiling is 100 calls a day, and the provider serves no scorecard,
+commentary or player statistics. A richer source would reopen Sprint 6 and possibly
+[D-023](#d-023). So the question was not whether the current data set is limited — it plainly is —
+but whether anything available is actually better.
+
+### RapidAPI's "Cricbuzz Cricket": right data, unusable budget
+
+The data is genuinely there. `/mcenter/v1/{matchId}/scard` serves scorecards, `/comm` serves
+ball-by-ball commentary, `/overs` serves over-by-over and `/mcenter/v1/{matchId}/team/{teamId}`
+serves the players in a match — every part of Sprint 6 that D-024 recorded as unavailable. It goes
+further than that: `/stats/v1/player/search?plrN=` and `/stats/v1/rankings/{category}` mean player
+search and ICC rankings are there too, so this would reopen [D-023](#d-023) as well as D-024.
+
+Worth stating plainly, because it is the strongest argument against this decision: the data ceiling
+described in D-023 and D-024 is not a fact about cricket data in general. It is a fact about the
+free tier of one provider. Everything those two entries record as unavailable is available
+somewhere, for money.
+
+It was declined on the number, which is the part that had been assumed rather than checked:
+
+| Plan | Cost | Requests |
+| --- | --- | --- |
+| BASIC | free | **200 per month** |
+| PRO | $9.99/mo | 20,000 per month |
+| ULTRA | $29.99/mo | 100,000 per month |
+
+The free tier is 200 calls a *month* — roughly 6.6 a day, against the ~3,000 a month CricketData
+already gives us. Switching to it in order to escape a quota would have cut the budget by about
+fifteen times. A card is required even for the free plan.
+
+Two further facts worth keeping, since they would apply again:
+
+- These listings are **not Cricbuzz**. Cricbuzz has never published a developer API; the RapidAPI
+  listings are reverse-engineered scrapers with no affiliation, no SLA, and a record of going
+  offline during major tournaments — which is precisely when a live-scores site matters. Paying a
+  reseller does not change what D-024 declined to do; it adds a middleman and a bill.
+- `matchId` is an integer. So is a Sportmonks fixture id. `Slug.TryExtractId` requires a GUID, and
+  the archive is keyed by them, so **any** provider change breaks every match route and strands
+  existing history with no mapping across. That cost belongs to the swap itself, not to a provider.
+
+### Sportmonks: right data, real price
+
+Licensed, 99.98% claimed uptime, and one fixture call assembles `batting`, `bowling`, `lineup` and
+`balls` — deliveries with commentary. A `/players` endpoint carries career statistics, which is the
+exact thing D-023 closed player pages for lacking. The limit is 3,000 calls per hour per endpoint,
+which is the difference between a scorecard that updates and one that is merely present.
+
+Declined on cost. There is no permanent free cricket tier: the three plans are €29, €75 and €125 a
+month, the 14-day trial needs a card, and the default free token reaches three leagues — T20I, Big
+Bash and the CSA T20 Challenge — with no IPL, Tests or ODIs. Good enough to develop against, not
+to launch with.
+
+### What this costs
+
+Sprint 6 stays closed and D-024 stands unrevised. Player pages stay unbuilt. The architecture keeps
+every accommodation it made for a hundred calls a day — `DailyHitBudget`, `ReservedHits`, the
+single retry, the circuit breaker, the poller that will not tick unless somebody is connected — not
+as caution but as necessity.
+
+The honest summary is that this project's data ceiling is a budget decision rather than a technical
+one, and the budget is zero. That is a legitimate choice, and it is recorded here so the question
+is not reopened on the assumption that something free and richer exists. It was looked for.
+
+---
+
+## D-024 — Sprint 6 is closed unbuilt, and Cricbuzz will not be scraped to fill it
+
+**Status:** accepted, but read [D-026](#d-026) first — the claim below that this data cannot be had
+was measured and found false. The conclusion stands; the reasoning for it does not.
+
+Scorecards, ball-by-ball, commentary and match stats are not implemented. The provider refuses
+them, and the one source that publishes them will not be read for this.
+
+### The provider was asked directly, not inferred from a flag
+
+`3.3` observed `bbbEnabled: false` and concluded the data was gated. That was a reading of the
+match list, so before closing the sprint the endpoints that would actually serve it were called:
+
+| Call | Result |
+| --- | --- |
+| `match_scorecard` | `status: "failure"` — *"Scorecard `90ae280c…` not found"* |
+| `match_bbb` | `status: "failure"` — *"Not able to get BBB for match `90ae280c…`"* |
+| `match_squad` | `status: "success"`, **0 squads** |
+| `currentMatches` | `bbbEnabled: false` on every match, `hasScorecard` absent |
+
+The refusals name the match and come back as explicit failures rather than empty successes, so this
+is the provider declining rather than our mapping missing a field. Six matches across two spikes,
+none with a scorecard.
+
+Whether a paid tier would unlock it was not established and is a commercial question rather than a
+technical one. Nothing here should be read as "the data cannot exist" — only as "this plan does not
+serve it, and we asked."
+
+### Cricbuzz has all of it, and that is not sufficient reason
+
+[D-020](#d-020) already crossed this line for points tables: Cricbuzz's `robots.txt` disallows every
+agent it has not named, ours is not named, and it is read anyway by a deliberate decision of the
+project owner. Extending that to scorecards is not the same decision at a larger size, and the
+difference is the part worth writing down:
+
+- **Frequency.** A points table is read once per series and cached three hours. A live scorecard is
+  worth having only if it is refreshed while play continues — so tens of requests per match, per
+  match in progress, indefinitely.
+- **Volume.** Commentary and ball-by-ball are the largest pages on that site, and they grow through
+  an innings.
+- **Character.** One cached read is a footnote. A live mirror of another site's match coverage is
+  the thing their `robots.txt` exists to prevent, and it would make this project a re-publisher of
+  their editorial work rather than a reader of a table of numbers.
+
+A decision already taken once is not a licence to take it again wherever it would be convenient,
+and the honest place to stop is before the imposition changes in kind. Sprint 6 is therefore closed
+unbuilt rather than filled from a source that declined us.
+
+**What this costs:** the match page has no depth beyond per-innings scores, the result sentence and
+whatever the enrichment source supplies at the crease. That is the ceiling this data set allows, and
+the page shows exactly it rather than tabs that lead nowhere — which is `6.13`, the one task in the
+sprint that was ever achievable.
+
+---
+
 ## D-023 — Teams are assembled from matches; players are not built at all
 
 **Status:** accepted

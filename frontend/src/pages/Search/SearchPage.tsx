@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { Skeleton } from '@/components/common/Skeleton'
 import { SearchResultGroups } from '@/features/search/components/SearchResultGroups'
 import { MIN_QUERY_LENGTH, useSearch } from '@/features/search/hooks/useSearch'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 /**
  * The full results page, whose term lives in the URL.
@@ -15,6 +16,9 @@ import { MIN_QUERY_LENGTH, useSearch } from '@/features/search/hooks/useSearch'
 export function SearchPage() {
   const [params, setParams] = useSearchParams()
   const term = params.get('q') ?? ''
+
+  // The term, so a browser history entry says which search it was rather than nine reading "Search".
+  usePageTitle(term === '' ? 'Search' : `Search: ${term}`)
 
   const { data, isFetching, isError, error, refetch, enabled } = useSearch(term)
 

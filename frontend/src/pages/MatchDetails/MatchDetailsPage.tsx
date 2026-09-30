@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/common/Skeleton'
 import { focusRing } from '@/components/common/focusRing'
 import { MatchHeader } from '@/components/match/MatchHeader'
 import { LiveStreamIndicator } from '@/features/matches/components/LiveStreamIndicator'
+import { ScorecardSection } from '@/features/matches/components/ScorecardSection'
 import { useMatchDetails } from '@/features/matches/hooks/useMatches'
 import { useMatchLiveStream } from '@/features/matches/hooks/useMatchLiveStream'
 import type { MatchDetails, TeamInnings } from '@/features/matches/types'
@@ -16,6 +17,7 @@ import {
   formatInningsLabel,
   formatStartTime,
 } from '@/features/matches/utils/format'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { ApiError } from '@/services/apiClient'
 import { cn } from '@/utils/cn'
 
@@ -33,6 +35,10 @@ export function MatchDetailsPage() {
   // Only a match in progress has anything to stream, and holding a connection open for one that
   // does not would keep the server's poller awake for no reason.
   const stream = useMatchLiveStream(slug, data?.status === 'live')
+
+  // The match title alone, not the score. A title that changed on every ball would make the tab
+  // flicker and, worse, make the live region announce a navigation that never happened.
+  usePageTitle(data?.matchTitle ?? null)
 
   if (isPending) {
     return (
@@ -80,6 +86,7 @@ export function MatchDetailsPage() {
       <LiveStreamIndicator {...stream} />
       <AtTheCrease match={data} />
       <InningsBreakdown match={data} />
+      <ScorecardSection slug={slug} />
       <MatchInformation match={data} />
     </div>
   )

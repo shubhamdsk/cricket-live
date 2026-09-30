@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "typecheck": "tsc -b --noEmit",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "budget": "npm run build && node scripts/bundle-budget.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",

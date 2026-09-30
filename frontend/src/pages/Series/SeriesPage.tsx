@@ -3,8 +3,11 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { Skeleton } from '@/components/common/Skeleton'
 import { SeriesCard } from '@/features/series/components/SeriesCard'
 import { useAllSeries } from '@/features/series/hooks/useSeries'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 export function SeriesPage() {
+  usePageTitle('Series')
+
   const { data, isPending, isError, error, refetch } = useAllSeries()
 
   return (

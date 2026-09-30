@@ -24,6 +24,16 @@ namespace CricketLive.Application.Teams;
 /// </remarks>
 public sealed class TeamService(ICricketDataProvider provider, IMatchArchive archive) : ITeamService
 {
+    /// <summary>
+    /// The longest team id the archive stores, and therefore the longest one that could match.
+    /// </summary>
+    /// <remarks>
+    /// Mirrors the width of the <c>HomeTeamId</c> and <c>AwayTeamId</c> columns. Kept here rather
+    /// than read from the model because the Application layer cannot see the DbContext, so if that
+    /// width ever changes, this changes with it.
+    /// </remarks>
+    private const int MaxTeamIdLength = 128;
+
     public async Task<IReadOnlyList<TeamSummaryDto>> GetAllAsync(CancellationToken cancellationToken)
     {
         var window = await provider.GetCurrentMatchesAsync(cancellationToken);
@@ -64,7 +74,10 @@ public sealed class TeamService(ICricketDataProvider provider, IMatchArchive arc
     {
         var teamId = Slug.Kebab(idOrSlug);
 
-        if (teamId.Length == 0)
+        // Longer than the archive can hold, so it cannot name a side we have: answered here rather
+        // than by sending an oversized parameter to a query that is guaranteed to miss. The bound
+        // is the stored column's width, since that is what decides what could ever match.
+        if (teamId.Length == 0 || teamId.Length > MaxTeamIdLength)
         {
             return null;
         }

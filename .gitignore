@@ -36,3 +36,13 @@ Thumbs.db
 
 # Captured provider responses from the Sprint 3 spike
 .spike/
+
+# Run logs. A provider response can carry a key, and CricketData echoes ours back in every
+# body, so a log is a secret-bearing file even when nothing meant it to be.
+*.log
+
+# Written by the Neon CLI. `.neon` records which project this checkout is linked to, and
+# `neon link` pulls DATABASE_URL into .env.local — which carries a password and is already
+# covered by *.local above, named again here because it is worth being obvious about.
+.neon
+.env.local

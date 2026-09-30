@@ -1,11 +1,15 @@
 # 🏏 Cricket Live
 
-A modern, responsive real-time cricket score platform built with React, TypeScript, Tailwind CSS, and ASP.NET Core, featuring live scores, match details, scorecards, commentary, and SSE-powered updates.
+A responsive real-time cricket score platform built with React, TypeScript, Tailwind CSS and ASP.NET Core: live scores, match details, full scorecards and SSE-powered updates.
+
+Commentary is not built. The data exists and the reason is cost rather than availability, which is written up in [D-027](docs/decisions.md) rather than left for someone to rediscover.
 
 ## Documentation
 
 * [Project plan](project-plan.md) — architecture and requirements
 * [Sprint plan](docs/sprint-plan.md) — what gets built, in what order
+* [Deployment](docs/deployment.md) — and the four things most likely to go wrong
+* [Decisions](docs/decisions.md) — what was chosen, why, and what it costs
 
 ## Repository layout
 
@@ -45,6 +49,25 @@ dotnet user-secrets remove "CricketData:ApiKey" --project src/CricketLive.Api
 User secrets live outside the repository, at `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json` on Windows. `Host.CreateApplicationBuilder` loads them automatically in Development, so no code change is needed.
 
 In deployed environments set the environment variable `CricketData__ApiKey` instead — the double underscore is how .NET maps an environment variable onto a nested configuration key.
+
+### Optional: scorecards
+
+Scorecards come from a second source and the app runs fine without them. If you skip this, the scorecard section on a match page says there is none.
+
+The source is the Cricbuzz listing on [RapidAPI](https://rapidapi.com/). It is a reseller of a scrape rather than a Cricbuzz product, and its free plan allows **200 requests per month** — not per day. That number is why the feature ships disabled and why the app never polls it. Read [D-027](docs/decisions.md) before turning it on.
+
+```bash
+cd backend
+dotnet user-secrets set "CricbuzzApi:ApiKey" "your-rapidapi-key" --project src/CricketLive.Api
+```
+
+Then enable it, either in `appsettings.Development.json` or with `CricbuzzApi__Enabled=true`:
+
+```json
+{ "CricbuzzApi": { "Enabled": true } }
+```
+
+Enabling this also enables reading Cricbuzz's own listing pages, because our match ids are CricketData GUIDs and the source uses Cricbuzz's integers, so something has to pair them. There is no way to use the source without it. See [D-020](docs/decisions.md).
 
 ## Running locally
 

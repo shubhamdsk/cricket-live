@@ -7,12 +7,15 @@ import { focusRing } from '@/components/common/focusRing'
 import { MatchCard } from '@/components/match/MatchCard'
 import { PointsTable } from '@/features/series/components/PointsTable'
 import { useSeriesDetails } from '@/features/series/hooks/useSeries'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { ApiError } from '@/services/apiClient'
 import { cn } from '@/utils/cn'
 
 export function SeriesDetailsPage() {
   const { slug } = useParams<{ slug: string }>()
   const { data, isPending, isError, error, refetch } = useSeriesDetails(slug)
+
+  usePageTitle(data?.series.name ?? null)
 
   if (isPending) {
     return (

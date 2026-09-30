@@ -46,6 +46,13 @@ deliberately no empty `"ApiKey": ""` placeholder there either — an empty slot 
 an invitation to fill it in and commit it. A missing key fails options validation at startup with a
 message pointing at the README, rather than surfacing as a 500 on the first request.
 
+The optional scorecard source has a second key, `CricbuzzApi:ApiKey`, handled the same way and with
+the same absent placeholder. It differs from the CricketData key in one respect worth noting: it
+travels in an `x-rapidapi-key` **header** rather than a query string, so it never appears in a URL
+and therefore cannot leak through anything that logs one. The CricketData key has no such option —
+that provider only accepts it in the query string, which is why the rule there is to log the path
+and never the URI.
+
 `.gitignore` covers `.env` and the `.spike/` folder of captured provider responses; the only
 committed environment file is `frontend/.env.development`, which holds a localhost URL and nothing
 else.

@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom'
 
 import { focusRing } from '@/components/common/focusRing'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { cn } from '@/utils/cn'
 
 export function NotFoundPage() {
+  usePageTitle('Page not found')
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">

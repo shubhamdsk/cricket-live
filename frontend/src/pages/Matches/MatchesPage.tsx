@@ -9,8 +9,11 @@ import {
   useSeriesNames,
   useUpcomingMatches,
 } from '@/features/matches/hooks/useMatches'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 export function MatchesPage() {
+  usePageTitle('Matches')
+
   const filterState = useMatchFilters()
   const { filters, params, isFiltered } = filterState
 

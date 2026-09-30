@@ -5,6 +5,7 @@ using CricketLive.Application.Matches.Dtos;
 using CricketLive.Infrastructure.Live;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
 namespace CricketLive.Api.Controllers;
@@ -29,7 +30,14 @@ public sealed class MatchStreamController(
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
 
     /// <param name="matchId">Either the provider id or one of our slugs, which end in that id.</param>
+    /// <remarks>
+    /// Limited by concurrent connections rather than by requests per minute. One stream is a
+    /// single request that stays open for the length of a match, so a rate is the wrong unit; what
+    /// needs capping is how many a caller may hold at once, since each costs us a connection for
+    /// as long as they keep it.
+    /// </remarks>
     [HttpGet("{matchId}/stream")]
+    [EnableRateLimiting(RateLimiting.Stream)]
     public async Task Stream(string matchId, CancellationToken cancellationToken)
     {
         // Resolving first gives an honest 404 before we commit to a streaming response, and costs

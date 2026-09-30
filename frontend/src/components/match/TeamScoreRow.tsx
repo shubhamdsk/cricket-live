@@ -51,6 +51,14 @@ function TeamCrest({ side }: { side: TeamInnings }) {
       src={side.team.logoUrl}
       alt=""
       loading="lazy"
+      // Decoded off the main thread, and sized in the markup as well as in CSS so a list of cards
+      // does not reflow as crests arrive one by one.
+      decoding="async"
+      width={20}
+      height={20}
+      // The crest is served by the provider's CDN, which has no reason to be told which page of
+      // ours the reader is on.
+      referrerPolicy="no-referrer"
       className="size-5 shrink-0 self-center rounded-full object-cover"
     />
   )

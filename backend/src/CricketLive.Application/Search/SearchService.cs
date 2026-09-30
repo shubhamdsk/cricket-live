@@ -45,6 +45,17 @@ public sealed class SearchService(
     /// </remarks>
     private const int MinimumQueryLength = 2;
 
+    /// <summary>
+    /// The longest query worth answering, and the point past which one is refused rather than run.
+    /// </summary>
+    /// <remarks>
+    /// Kestrel caps a request line at 8 KB, so without this the term reaching us can be thousands
+    /// of characters — searched against every field of every match we hold, and then echoed back
+    /// in <see cref="SearchResultsDto.Query"/>. Nothing we store has a name this long, so a longer
+    /// query cannot match and is truncated to the longest one that could.
+    /// </remarks>
+    private const int MaximumQueryLength = 128;
+
     /// <summary>How many hits per group. Enough to choose from, few enough to read.</summary>
     private const int PerGroup = 10;
 
@@ -55,6 +66,14 @@ public sealed class SearchService(
         if (trimmed.Length < MinimumQueryLength)
         {
             return Empty(trimmed);
+        }
+
+        // Truncated rather than rejected, for the same reason a short query is not a 400: the
+        // caller is typing, not making a mistake. A term this long has no hits either way, so the
+        // only thing at stake is how much work we do to find that out.
+        if (trimmed.Length > MaximumQueryLength)
+        {
+            trimmed = trimmed[..MaximumQueryLength];
         }
 
         var window = await provider.GetCurrentMatchesAsync(cancellationToken);

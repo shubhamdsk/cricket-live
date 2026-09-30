@@ -211,8 +211,8 @@ Accepts either the bare id or the full slug. Returns one match with two extra fi
 ```
 
 These report what the provider claims to hold for this match rather than what we display. Across
-every match observed during the spike `hasBallByBall` was `false`, which is why scorecard and
-commentary are not yet buildable.
+every match observed during the spike `hasBallByBall` was `false`, which is why commentary is not
+built. It has no bearing on the scorecard below, which comes from somewhere else entirely.
 
 Returns **404** when the identifier is not a GUID, or is a well-formed GUID that neither the
 provider nor the archive knows. A malformed identifier is rejected without any provider call, which
@@ -225,6 +225,78 @@ Every match also carries `seriesId`, the provider's own identifier for the serie
 It is **empty when the provider sent none**, and such a match has no series page to link to. Build
 series links from this rather than from `seriesName`, which is parsed from a free-text field and
 is not a reliable key.
+
+### `GET /api/matches/{matchId}/scorecard`
+
+The full card: every innings with both batting and bowling, extras, fall of wickets and
+partnerships.
+
+```json
+{
+  "matchId": "1a2b…",
+  "status": "Australia A won by 4 wkts",
+  "isComplete": true,
+  "innings": [
+    {
+      "inningsNumber": 1,
+      "battingTeamName": "India A",
+      "battingTeamShortName": "INDA",
+      "runs": 342,
+      "wickets": 8,
+      "overs": 96.4,
+      "runRate": 3.53,
+      "isDeclared": true,
+      "batting": [
+        {
+          "name": "N Jagadeesan",
+          "runs": 119,
+          "balls": 205,
+          "fours": 12,
+          "sixes": 1,
+          "strikeRate": "58.05",
+          "dismissal": "c Konstas b Doggett",
+          "isCaptain": false,
+          "isKeeper": true
+        }
+      ],
+      "bowling": [
+        { "name": "B Doggett", "overs": "22.4", "maidens": 5, "runs": 71, "wickets": 3, "economy": "3.13" }
+      ],
+      "extras": { "byes": 4, "legByes": 9, "wides": 3, "noBalls": 1, "penalty": 0, "total": 17 },
+      "fallOfWickets": [{ "batterName": "…", "runs": 24, "wicketNumber": 1, "over": 7.2 }],
+      "partnerships": [
+        { "firstBatterName": "…", "firstBatterRuns": 19, "secondBatterName": "…", "secondBatterRuns": 4, "runs": 24, "balls": 44 }
+      ]
+    }
+  ]
+}
+```
+
+**Its own request, not a field on the match, and the reason is cost.** This comes from a second
+source with an allowance of two hundred requests a *month*, so a client must treat it as
+expensive: fetch it when a reader asks to see a scorecard, not when a match page opens. The
+reference client puts it behind a button for exactly this reason.
+
+**Returns 404 far more often than it returns a card, and that is normal.** Four separate
+situations all produce one: the source is switched off, which is how this ships; the match could
+not be paired with the source's own copy of it; the monthly allowance is spent; the source did not
+answer. They are not distinguished, because a client does the same thing with all four — it shows
+no scorecard. Distinguishing them would mean telling callers about our request budget, which is
+our problem.
+
+**The figures that are strings are strings on purpose.** `overs`, `strikeRate` and `economy` are
+computed upstream and passed through. `overs: "22.4"` is twenty-two overs and four balls, not
+22.4 overs, so arithmetic on it is wrong; and a strike rate for someone who has faced no balls has
+no numeric answer to invent. Display them, do not compute with them. `innings[].overs` is a number
+because it is a count of completed overs to one decimal, in the same notation — also not for
+arithmetic.
+
+`dismissal` is the source's own wording (`"c Konstas b Doggett"`, `"not out"`, or empty for
+someone yet to bat) and is not parsed, because the wording is the information.
+
+`isComplete` decides how long the answer is cached: a finished card cannot change and is held for
+a day, a live one for five minutes. Five minutes is slow for live sport and is a budget decision
+rather than a technical one — see [D-027](./decisions.md).
 
 ---
 
@@ -468,16 +540,25 @@ expected to close its stream when the tab is hidden. `useMatchLiveStream` does t
 
 ---
 
-## Not implemented yet
+## Will not be built
 
-These are specified in `project-plan.md` and land in the sprint shown. They are listed so nobody
-implements a client against a guess.
+These are specified in `project-plan.md` and a client might reasonably expect them. They are listed
+here so nobody implements against a guess, or waits for something that is not coming.
 
-| Endpoint | Sprint |
-| --- | --- |
-| `GET /api/matches/{matchId}/scorecard` | 6 |
-| `GET /api/matches/{matchId}/commentary` | 6 |
-| `GET /api/matches/{matchId}/stats` | 6 |
+**`GET /api/matches/{matchId}/scorecard` has since been built.** It is documented above. The
+paragraph that used to stand here said it would not be; that was true of our main provider and
+stopped being true of the project when a second source was measured. See
+[D-027](./decisions.md).
+
+**`/commentary` and `/stats` are still not built.** The same second source serves both — the
+measurement found ball-by-ball text and over summaries — so they are buildable rather than
+impossible. What stops them is arithmetic: commentary is only worth having if it keeps up, and
+keeping up means a request every few deliveries, which the free allowance cannot pay for. The
+scorecard fits because one request answers a whole innings. Reasoning in
+[D-024](./decisions.md), the measurement in [D-026](./decisions.md).
+
+A client should not wait for these two. But nobody should conclude from their absence that the
+data does not exist.
 
 `GET /api/series…`, `/api/teams…` and `GET /api/search` are now implemented and documented above.
 

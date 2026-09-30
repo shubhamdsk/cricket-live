@@ -3,8 +3,11 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { Skeleton } from '@/components/common/Skeleton'
 import { TeamCard } from '@/features/teams/components/TeamCard'
 import { useAllTeams } from '@/features/teams/hooks/useTeams'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 export function TeamsPage() {
+  usePageTitle('Teams')
+
   const { data, isPending, isError, error, refetch } = useAllTeams()
 
   return (

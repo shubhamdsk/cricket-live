@@ -1,6 +1,8 @@
 using CricketLive.Application.Common;
 using CricketLive.Application.Enrichment;
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Scorecards;
+using CricketLive.Application.Scorecards.Dtos;
 
 namespace CricketLive.Application.Matches;
 
@@ -11,6 +13,7 @@ namespace CricketLive.Application.Matches;
 public sealed class MatchService(
     ICricketDataProvider provider,
     IMatchEnrichmentProvider enrichment,
+    IMatchScorecardProvider scorecards,
     IMatchArchive archive) : IMatchService
 {
     public Task<IReadOnlyList<MatchDto>> GetLiveAsync(
@@ -143,5 +146,29 @@ public sealed class MatchService(
         }
 
         return await Enrich.WithBattersAsync(match, enrichment, cancellationToken);
+    }
+
+    public async Task<ScorecardDto?> GetScorecardAsync(
+        string matchId,
+        CancellationToken cancellationToken)
+    {
+        // The match is fetched first even though the scorecard comes from elsewhere, because the
+        // scorecard source needs to be told the teams and the series to find its own copy of the
+        // match. This costs nothing: it is the same cached call the match page already made.
+        var match = await provider.GetMatchAsync(matchId, cancellationToken);
+
+        if (match is null)
+        {
+            return null;
+        }
+
+        var identity = new MatchIdentity(
+            match.Id,
+            match.MatchTitle,
+            match.SeriesName,
+            match.Home.Team.ShortName,
+            match.Away.Team.ShortName);
+
+        return await scorecards.GetScorecardAsync(identity, cancellationToken);
     }
 }

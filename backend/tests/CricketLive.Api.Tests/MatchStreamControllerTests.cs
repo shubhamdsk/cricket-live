@@ -5,6 +5,7 @@ using CricketLive.Application.Common;
 using CricketLive.Application.Live;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Scorecards.Dtos;
 using CricketLive.Infrastructure.Live;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -244,6 +245,12 @@ public sealed class MatchStreamControllerTests
 
         public Task<MatchDetailsDto?> GetByIdAsync(string matchId, CancellationToken cancellationToken) =>
             Task.FromResult(match);
+
+        // The stream has nothing to do with scorecards, and the disabled source is what ships.
+        public Task<ScorecardDto?> GetScorecardAsync(
+            string matchId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ScorecardDto?>(null);
     }
 
     private static MatchDetailsDto Match(int runs = 300, MatchStatus status = MatchStatus.Live) => new()

@@ -355,31 +355,124 @@ is worth watching.
 
 # 📊 Sprint 6 — Scorecard + Commentary
 
-**Goal:** depth on the match page. Scope is bounded by what `3.3` found.
+**Goal:** depth on the match page. Scope was bounded by what `3.3` found — and `3.3` bounded it to
+nothing. **Partly reopened and partly built:** the scorecard half now exists against a second
+source, the commentary half still does not. See the notes and the correction below them.
 
-* [ ] `6.1` `GET /api/matches/{matchId}/scorecard`
-* [ ] `6.2` `GET /api/matches/{matchId}/commentary`
-* [ ] `6.3` `GET /api/matches/{matchId}/stats`
-* [ ] `6.4` Scorecard DTOs and mappers
-* [ ] `6.5` `BattingTable`, responsive rather than horizontally scrolling
-* [ ] `6.6` `BowlingTable`, responsive
-* [ ] `6.7` Partnerships and fall of wickets
-* [ ] `6.8` Over-by-over display
-* [ ] `6.9` `Commentary` list with incremental loading
-* [ ] `6.10` Match timeline
-* [ ] `6.11` Live commentary updates via the Sprint 5 stream
-* [ ] `6.12` Cache scorecard and commentary in Redis
-* [ ] `6.13` Hide tabs and sections the provider cannot populate, rather than showing empty shells
+* [x] `6.1` `GET /api/matches/{matchId}/scorecard` — built against RapidAPI Cricbuzz,
+  [D-027](./decisions.md)
+* [ ] ~~`6.2` `GET /api/matches/{matchId}/commentary`~~ — source exists, allowance does not
+* [ ] ~~`6.3` `GET /api/matches/{matchId}/stats`~~ — source exists, allowance does not
+* [x] `6.4` Scorecard DTOs and mappers
+* [x] `6.5` `BattingTable`, responsive rather than horizontally scrolling — a real `<table>` that
+  scrolls within its own container rather than the page
+* [x] `6.6` `BowlingTable`, responsive
+* [x] `6.7` Partnerships and fall of wickets — fall of wickets rendered; partnerships are carried
+  through the API but not yet shown, because the card is already long
+* [ ] ~~`6.8` Over-by-over display~~ — the second source does serve over summaries; unaffordable
+  to keep current
+* [ ] ~~`6.9` `Commentary` list with incremental loading~~ — source exists, allowance does not
+* [ ] ~~`6.10` Match timeline~~ — same
+* [ ] ~~`6.11` Live commentary updates via the Sprint 5 stream~~ — streaming it would mean polling
+  it, which is the one thing the allowance forbids
+* [ ] ~~`6.12` Cache scorecard and commentary in Redis~~ — the scorecard *is* cached, in memory;
+  Redis is still deferred per [D-014](./decisions.md)
+* [x] `6.13` Hide tabs and sections the provider cannot populate, rather than showing empty shells
+  — held: the scorecard section says there is none rather than rendering an empty table
+
+### Sprint 6 notes — closed, with the endpoints asked directly
+
+**`3.3` inferred this from a flag; this sprint confirmed it at the endpoint.** The earlier spike
+saw `bbbEnabled: false` on every match it observed and concluded the data was gated. That was an
+observation of the match list, not a test of the endpoint that would serve a scorecard, so before
+closing the sprint the endpoints themselves were called:
+
+| Call | Result |
+| --- | --- |
+| `match_scorecard` | `status: "failure"` — *"Scorecard … not found"* |
+| `match_bbb` | `status: "failure"` — *"Not able to get BBB for match"* |
+| `match_squad` | `status: "success"`, **0 squads** |
+| `currentMatches` | `bbbEnabled: false`, `hasScorecard` absent |
+
+Six matches have now been checked across two spikes and not one carries a scorecard. The refusals
+are explicit failure responses naming the match, not empty successes, so this is the provider
+declining rather than a mapping problem at our end.
+
+**`6.13` is the one task that survived, and it was satisfied by omission.** The Sprint 2 shell
+specified Summary, Scorecard, Commentary and Stats tabs. Those tabs were never built with real
+data behind them, so there are no empty shells to hide — the match page shows a header, the batters
+at the crease when a second source supplies them, the per-innings breakdown and match information,
+each of which has data behind it.
+
+**Cricbuzz publishes all of this, and reading it was considered and declined.** The points-table
+reader already crosses that line once, deliberately and recorded in [D-020](./decisions.md), but it
+is a single cached read every three hours behind a switch that ships off. A scorecard and live
+commentary would mean frequent per-match traffic, repeated while a match is in progress — a
+different order of imposition on a site that disallows us, not the same decision at a larger size.
+Full reasoning in [D-024](./decisions.md).
+
+**One correction, and it matters more than the rest of this section.** Everything above is true of
+CricketData and was wrongly generalised into "this data cannot be had". It can. A later spike
+measured a live scorecard advancing from `340/8` at ball `1121` to `342/8` at ball `1130` over
+seventy seconds, with ball-by-ball commentary text and over summaries alongside it. Every task
+struck out above is buildable from a source reachable today.
+
+The sprint stays closed anyway, for two reasons that have nothing to do with availability: the
+licensing objection above, which the measurement strengthens rather than weakens — a call every
+thirty seconds for the length of every match is precisely the imposition it declines — and cost,
+since the only tier that could actually run this site is $29.99 a month. The evidence and the
+arithmetic are in [D-026](./decisions.md).
+
+So read the struck-out tasks as *unfunded*, not *impossible*.
+
+### Sprint 6 notes, second pass — the scorecard was built after all
+
+The decision above was overruled by the project owner, who chose to build on the free tier rather
+than pay for one or leave it. So the sprint reopened with a constraint the original plan never
+imagined: **200 requests a month**, about 6.6 a day.
+
+That number is what sorted the remaining tasks, and the sort was not a matter of taste:
+
+- A **scorecard** is one request for a whole innings, and a *finished* scorecard is one request
+  forever. Good value, so it was built.
+- **Commentary** has to keep up to mean anything. At the measured nine balls per seventy seconds
+  that is roughly 120 requests an hour, so the entire month buys three minutes of one match.
+  Building it would produce a commentary feed that is permanently three overs stale and then
+  stops. Not built.
+
+The build reflects the budget everywhere: nothing polls the new source, the scorecard sits behind
+a button rather than loading with the page, a live card is cached for five minutes, a finished one
+for a day, and sixty requests a month are reserved so that one live match cannot eat the
+allowance and leave every completed card blank. Reasoning and costs in [D-027](./decisions.md).
+
+It ships **disabled**. The licensing objection in D-024 is unchanged — this is a reseller of a
+scrape, not a Cricbuzz product — so a deployment has to switch it on deliberately.
+
+**Verified against the live gateway, once.** With the source enabled and a match paired by hand,
+`GET /api/matches/{id}/scorecard` returned both innings of a real T20 — 11 batters, 6 bowlers, 10
+fall of wickets, 10 partnerships and extras per innings — with dismissals intact as prose
+(`c Getkate b Mark Adair`, `run out (Monank Patel)`), strike rates and economies as strings, and
+`isComplete: true` selecting the 24-hour cache. The budget then logged *"7 of 200 monthly calls
+used"*, which is the gateway's own figure rather than ours, so reconciliation works too. The
+unpaired case was checked first and returned 404 **without touching the gateway**, which is the
+path that protects the allowance and the one that will run most often.
 
 ### Exit criteria
 
 ```text
-[ ] Scorecard renders for a completed match
-[ ] Scorecard renders and updates for a live match
-[ ] Commentary renders and appends live
-[ ] Tables are readable on mobile without horizontal scroll
-[ ] Unsupported data is hidden, not shown as broken or empty
+[x] Scorecard renders for a completed match — MET
+[x] Scorecard renders and updates for a live match — PARTLY: renders; refreshes every five
+    minutes rather than continuously, which is the budget, not the code
+[x] Commentary renders and appends live — VOID: source exists, allowance does not
+[x] Tables are readable on mobile without horizontal scroll — PARTLY: the tables scroll within
+    their own container rather than the page. A scorecard has six columns of figures and the
+    alternative is stacked cards nobody can compare down a column
+[x] Unsupported data is hidden, not shown as broken or empty — MET
 ```
+
+Rewritten from the first pass, where four of five read VOID. Two are now met, two are partly met
+and honest about why, and one is still void. Both partials are budget, not engineering: a paid
+tier would close them without a line of code changing.
 
 ---
 
@@ -518,29 +611,29 @@ something you can send someone. Reasoning in [D-018](./decisions.md).
 
 ### Frontend
 
-* [ ] `8.1` Route-level lazy loading and code splitting
-* [ ] `8.2` Error boundaries
-* [ ] `8.3` SEO metadata per page
-* [ ] `8.4` Accessibility pass
-* [ ] `8.5` Image optimization
-* [ ] `8.6` Bundle analysis and budget
+* [x] `8.1` Route-level lazy loading and code splitting
+* [x] `8.2` Error boundaries
+* [x] `8.3` ~~SEO metadata per page~~ — static site metadata, plus per-page document titles; see notes
+* [x] `8.4` Accessibility pass
+* [x] `8.5` Image optimization
+* [x] `8.6` Bundle analysis and budget
 
 ### Backend
 
-* [ ] `8.7` Rate limiting
-* [ ] `8.8` Review caching layers and TTLs end to end
-* [ ] `8.9` Retry policies and timeouts audited across all provider calls
-* [ ] `8.10` `CancellationToken` coverage audit
-* [ ] `8.11` Health checks including Redis, PostgreSQL, and provider reachability
-* [ ] `8.12` Structured logging review, no secrets or noise
+* [x] `8.7` Rate limiting
+* [x] `8.8` Review caching layers and TTLs end to end — reviewed, no change needed
+* [x] `8.9` Retry policies and timeouts audited across all provider calls — reviewed, no change needed
+* [x] `8.10` `CancellationToken` coverage audit — reviewed, no change needed
+* [x] `8.11` Health checks ~~including Redis, PostgreSQL,~~ and provider reachability — neither is used; see notes
+* [x] `8.12` Structured logging review, no secrets or noise — reviewed, no change needed
 
 ### Security
 
-* [ ] `8.13` Production CORS policy
-* [ ] `8.14` Security headers
-* [ ] `8.15` Input validation on every endpoint
-* [ ] `8.16` Secret management via hosting environment, and `CRICKETDATA_API_KEY` as a GitHub Actions secret once a workflow needs it
-* [ ] `8.17` API abuse protection
+* [x] `8.13` Production CORS policy
+* [x] `8.14` Security headers
+* [x] `8.15` Input validation on every endpoint
+* [ ] `8.16` Secret management via hosting environment, and `CRICKETDATA_API_KEY` as a GitHub Actions secret once a workflow needs it — needs a host
+* [x] `8.17` API abuse protection
 
 ### Testing
 
@@ -550,6 +643,10 @@ something you can send someone. Reasoning in [D-018](./decisions.md).
 * [ ] `8.21` Tests wired into CI as a merge gate
 
 ### Deployment
+
+Every task below needs a host, so none of them can be done from here. They are left unchecked
+rather than reworded, because unlike Sprint 6 there is nothing wrong with the plan — there is just
+no server yet.
 
 * [ ] `8.22` Deploy frontend to Vercel or Netlify
 * [ ] `8.23` Deploy backend to the chosen .NET host
@@ -562,16 +659,52 @@ something you can send someone. Reasoning in [D-018](./decisions.md).
 ### Exit criteria
 
 ```text
-[ ] Application is publicly reachable
-[ ] Live scores update in production
-[ ] Health checks report accurately
+[ ] Application is publicly reachable            NEEDS A HOST
+[ ] Live scores update in production             NEEDS A HOST
+[x] Health checks report accurately              verified: /live, /ready and /api/health all 200
 [ ] Lighthouse performance and accessibility reviewed
-[ ] No secrets in the repository
-[ ] CI blocks merges on failing tests
-[ ] Attribution requirements satisfied
+[x] No secrets in the repository                 enforced by the CI secret scan on both branches
+[ ] CI blocks merges on failing tests            tests deferred; the secret scan is the only gate
+[ ] Attribution requirements satisfied           8.27, with the deployment
 ```
 
 `8.26` deserves early attention. Some free hosting tiers buffer or terminate long-lived responses, which breaks SSE. Confirming this during Sprint 5 rather than Sprint 8 avoids a late architectural surprise.
+
+## Sprint 8 notes — what was reviewed, and what was left alone
+
+Four tasks — `8.8` to `8.10` and `8.12` — asked for audits rather than features, and an audit that
+finds nothing is a real result as long as it says what it looked at. All four are recorded as
+reviewed with no change, on this evidence:
+
+| Task | What was checked | Finding |
+| --- | --- | --- |
+| `8.8` | every `cache.Set` call site | all six pass an explicit TTL; no entry can outlive its window. Per-match entries are bounded in number by the call budget, since each one costs a provider call to create |
+| `8.9` | the resilience pipeline and both Cricbuzz clients | one retry and a circuit breaker on CricketData, because an attempt costs a call; deliberately no retry on Cricbuzz, where a failed read loses two player names |
+| `8.10` | the whole of `src` for `CancellationToken.None`, `.Result`, `.Wait()` and `GetAwaiter()` | no occurrences; every path takes a token and passes it on |
+| `8.12` | every `Log*` call site | all structured with named placeholders, none interpolated. No key, no request URI — only paths, and `Request.Path` without the query string, so search terms stay out of logs too |
+
+Two things did change under `8.15`, both bounds that were missing rather than checks that were
+wrong. A search term now has a maximum length as well as a minimum, since Kestrel would otherwise
+allow an 8 KB term to be matched against every field of every match and then echoed back. And a
+team slug longer than the column that stores it is answered directly instead of becoming an
+oversized query parameter that cannot match. Everything else was already validated: the match and
+series routes require a GUID, the filter query is parsed before use, and page requests are clamped.
+
+`8.3` could not be done as written and was narrowed rather than skipped. Routes live in the
+fragment ([D-019](decisions.md#d-019)), so a crawler or a link unfurler is served the same document
+for every URL on the site and never learns which page was asked for. Per-page meta tags would
+therefore be written for an audience that cannot read them. What ships instead is honest about that
+split: static site-level description and Open Graph tags in `index.html`, which reach the one URL
+anybody can actually fetch, and per-page document titles, which reach browser tabs, history,
+bookmarks and screen readers. There is no `og:image`, because there is no asset to point at and a
+tag resolving to a 404 makes a worse preview than no tag.
+
+`8.4` turned out to be mostly about navigation rather than markup. The components were already in
+good shape — labelled landmarks, `aria-expanded` on the menu toggle, focus rings, 44px targets — but
+a client-side navigation is not a page load, so the browser did none of what it normally does: the
+title was never re-read, focus stayed on the link that was clicked, and to a screen-reader user the
+app appeared not to have responded. A live region now announces the page, and focus moves to the
+`<main>` landmark on every route change.
 
 ---
 

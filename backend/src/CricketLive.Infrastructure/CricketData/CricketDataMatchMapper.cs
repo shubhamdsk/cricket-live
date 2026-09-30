@@ -2,6 +2,7 @@ using System.Globalization;
 using CricketLive.Application.Common;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
+using CricketLive.Application.Media;
 using CricketLive.Infrastructure.CricketData.Models;
 using Microsoft.Extensions.Logging;
 
@@ -161,7 +162,9 @@ internal sealed class CricketDataMatchMapper(ILogger<CricketDataMatchMapper> log
             Slug.Kebab(teamName),
             teamName,
             Abbreviate(info?.ShortName, teamName),
-            string.IsNullOrWhiteSpace(info?.Image) ? null : info.Image);
+            // Never the provider's own address: their terms forbid a browser fetching it. See
+            // CrestUrl, which also handles the blank and absent cases.
+            CrestUrl.ToProxyPath(info?.Image));
     }
 
     /// <summary>

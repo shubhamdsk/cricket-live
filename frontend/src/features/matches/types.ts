@@ -14,7 +14,10 @@ export interface TeamSummary {
   id: string
   name: string
   shortName: string
-  /** Null for teams the provider holds no profile for, which is most domestic sides. */
+  /**
+   * A path on our API, not a whole address, so it needs `apiUrl()` before it reaches an `<img>`.
+   * Null for teams the provider holds no profile for, which is most domestic sides.
+   */
   logoUrl: string | null
 }
 

@@ -158,8 +158,21 @@ pattern. Absence of an alert from it is not evidence of absence of a key.
 [ ] Provider key supplied by the host, absent from the repository and from logs
 [ ] Request size limits set
 [ ] Health endpoint reports dependencies without leaking their addresses
-[ ] Provider terms reviewed: usage limits, attribution, redistribution, commercial use
-[ ] CricketData attribution visible in the UI
+[x] Provider terms reviewed: usage limits, attribution, redistribution, commercial use
+[x] CricketData attribution visible in the UI
 ```
 
-The last two are legal rather than technical, and they gate a launch just as firmly.
+The last two are legal rather than technical, and they gate a launch just as firmly. Both are
+settled in [D-030](./decisions.md): the terms are read, attribution turns out not to be required
+and is given anyway, and the one clause the site was breaking — hot-linking the provider's images —
+is fixed. Two conditions came out of it and are conditions rather than tasks, so they do not appear
+above: **the site must not be monetised in any form while it runs on the free key**, and **no DTO
+may carry an image URL on a host that is not ours**. The second has a guard in code; the first does
+not and cannot.
+
+The crest route deserves a line of its own here, since it is the only endpoint that makes an
+outbound request on a caller's behalf. The address is never taken from the request: it is decoded
+from an opaque token and checked against a two-host allow-list both when the token is written and
+again when it is read, so the route cannot be used to reach an arbitrary address from inside the
+deployment. Responses are accepted only when they carry an `image/*` content type and fall under a
+size cap. Anything else becomes a 404 and the UI shows the side's initials.

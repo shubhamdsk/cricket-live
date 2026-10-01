@@ -84,6 +84,13 @@ internal sealed class CricketLiveDbContext(DbContextOptions<CricketLiveDbContext
         match.HasIndex(entity => new { entity.AwayTeamId, entity.StartTimeUtc })
             .HasDatabaseName("ix_archived_matches_away_team");
 
+        // Every read of the archive now begins with "and is it in scope", so the flag leads this
+        // index and the sort column follows it — which is also the order the results list wants.
+        // The other indexes above are deliberately left alone: adding the flag to each would widen
+        // five indexes to narrow a set that a single lookup already narrows.
+        match.HasIndex(entity => new { entity.InScope, entity.StartTimeUtc })
+            .HasDatabaseName("ix_archived_matches_scope");
+
         var backfill = builder.Entity<BackfillState>();
 
         backfill.ToTable("backfill_state");

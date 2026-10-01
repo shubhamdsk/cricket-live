@@ -75,6 +75,33 @@ internal sealed class ArchivedMatch
 
     public required string AwayTeamName { get; set; }
 
+    /// <summary>
+    /// Whether this match is cricket the site covers, by <c>CricketScope</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A stored verdict rather than a filter applied to what a query returns, because the results
+    /// list pages and counts <b>in SQL</b>. Deciding scope over a returned page would mean a page
+    /// of twenty coming back as eleven and a total that agreed with neither — the same objection
+    /// that put the backfill's rows in here instead of into the read query. Indexed for the same
+    /// reason every other column here is.
+    /// </para>
+    /// <para>
+    /// <b>Out-of-scope matches are stored, not discarded.</b> The archive is the one thing in this
+    /// project that cannot be refetched on demand — the provider's history costs six pages a day —
+    /// so a policy that threw rows away would make widening it later mean waiting a week to earn
+    /// them back. Storing the verdict instead means widening the scope is a deploy, and the data is
+    /// already there. The cost is rows nobody reads, at a few kilobytes each against a free tier
+    /// measured in hundreds of megabytes.
+    /// </para>
+    /// <para>
+    /// Recomputed for every row at startup by <c>ArchiveScopeRefresh</c>, so this column follows
+    /// the policy in code rather than preserving whatever the policy said on the day a row was
+    /// written.
+    /// </para>
+    /// </remarks>
+    public required bool InScope { get; set; }
+
     /// <summary>The serialised <c>MatchDetailsDto</c>. The archive's actual content.</summary>
     public required string Payload { get; set; }
 

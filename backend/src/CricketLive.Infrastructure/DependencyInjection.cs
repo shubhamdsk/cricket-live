@@ -11,6 +11,7 @@ using CricketLive.Infrastructure.CricketData;
 using CricketLive.Infrastructure.Health;
 using CricketLive.Infrastructure.Live;
 using CricketLive.Infrastructure.Persistence;
+using CricketLive.Infrastructure.Scope;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -75,11 +76,18 @@ public static class DependencyInjection
 
         // Registered as the decorator, so nothing that asks for cricket data has to know that
         // finished matches are being kept on the way past.
+        // Two decorators, and the order is the decision. Archiving sits inside, so it keeps every
+        // finished match the provider sends, including ones the site does not cover; the scope
+        // filter sits outside it, so callers only ever see cricket we cover. Reversed, the archive
+        // would hold only what today's policy allows and widening it later would mean re-earning
+        // history at six provider pages a day.
         services.AddScoped<CricketDataProvider>();
-        services.AddScoped<ICricketDataProvider>(provider => new ArchivingCricketDataProvider(
-            provider.GetRequiredService<CricketDataProvider>(),
-            provider.GetRequiredService<IMatchArchive>(),
-            provider.GetRequiredService<ILogger<ArchivingCricketDataProvider>>()));
+        services.AddScoped<ICricketDataProvider>(provider => new ScopedCricketDataProvider(
+            new ArchivingCricketDataProvider(
+                provider.GetRequiredService<CricketDataProvider>(),
+                provider.GetRequiredService<IMatchArchive>(),
+                provider.GetRequiredService<ILogger<ArchivingCricketDataProvider>>()),
+            provider.GetRequiredService<ILogger<ScopedCricketDataProvider>>()));
 
         // Not behind the archiving decorator. The two series sources return series rather than the
         // live window, so the archive has no opinion about them; the match index returns matches
@@ -273,15 +281,25 @@ public static class DependencyInjection
     {
         await using var scope = services.CreateAsyncScope();
 
-        var database = scope.ServiceProvider.GetRequiredService<CricketLiveDbContext>().Database;
+        var context = scope.ServiceProvider.GetRequiredService<CricketLiveDbContext>();
 
-        if (database.IsSqlite())
+        if (context.Database.IsSqlite())
         {
-            await database.EnsureCreatedAsync(cancellationToken);
-            return;
+            await context.Database.EnsureCreatedAsync(cancellationToken);
+        }
+        else
+        {
+            await context.Database.MigrateAsync(cancellationToken);
         }
 
-        await database.MigrateAsync(cancellationToken);
+        // After the schema and before the first request, because the scope flag decides what every
+        // list shows and a stale one would serve cricket we do not cover. See ArchiveScopeRefresh
+        // for why this runs every start rather than once.
+        await ArchiveScopeRefresh.ApplyAsync(
+            context,
+            scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                .CreateLogger<ArchiveScopeRefresh>(),
+            cancellationToken);
     }
 
     /// <summary>
@@ -412,10 +430,11 @@ public static class DependencyInjection
     {
         services.AddSingleton<NoSeriesIndex>();
 
-        services.AddScoped<ISeriesIndex>(provider =>
+        services.AddScoped<ISeriesIndex>(provider => new ScopedSeriesIndex(
             provider.GetRequiredService<IOptions<CricketDataOptions>>().Value.SeriesIndexPages > 0
                 ? provider.GetRequiredService<CricketDataSeriesIndex>()
-                : provider.GetRequiredService<NoSeriesIndex>());
+                : provider.GetRequiredService<NoSeriesIndex>(),
+            provider.GetRequiredService<ILogger<ScopedSeriesIndex>>()));
     }
 
     /// <summary>
@@ -430,10 +449,11 @@ public static class DependencyInjection
     {
         services.AddSingleton<NoSeriesFixtures>();
 
-        services.AddScoped<ISeriesFixtures>(provider =>
+        services.AddScoped<ISeriesFixtures>(provider => new ScopedSeriesFixtures(
             provider.GetRequiredService<IOptions<CricketDataOptions>>().Value.SeriesFixturesCacheHours > 0
                 ? provider.GetRequiredService<CricketDataSeriesFixtures>()
-                : provider.GetRequiredService<NoSeriesFixtures>());
+                : provider.GetRequiredService<NoSeriesFixtures>(),
+            provider.GetRequiredService<ILogger<ScopedSeriesFixtures>>()));
     }
 
     /// <summary>
@@ -448,9 +468,10 @@ public static class DependencyInjection
     {
         services.AddSingleton<NoMatchIndex>();
 
-        services.AddScoped<IMatchIndex>(provider =>
+        services.AddScoped<IMatchIndex>(provider => new ScopedMatchIndex(
             provider.GetRequiredService<IOptions<CricketDataOptions>>().Value.MatchIndexCacheMinutes > 0
                 ? provider.GetRequiredService<CricketDataMatchIndex>()
-                : provider.GetRequiredService<NoMatchIndex>());
+                : provider.GetRequiredService<NoMatchIndex>(),
+            provider.GetRequiredService<ILogger<ScopedMatchIndex>>()));
     }
 }

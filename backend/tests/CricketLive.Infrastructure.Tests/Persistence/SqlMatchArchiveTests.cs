@@ -145,6 +145,9 @@ public sealed class SqlMatchArchiveTests : IDisposable
             AwayTeamId = "australia",
             HomeTeamName = "India",
             AwayTeamName = "Australia",
+            // What the writer would have computed for these two sides, so the row is readable and
+            // the test is still about an unreadable payload rather than about scope.
+            InScope = true,
             Payload = "{ this is not json",
             ArchivedAtUtc = clock.GetUtcNow().UtcDateTime,
         });
@@ -433,6 +436,9 @@ public sealed class SqlMatchArchiveTests : IDisposable
         AwayTeamId = "australia",
         HomeTeamName = "India",
         AwayTeamName = "Australia",
+        // As the writer would have set it for India and Australia: these rows bypass it, but they
+        // still have to be readable for the assertions about their payloads to mean anything.
+        InScope = true,
         Payload = payload,
         ArchivedAtUtc = Day(1).UtcDateTime,
     };

@@ -2,6 +2,7 @@ using System.Text.Json;
 using CricketLive.Application.Matches;
 using CricketLive.Application.Matches.Dtos;
 using CricketLive.Application.Media;
+using CricketLive.Application.Scope;
 using CricketLive.Application.Series;
 using CricketLive.Application.Teams;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +39,9 @@ internal sealed class SqlMatchArchive(
 
         var ids = finished.Select(match => match.Id).ToArray();
 
+        // Deliberately not scoped. This asks what the table holds, not what the site shows, and an
+        // out-of-scope row is still a row: scoping it would make every poll try to insert the same
+        // primary key again.
         var known = await database.ArchivedMatches
             .Where(archived => ids.Contains(archived.Id))
             .Select(archived => archived.Id)
@@ -58,6 +62,12 @@ internal sealed class SqlMatchArchive(
                 AwayTeamId = match.Away.Team.Id,
                 HomeTeamName = match.Home.Team.Name,
                 AwayTeamName = match.Away.Team.Name,
+                // Kept whether it is in scope or not, so widening the scope later does not mean
+                // re-earning history at six provider pages a day. See ArchivedMatch.InScope.
+                InScope = CricketScope.IncludesMatch(
+                    match.SeriesName,
+                    match.Home.Team.Name,
+                    match.Away.Team.Name),
                 Payload = JsonSerializer.Serialize(match, Format),
                 ArchivedAtUtc = timeProvider.GetUtcNow().UtcDateTime,
             })
@@ -92,7 +102,7 @@ internal sealed class SqlMatchArchive(
 
     public async Task<MatchDetailsDto?> GetAsync(string matchId, CancellationToken cancellationToken)
     {
-        var payload = await database.ArchivedMatches
+        var payload = await Covered
             .Where(archived => archived.Id == matchId || archived.Slug == matchId)
             .Select(archived => archived.Payload)
             .FirstOrDefaultAsync(cancellationToken);
@@ -149,7 +159,7 @@ internal sealed class SqlMatchArchive(
             return [];
         }
 
-        var payloads = await database.ArchivedMatches
+        var payloads = await Covered
             .Where(archived => archived.SeriesId == seriesId)
             .OrderBy(archived => archived.StartTimeUtc)
             .Select(archived => archived.Payload)
@@ -227,7 +237,7 @@ internal sealed class SqlMatchArchive(
             return [];
         }
 
-        var payloads = await database.ArchivedMatches
+        var payloads = await Covered
             .Where(archived => archived.HomeTeamId == teamId || archived.AwayTeamId == teamId)
             .OrderBy(archived => archived.StartTimeUtc)
             .Select(archived => archived.Payload)
@@ -246,8 +256,21 @@ internal sealed class SqlMatchArchive(
     /// </remarks>
     private IQueryable<ArchivedMatch> Counting(IReadOnlyCollection<string> excluding)
         => excluding.Count == 0
-            ? database.ArchivedMatches
-            : database.ArchivedMatches.Where(archived => !excluding.Contains(archived.Id));
+            ? Covered
+            : Covered.Where(archived => !excluding.Contains(archived.Id));
+
+    /// <summary>
+    /// The rows the site shows, which is where every read here starts.
+    /// </summary>
+    /// <remarks>
+    /// One property rather than a clause repeated in six places, because the cost of forgetting it
+    /// once is an out-of-scope match appearing on exactly one page — a series tally, say — and
+    /// nowhere else, which reads as data corruption rather than as a missing filter. Index-backed
+    /// via <c>ix_archived_matches_scope</c>. The write path does not go through here: see the note
+    /// on the duplicate check in <see cref="SaveFinishedAsync"/>.
+    /// </remarks>
+    private IQueryable<ArchivedMatch> Covered
+        => database.ArchivedMatches.Where(archived => archived.InScope);
 
     /// <summary>
     /// Narrows the query before it runs, so a filtered page is a full page.
@@ -269,7 +292,7 @@ internal sealed class SqlMatchArchive(
     /// </remarks>
     private IQueryable<ArchivedMatch> Apply(MatchFilter filter)
     {
-        var query = database.ArchivedMatches.AsQueryable();
+        var query = Covered;
 
         if (filter.Status is { } status && status != MatchStatus.Completed)
         {

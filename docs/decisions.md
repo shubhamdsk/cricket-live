@@ -5,6 +5,122 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-041 — The site covers Full Member internationals and India's own competitions, and filters at the sources
+
+**Status:** accepted. Narrows what [D-033](#d-033) through [D-036](#d-036) widened, and that is the
+point rather than a reversal: those four changes were about being able to see all the provider's
+cricket, and this one is about choosing which of it this site is for.
+
+### Context
+
+The provider serves every match it can find — a match list 15,531 deep and a series index of 1,190
+— and until now the site served all of it. The result, reported as a bug and reasonable to read as
+one:
+
+> "I am able to see the Australia's domestic matches but not international matches, why so same for
+> eng, nz, sa"
+
+Two separate things were behind that. The missing England, New Zealand and South Africa matches
+were half calendar and half archive: the upcoming list is deliberately the provider's current
+window, and in the first week of October those three had nothing in it, while their earlier matches
+were absent from results because the archive began the day the site did. [D-036](#d-036) being
+turned on fixed the second half.
+
+The other half was that the site had no idea what it was about. Of 63 series listed, roughly a
+third were associate-nation tours — Portugal in Finland, Malta Women in Cyprus, the Viking Cup —
+and another third were other countries' domestic competitions. The Sheffield Shield's season
+opening crowded this week's internationals off the home page not because of a bug but because the
+site had no opinion.
+
+### Decision
+
+Two rules, and the second is not a special case of the first.
+
+1. **An international** is a match between two **ICC Full Member** national sides — the twelve Test
+   nations. Squads below the senior men's team count, so India A, England Women and Sri Lanka U19
+   are all in; "all international matches" plainly means more than eleven men.
+2. **An Indian domestic match** is one in a named Indian competition: the IPL, the WPL and the
+   BCCI's national tournaments. It cannot be caught by rule 1, because Mumbai and Vidarbha are not
+   nations.
+
+Nothing else. Associate internationals are out, and so is every other country's domestic cricket.
+**That is a decision about this site, not a judgement about the cricket**, and it was asked for
+explicitly over the two alternatives offered: including associates, and including India's state T20
+leagues alongside the national competitions.
+
+Measured against live data, 63 listed series became 26 and 28 archived matches became 7.
+
+### Decided from names, because names are all there is
+
+CricketData has no team identifier and no country field on a series. A match names two sides as
+free text; a series is a sentence. So this is a reading rather than a lookup, and it has two entry
+points because the two sources carry different things:
+
+- **`IncludesMatch`** has team names, so it applies the real rule.
+- **`IncludesSeries`** has only a name, because the series index carries a name, a date and a match
+  count and no teams. It asks whether the name itself mentions two Full Members.
+
+A name that cannot be read is treated as not covered, and **that is safe in one direction only.**
+It is safe because `SeriesService` lists a series it holds matches of regardless of the index — the
+index can add a series but never remove one — so an unreadable name costs a series its place on the
+list until it has actually been played, not afterwards. The group this loses is tri-series and
+neutral-venue tournaments, which name one country or none: "Tri Nation A Series in Sri Lanka" reads
+as one nation and waits for its first match.
+
+**The known wart is ICC global events.** "ICC Women's T20 World Cup 2026" names no nation at all, so
+it is off the series list until its first covered match is held. Keeping ICC events regardless of
+who is playing was offered and declined, so the strict rule stands; adding `"ICC "` to the covered
+competitions is the one-line change that would revisit it.
+
+### Filtering at the sources, not at the pages
+
+Every list is built from five places — the live window, the match index, the series index,
+per-series fixtures, and the archive — and the pages combine them in ways that would each need
+their own filter: the series page merges three sources by id, the teams page derives sides from
+matches, search reads the other services' output. So four of the five are wrapped in decorators and
+no page knows any of this exists. A page added later is covered without anyone remembering to.
+
+One of those four also **saves provider calls**, which none of the others do. `PendingMatches`
+resolves at most six series per pass and pays a call for each, in the order the match index
+mentions them, so filtering the index first means the six are six we cover rather than a Sheffield
+Shield round using the budget.
+
+### The archive stores what it does not show
+
+The fifth source filters **in SQL**, via an indexed `InScope` column set when a match is written.
+An in-memory pass over a returned page would break the counts and the paging around it — ask for
+twenty, get eleven — which is the same objection that put the backfill's rows into the archive
+rather than into the read query in [D-036](#d-036). One policy, two mechanisms, as `MatchFilter`
+already has.
+
+**Out-of-scope matches are stored rather than discarded**, and the decorator order says so: the
+archiving decorator sits inside the scope one, so it still keeps everything the provider sends. The
+archive is the only thing here that cannot be refetched on demand — history costs six pages a day —
+so discarding rows would make widening the scope later mean re-earning them over a week. Storing
+the verdict instead makes widening it a deploy. The cost is rows nobody reads, at a few kilobytes
+each against a free tier measured in hundreds of megabytes.
+
+`ArchiveScopeRefresh` recomputes the flag for every stored row at startup, which is what makes this
+a policy rather than a property of a row: without it, a row would record what the policy said on
+the day it arrived, and widening the scope would show the new cricket while the old stayed hidden.
+It also has to exist for the column's first day, since a new non-nullable boolean arrives as
+`false` on every existing row — the England Tests among them. A full scan is affordable at a few
+hundred rows and is self-healing; the alternative, a stored policy version scanned only when it
+changes, needs bumping by hand and fails silently when that is forgotten.
+
+### What this costs
+
+- **The competition list will go out of date.** A nation can be derived from a team name; a
+  competition cannot be derived from anything, so each one is named in a list. A tournament absent
+  from it is simply not covered. `CricketScope.Unrecognised` exists so that reads as a named reason
+  in a debug log rather than as a match that quietly stopped appearing.
+- **A startup scan of the archive**, which should move behind the first response if the archive ever
+  grows enough to feel it.
+- **A side spelled unusually disappears.** "Ireland Wolves" is covered because `Wolves` is in the
+  qualifier list; a second XI named something not in that list would read as a club.
+
+---
+
 ## D-040 — Navy, and frosting that is actually frosting
 
 **Status:** accepted. Revises the palette and the blur policy of **D-039**; its structure — one set

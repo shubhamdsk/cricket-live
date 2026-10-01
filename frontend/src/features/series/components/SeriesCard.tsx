@@ -8,17 +8,27 @@ import { cn } from '@/utils/cn'
 const DAY = { day: 'numeric' } as const
 const FULL = { day: 'numeric', month: 'short', year: 'numeric' } as const
 
-/** The span of what we hold, written the short way when both ends share a month. */
+/**
+ * The span, written the short way when both ends share a month, and left open-ended whenever the
+ * far end is unknown.
+ *
+ * The only end date we have is that of the last match we hold, which is the end of the series
+ * only when we hold all of them. For anything still being played that date is somewhere in the
+ * middle, and a closed range ending there would contradict the fixture list on the page this card
+ * opens. Computing the real end would mean fetching every listed series' fixtures to render one
+ * list, which is sixty-odd provider calls for a date.
+ */
 function span(series: Series): string {
   const from = new Date(series.startTimeUtc)
 
-  // No last match means we hold none of them, so there is no span — only the day the provider
-  // says the series began. "From" rather than a range we would have to invent the far end of.
-  if (series.lastMatchUtc === null) {
+  const { lastMatchUtc, matchCount, totalMatchCount } = series
+  const complete = totalMatchCount === null || matchCount >= totalMatchCount
+
+  if (lastMatchUtc === null || !complete) {
     return `From ${from.toLocaleDateString(undefined, FULL)}`
   }
 
-  const to = new Date(series.lastMatchUtc)
+  const to = new Date(lastMatchUtc)
 
   const sameMonth = from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth()
 
@@ -49,10 +59,6 @@ export function SeriesCard({ series }: { series: Series }) {
 
       <p className="mt-2 text-sm text-ink-subtle">{span(series)}</p>
 
-      {/*
-        "held", not "matches". We show what we have, and for a long tournament that is a fraction
-        of what it played, because our history starts when this site did.
-      */}
       <p className="mt-1 text-sm text-ink-subtle">{heldCount(series)}</p>
     </Link>
   )

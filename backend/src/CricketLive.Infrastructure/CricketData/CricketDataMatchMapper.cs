@@ -30,7 +30,7 @@ internal sealed class CricketDataMatchMapper(ILogger<CricketDataMatchMapper> log
             Id = source.Id,
             Slug = BuildSlug(source.Name, source.Id),
             Status = ResolveStatus(source),
-            Format = ResolveFormat(source.MatchType),
+            Format = ResolveFormat(source.MatchType, matchTitle, source.Name),
             SeriesId = source.SeriesId?.Trim() ?? string.Empty,
             SeriesName = seriesName,
             MatchTitle = matchTitle,
@@ -51,13 +51,71 @@ internal sealed class CricketDataMatchMapper(ILogger<CricketDataMatchMapper> log
         _ => MatchStatus.Upcoming
     };
 
-    private static MatchFormat ResolveFormat(string? matchType) => matchType?.Trim().ToLowerInvariant() switch
+    /// <summary>
+    /// The format, preferring the match title when the provider's own two fields disagree.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// They do disagree. "India vs West Indies, 4th T20I, West Indies tour of India, 2026" arrived
+    /// with <c>matchType</c> of <c>"odi"</c> — the same response that named the match a T20I in its
+    /// title. Trusting <c>matchType</c> there would label a T20 fixture an ODI on every card and in
+    /// every format filter, and the title is the field a reader can check against reality.
+    /// </para>
+    /// <para>
+    /// The title only wins when it actually names a format. "1st Semi-Final" and "3 -Day Warm-up
+    /// match" name none, so those fall through to <c>matchType</c> rather than being forced into a
+    /// guess. The disagreement is logged every time, which is also how we learn how often this
+    /// happens without having to go looking.
+    /// </para>
+    /// </remarks>
+    private MatchFormat ResolveFormat(string? matchType, string matchTitle, string? name)
+    {
+        var declared = FromMatchType(matchType);
+        var titled = FromTitle(matchTitle);
+
+        if (titled is not { } fromTitle || fromTitle == declared)
+        {
+            return declared;
+        }
+
+        logger.LogWarning(
+            "Provider says matchType {MatchType} but the title says {Titled} for {Name}; the title wins",
+            matchType,
+            fromTitle,
+            name);
+
+        return fromTitle;
+    }
+
+    private static MatchFormat FromMatchType(string? matchType) => matchType?.Trim().ToLowerInvariant() switch
     {
         "t20" => MatchFormat.T20,
         "odi" => MatchFormat.Odi,
         "test" => MatchFormat.Test,
         _ => MatchFormat.Other
     };
+
+    /// <summary>
+    /// The format named in a title such as "4th T20I", or <see langword="null"/> when it names none.
+    /// </summary>
+    /// <remarks>
+    /// Split into words first so a format is only recognised as a whole word. "T20" is checked
+    /// before "ODI" and both before "Test" only for readability; the tokens cannot collide.
+    /// </remarks>
+    private static MatchFormat? FromTitle(string matchTitle)
+    {
+        foreach (var word in matchTitle.Split(
+            [' ', '-', ',', '.', '(', ')', '/'],
+            StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            // "T20I" and "T20" both start with t20; "ODI" and "Test" are exact.
+            if (word.StartsWith("t20", StringComparison.OrdinalIgnoreCase)) { return MatchFormat.T20; }
+            if (word.Equals("odi", StringComparison.OrdinalIgnoreCase)) { return MatchFormat.Odi; }
+            if (word.Equals("test", StringComparison.OrdinalIgnoreCase)) { return MatchFormat.Test; }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// The provider packs three things into one name: "India vs West Indies, 1st ODI, West Indies tour of India, 2026".

@@ -107,6 +107,11 @@ public static class DependencyInjection
         services.AddSingleton<IMatchBroadcaster, MatchBroadcaster>();
         services.AddHostedService<LiveMatchPoller>();
 
+        // Second hosted service, and the only thing here that fetches history rather than keeping
+        // what it was handed. It holds itself to half the daily allowance, so the poller above —
+        // which is serving somebody who is watching — always outranks it.
+        services.AddHostedService<CricketDataMatchBackfill>();
+
         AddCricbuzzEnrichment(services, configuration);
         AddScorecards(services, configuration);
         AddStandings(services);

@@ -5,6 +5,115 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-036 — History is ingested into the archive, not merged into the query that reads it
+
+**Status:** accepted. The happy path is **not yet verified against the provider** — see the last
+section, which is the honest part of this entry.
+
+### Context
+
+The results page held two matches and the teams page two sides, because the archive only ever
+accumulated forward: it began the day this site did. [D-033](#d-033) through [D-035](#d-035) fixed
+three pages by reading wider provider endpoints at request time. Results cannot be fixed that way,
+and the reason is worth stating because it is the only one of the four that is different.
+
+`GetFinishedAsync` filters, counts and pages **in SQL**. Mixing provider rows into that at read
+time means two sources with no shared opinion about what page three is or what the total is: ask
+for twenty, get eleven, and a count that agrees with neither. The provider's list is 15,531 matches
+at 25 a page, so it cannot be read whole and sorted in memory either.
+
+### Decision
+
+Write the provider's rows into the archive instead, in the background, and leave every query
+exactly as it is. The results page, the series pages, the teams page and search all already read
+the archive, so one writer widens four readers and none of them needed changing.
+
+The rows are the right shape for this. `/v1/matches` returns the same `CricketDataMatch` the live
+window does — id, name, venue, teams, teamInfo, **score**, `series_id` on every row — so the
+existing mapper consumes them and `SaveFinishedAsync` already keeps only completed matches and
+already ignores one it holds. The backfill writes no new kind of record.
+
+### Three guards, because this could eat the whole allowance
+
+1. **A page count per UTC day**, default six, held **in the database**. In memory it would be
+   meaningless: the host spins the container down after fifteen idle minutes and rebuilds it on the
+   next request, so the counter would reset several times a day.
+2. **A refusal to run past half the day's allowance.** Stricter than the poller's reserve, and
+   deliberately so — the poller is serving somebody who is watching, and this is serving nobody
+   yet.
+3. **A bounded depth**, default forty pages, then it starts again from the top. Walking all 621
+   pages at a polite rate would take months and spend most of them in seasons nobody will open.
+   Lapping keeps recent history complete instead.
+
+A full lap is about a week at six pages a day, and takes the archive from a handful of matches to
+roughly a thousand.
+
+### What running it actually taught us
+
+The first real run found a flaw that reading the code had not. The in-memory budget starts a fresh
+process believing nothing has been spent, so the first tick after every restart spent one doomed
+call on an exhausted day — and on a host that rebuilds its container several times a day, it spent
+that same doomed call several times. The response corrects the belief, but only after the call.
+
+An account refusal is therefore now written down as "no more pages today", which survives the
+restart the in-memory count does not. A refusal about the *request* is only logged, because that is
+a different problem and marking the day spent would hide it.
+
+### Known limits, stated rather than discovered later
+
+- **The list is ordered by series, newest series first — not by date.** So "the first forty pages"
+  is the thousand matches of the most recently active series, not the thousand most recent matches.
+  Close enough to be useful; not the same thing.
+- **The offset drifts.** A new series appearing at the front shifts every offset behind it, so a
+  lap can read a page twice or skip one. Reading twice costs nothing, because the archive ignores a
+  match it already holds; a skipped page is picked up on the next lap. A persistent cursor over a
+  list that reorders itself is approximate by nature, and the alternative — a stable cursor the
+  provider does not offer — does not exist.
+- **A page that always fails stalls the lap**, because the offset is deliberately not advanced on
+  failure. `LapsCompleted` is logged so that this is visible as a number that stops rising rather
+  than as silence.
+
+### Shipped switched off, and why that is the decision rather than a hedge
+
+`MatchBackfillPages` defaults to **0**, which resolves to a loop that logs that it is off and
+returns. Forty is the intended value.
+
+Everything here builds, the 203 tests pass, the migration applies, the loop starts, and the
+**refusal path was observed in a real run against the live provider.** The **happy path — reading a
+page and writing its matches — has not been.** The day's hundred calls were spent verifying D-034
+and D-035, and the provider refused with "hits today exceeded hits limit", which is itself the
+evidence.
+
+So the code ships reviewed, deployed and dormant. Nothing unobserved runs against production data,
+and the alternative — holding the branch — would have left a migration unapplied and a week of
+drift to re-resolve for no gain. **To turn it on:** run locally with
+`CricketData__MatchBackfillPages=40` once the allowance has reset, confirm a page is read and the
+archive grows, then change the default here. That is one line and this paragraph is the record of
+why it was not written yet.
+
+Recording it rather than leaving it to be assumed, because [D-032](#d-032) was written about
+exactly this: a mechanism that looked finished and had never actually run. The difference is that
+this one says so out loud and is switched off until it has.
+
+### What exhausting the allowance accidentally proved
+
+With the day's calls gone, the deployed site was measured rather than guessed at:
+
+```
+matches/live      200   0 rows
+matches/upcoming  200   0 rows
+matches/recent    200   1 row
+series            200   63 rows
+teams             200   2 rows
+```
+
+No errors anywhere — it degrades to empty lists, which is what every "failures are swallowed"
+remark in D-033 through D-035 claimed would happen and none of them had seen. `series` still
+answering with all 63 is the last-known-good cache from D-033 serving a stale index through a
+provider outage, which is the one path in that change that could not be tested when it was written.
+
+---
+
 ## D-035 — `cricScore` decides what is on, `series_info` says what it is
 
 **Status:** accepted. Third and last of the changes that began with [D-033](#d-033).

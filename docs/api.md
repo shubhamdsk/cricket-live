@@ -307,16 +307,24 @@ rather than a technical one — see [D-027](./decisions.md).
 
 ## Series
 
-Series are **assembled from the matches we hold**, in both places matches live, rather than
-fetched as entities. The provider's own series endpoints were measured and are an index rather
-than data — no standings at all, `endDate` never an ISO date, squads empty for every series
-sampled. Reasoning in [D-021](./decisions.md).
+Series come from **two sources with two jobs**. The provider's `series` index says which series
+exist; the matches we hold — in the live window and in our archive — say what can be shown about
+one. Reasoning in [D-033](./decisions.md), which reverses the earlier decision to ignore the index
+entirely while keeping its measurements: `endDate` has still never arrived as an ISO date, and no
+standings or squads come from there either. It is read for an id, a name, a start date and a match
+total, and for nothing else.
 
-The practical consequence is that a series describes what we have, not what was played.
+The practical consequence is that a series is **listed** whether or not we hold any of it, and the
+response says which of those two situations you are looking at.
 
 ### `GET /api/series`
 
-Every series with a match behind it. Ongoing first, then most recently played.
+Every series the index lists within the pages we read, plus every series we hold a match of.
+
+Ordered by whether a match is in progress, then whether we hold anything of it, then by **distance
+from today in either direction** — so the current week is at the top and the list falls away into
+both the past and the future. Sorting purely by date put a tour a year out at the top; we cannot do
+better than distance because the provider gives us no end dates.
 
 ```json
 {
@@ -327,8 +335,19 @@ Every series with a match behind it. Ongoing first, then most recently played.
       "slug": "west-indies-tour-of-india-2026-702ce6cb-a551-4aab-961e-0ed1548a3c74",
       "name": "West Indies tour of India, 2026",
       "startTimeUtc": "2026-09-27T08:30:00+00:00",
-      "lastMatchUtc": "2026-09-27T08:30:00+00:00",
-      "matchCount": 1,
+      "lastMatchUtc": "2026-09-30T08:30:00+00:00",
+      "matchCount": 2,
+      "totalMatchCount": 8,
+      "isOngoing": false
+    },
+    {
+      "id": "c1ca1a51-9f8a-4a4f-9d2e-6f7b4a0a3e21",
+      "slug": "sheffield-shield-2026-27-c1ca1a51-9f8a-4a4f-9d2e-6f7b4a0a3e21",
+      "name": "Sheffield Shield 2026-27",
+      "startTimeUtc": "2026-10-07T00:00:00+00:00",
+      "lastMatchUtc": null,
+      "matchCount": 0,
+      "totalMatchCount": 31,
       "isOngoing": false
     }
   ],
@@ -336,10 +355,21 @@ Every series with a match behind it. Ongoing first, then most recently played.
 }
 ```
 
-`matchCount` is **how many matches of this series we can show**, not how many it contains. A
-tournament that began before this site started recording will report far fewer than it played.
-`lastMatchUtc` is when the latest match we hold began — not when the series ends, which we have no
-way of knowing.
+**The two counts are not interchangeable.** `matchCount` is how many matches of this series we can
+show; `totalMatchCount` is how many the series has, as the index counts them. A tournament that
+began before this site started recording reports a small `matchCount` and a large
+`totalMatchCount`, which is the difference between a narrow window and a short series.
+
+`totalMatchCount` is `null` when the index did not cover the series — anything outside the pages we
+read. **`null` means "we were not told", never "none"**; a row claiming zero matches is dropped on
+the way in, so zero never reaches a client.
+
+`lastMatchUtc` is when the latest match we hold began, and `null` when we hold none. It is never
+when the series ends, which we have no way of knowing.
+
+`isOngoing` is only ever derived from held matches, so a series known solely from the index reports
+`false` whatever its dates suggest. Deciding otherwise would mean comparing a start date against a
+clock and publishing the result as a fact.
 
 ### `GET /api/series/{seriesId}`
 
@@ -357,9 +387,18 @@ Accepts either the bare id or the full slug.
 }
 ```
 
-Returns **404** when the identifier is not a GUID, or when no match we hold belongs to it. A
-series we have nothing of cannot be told apart from one that never existed, so claiming it exists
-but is empty would be a claim we cannot support.
+Returns **404** when the identifier is not a GUID, or when **neither** the index lists it nor we
+hold a match of it. That second condition used to be just "no match we hold", which made every
+index-only series on the list a dead link — listing something and then refusing to open it is worse
+than not listing it.
+
+So a series the index lists and we hold nothing of returns **200** with `matches: []` and a
+`matchCount` of zero. That is a true statement about a real series, and distinct from the 404, which
+now means neither source has heard of it.
+
+`matchCount` and `totalMatchCount` here are the same values the list gives for the same series.
+They are filled in from the index on this path too, specifically so a card reading "2 of 8 matches
+held" cannot open a page reading "2 matches held".
 
 **`standings` is empty unless a source supplied a table, which is the normal case.** A bilateral
 tour has no points table at all, and the only source that publishes one for the tournaments that

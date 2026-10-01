@@ -81,6 +81,10 @@ public static class DependencyInjection
             provider.GetRequiredService<IMatchArchive>(),
             provider.GetRequiredService<ILogger<ArchivingCricketDataProvider>>()));
 
+        // Not behind the archiving decorator: the index returns series, which the archive has no
+        // opinion about, and it shares the budget-claiming client rather than the provider.
+        services.AddScoped<CricketDataSeriesIndex>();
+
         services.AddScoped<IMatchService, MatchService>();
         services.AddScoped<ISeriesService, SeriesService>();
         services.AddScoped<ITeamService, TeamService>();
@@ -100,6 +104,7 @@ public static class DependencyInjection
         AddCricbuzzEnrichment(services, configuration);
         AddScorecards(services, configuration);
         AddStandings(services);
+        AddSeriesIndex(services);
         AddHealth(services);
 
         return services;
@@ -379,5 +384,24 @@ public static class DependencyInjection
             provider.GetRequiredService<IOptions<CricbuzzOptions>>().Value.StandingsEnabled
                 ? provider.GetRequiredService<CricbuzzStandingsProvider>()
                 : provider.GetRequiredService<NoSeriesStandingsProvider>());
+    }
+
+    /// <summary>
+    /// The series index, or nothing when its page budget is set to zero.
+    /// </summary>
+    /// <remarks>
+    /// Zero pages resolves to <see cref="NoSeriesIndex"/> rather than to a reader that loops no
+    /// times, so turning it off is one decision made in one place instead of a configured value
+    /// that happens to be harmless. The series list then falls back to held matches, which is
+    /// where it started.
+    /// </remarks>
+    private static void AddSeriesIndex(IServiceCollection services)
+    {
+        services.AddSingleton<NoSeriesIndex>();
+
+        services.AddScoped<ISeriesIndex>(provider =>
+            provider.GetRequiredService<IOptions<CricketDataOptions>>().Value.SeriesIndexPages > 0
+                ? provider.GetRequiredService<CricketDataSeriesIndex>()
+                : provider.GetRequiredService<NoSeriesIndex>());
     }
 }

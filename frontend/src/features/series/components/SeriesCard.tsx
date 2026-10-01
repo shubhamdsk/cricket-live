@@ -1,24 +1,32 @@
 import { Link } from 'react-router-dom'
 
 import { focusRing } from '@/components/common/focusRing'
+import { heldCount } from '@/features/series/held'
 import type { Series } from '@/features/series/types'
 import { cn } from '@/utils/cn'
+
+const DAY = { day: 'numeric' } as const
+const FULL = { day: 'numeric', month: 'short', year: 'numeric' } as const
 
 /** The span of what we hold, written the short way when both ends share a month. */
 function span(series: Series): string {
   const from = new Date(series.startTimeUtc)
+
+  // No last match means we hold none of them, so there is no span — only the day the provider
+  // says the series began. "From" rather than a range we would have to invent the far end of.
+  if (series.lastMatchUtc === null) {
+    return `From ${from.toLocaleDateString(undefined, FULL)}`
+  }
+
   const to = new Date(series.lastMatchUtc)
 
   const sameMonth = from.getFullYear() === to.getFullYear() && from.getMonth() === to.getMonth()
 
-  const day = { day: 'numeric' } as const
-  const full = { day: 'numeric', month: 'short', year: 'numeric' } as const
-
   if (from.getTime() === to.getTime()) {
-    return from.toLocaleDateString(undefined, full)
+    return from.toLocaleDateString(undefined, FULL)
   }
 
-  return `${from.toLocaleDateString(undefined, sameMonth ? day : full)} – ${to.toLocaleDateString(undefined, full)}`
+  return `${from.toLocaleDateString(undefined, sameMonth ? DAY : FULL)} – ${to.toLocaleDateString(undefined, FULL)}`
 }
 
 export function SeriesCard({ series }: { series: Series }) {
@@ -45,9 +53,7 @@ export function SeriesCard({ series }: { series: Series }) {
         "held", not "matches". We show what we have, and for a long tournament that is a fraction
         of what it played, because our history starts when this site did.
       */}
-      <p className="mt-1 text-sm text-ink-subtle">
-        {series.matchCount} {series.matchCount === 1 ? 'match' : 'matches'} held
-      </p>
+      <p className="mt-1 text-sm text-ink-subtle">{heldCount(series)}</p>
     </Link>
   )
 }

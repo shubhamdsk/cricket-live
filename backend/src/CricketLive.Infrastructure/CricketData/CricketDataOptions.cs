@@ -108,12 +108,11 @@ public sealed class CricketDataOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Zero, which switches the backfill off, and that is deliberate rather than conservative.</b>
-    /// Its guards and its failure paths have been exercised against the live provider; reading a
-    /// page and archiving it has not, because the day's hundred calls were spent verifying the two
-    /// changes before it. Shipping it dormant means the code is reviewed and deployed without
-    /// anything unobserved running against production data. Forty is the intended value and the one
-    /// the rest of these remarks describe; see D-036 for what has to happen before it is set.
+    /// Forty, having previously been zero while the happy path was still unobserved. A run against
+    /// the live provider read offset 0, got twenty-five rows and archived twenty-four of them, and
+    /// the half-allowance guard then stopped the loop at sixty-eight calls of a hundred — so both
+    /// the path that works and the guard that bounds it have now been seen rather than reasoned
+    /// about. D-036 records what the wait was for.
     /// </para>
     /// <para>
     /// The list is 15,531 matches deep, which is 621 pages, and walking all of it at a polite rate
@@ -130,7 +129,7 @@ public sealed class CricketDataOptions
     /// </para>
     /// </remarks>
     [Range(0, 621)]
-    public int MatchBackfillPages { get; set; }
+    public int MatchBackfillPages { get; set; } = 40;
 
     /// <summary>
     /// How many pages the backfill may read in one UTC day.

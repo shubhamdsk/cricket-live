@@ -528,6 +528,10 @@ completed matches with results — CricketData's `recent-matches` returns the sa
 another name, and Cricbuzz's listing carries no result sentence and only relative dates. History
 therefore starts the day this shipped, which the results page states rather than hides.
 
+> **Later correction:** wrong, and the search was not wide enough. `recent-matches` was the dead
+> end; plain `/v1/matches` is 15,531 matches deep with scores on every row. [D-036](./decisions.md)
+> is the backfill that uses it, so history does *not* start the day this shipped.
+
 **`GET /api/matches/recent` is now paged and returns an envelope instead of a bare array.** The one
 breaking API change so far. `docs/api.md` has the new shape.
 
@@ -885,15 +889,23 @@ Graph tags, sitemap and icon set follow from that. [D-038](./decisions.md) recor
 the two traps in it, one of which bit: the rewrite has to run before the router's *module* is
 evaluated, not before the first render.
 
-**Next action:** turn the match backfill on. It is built, deployed and switched off, because its
-guards and failure paths were observed against the live provider but reading and archiving a page
-was not — the day's hundred calls had gone on the two changes before it. Run locally with
-`CricketData__MatchBackfillPages=40` once the allowance resets, confirm the archive grows, then
-change the default. [D-036](./decisions.md) is the record of why it was left off rather than
-assumed to work.
+**The match backfill is on.** It had been built, deployed and switched off because its guards and
+failure paths were observed against the live provider but reading and archiving a page was not. One
+page read locally settled it: twenty-five rows, twenty-four archived, the half-allowance guard
+stopping the loop afterwards, and the archive going from 4 finished matches to 28 — with England
+Tests from August appearing on the results page, which is what the change was for. The default is
+now forty pages; [D-036](./decisions.md) carries the log.
 
-After that, the open judgement call is whether to unset `CricbuzzApi__Enabled` in production, where
-the recommendation on the record is yes.
+This also answers a question that looked like a bug. The matches page showed Sheffield Shield
+fixtures and no England, New Zealand or South Africa internationals, and the reason was the
+calendar rather than the code: the upcoming list is deliberately the provider's current window, and
+in the first week of October those three had nothing in it — England's next tour starts 12
+November, and their last Tests finished in June. The June and August matches were missing from
+*results*, though, and that was the archive having never recorded them. The backfill is the fix for
+that half.
+
+The open judgement call is whether to unset `CricbuzzApi__Enabled` in production, where the
+recommendation on the record is yes.
 
 **One thing was reported as a bug and turned out to be the design.** The series page showed a
 single series, because the list was built only from matches we hold and the provider's window held

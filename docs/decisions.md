@@ -374,27 +374,37 @@ a different problem and marking the day spent would hide it.
   failure. `LapsCompleted` is logged so that this is visible as a number that stops rising rather
   than as silence.
 
-### Shipped switched off, and why that is the decision rather than a hedge
+### Shipped switched off, then turned on once the happy path had been seen
 
-`MatchBackfillPages` defaults to **0**, which resolves to a loop that logs that it is off and
-returns. Forty is the intended value.
+`MatchBackfillPages` shipped at **0** — a loop that logs it is off and returns — because the
+refusal path had been observed against the live provider and the happy path had not. The day's
+hundred calls had gone on verifying [D-034](#d-034) and [D-035](#d-035), and the provider answered
+with "hits today exceeded hits limit", which was itself the evidence. Shipping dormant meant
+nothing unobserved ran against production data, and holding the branch instead would have left a
+migration unapplied and a week of drift to re-resolve for no gain.
 
-Everything here builds, the 203 tests pass, the migration applies, the loop starts, and the
-**refusal path was observed in a real run against the live provider.** The **happy path — reading a
-page and writing its matches — has not been.** The day's hundred calls were spent verifying D-034
-and D-035, and the provider refused with "hits today exceeded hits limit", which is itself the
-evidence.
+It is now **40**. The run that paragraph asked for, against the live provider and the production
+archive:
 
-So the code ships reviewed, deployed and dormant. Nothing unobserved runs against production data,
-and the alternative — holding the branch — would have left a migration unapplied and a week of
-drift to re-resolve for no gain. **To turn it on:** run locally with
-`CricketData__MatchBackfillPages=40` once the allowance has reset, confirm a page is read and the
-archive grows, then change the default here. That is one line and this paragraph is the record of
-why it was not written yet.
+```
+Match backfill started; up to 1 page(s) a day over the first 40 page(s)
+Match backfill read offset 0: 25 row(s), 25 finished; 1 page(s) today
+Archived 24 newly finished match(es)
+Match backfill waiting: 68 of 100 daily calls already spent
+```
 
-Recording it rather than leaving it to be assumed, because [D-032](#d-032) was written about
-exactly this: a mechanism that looked finished and had never actually run. The difference is that
-this one says so out loud and is switched off until it has.
+A page was read, its rows mapped, and twenty-four of them reached the archive — the twenty-fifth
+was already held, which is `SaveFinishedAsync` discarding a duplicate as designed. The
+half-allowance guard then stopped the loop, so the one guard that could only be exercised by a run
+that was allowed to proceed was exercised too.
+
+The archive went from 4 finished matches to 28 in that single page, and `Pakistan tour of England
+2026` Tests from August and September appeared on the results page, which is the point of the
+change. The daily cap was set to one page for the run rather than the default six, so the whole
+verification cost a single call.
+
+Recording the wait rather than leaving it to be assumed, because [D-032](#d-032) was written about
+exactly this: a mechanism that looked finished and had never actually run.
 
 ### What exhausting the allowance accidentally proved
 

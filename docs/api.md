@@ -216,8 +216,8 @@ The archive used to only accumulate forward from the day it was switched on, whi
 `total` was tiny. A background backfill now also walks the provider's own match list and writes
 what it finds here, so `total` grows without a match having to be played first. It is rate-limited
 to a few pages a day against a hundred-call allowance, so it grows steadily rather than all at
-once — see [D-036](./decisions.md), including the fact that it ships switched off until its happy
-path has been observed.
+once — see [D-036](./decisions.md), which also records that it shipped switched off until its happy
+path had been observed, and the run that observed it.
 
 Filtering happens in the database rather than over the returned page, so a filtered page is a full
 page and `total` agrees with what came back.

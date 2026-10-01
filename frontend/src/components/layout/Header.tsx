@@ -38,8 +38,8 @@ export function Header() {
 
   return (
     /* `bg-chrome` rather than a translucent panel colour: content scrolls under this, and blurring
-       it through white would turn the page milky instead of dark. */
-    <header className="sticky top-0 z-10 border-b border-line bg-chrome backdrop-blur-xl">
+       it through white would turn the page milky instead of navy. */
+    <header className="glass sticky top-0 z-10 border-b border-line bg-chrome">
       <Container className="flex items-center justify-between gap-4 py-3">
         <NavLink
           to="/"

@@ -12,7 +12,7 @@ const LIGHT_CLASS = 'theme-light'
 
 /** Kept in step with `--color-chrome`, since this is the strip of browser UI next to the header. */
 const CHROME_COLOUR: Record<Theme, string> = {
-  dark: '#07090e',
+  dark: '#060a16',
   light: '#ffffff',
 }
 

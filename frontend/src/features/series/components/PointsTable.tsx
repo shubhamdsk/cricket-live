@@ -24,7 +24,10 @@ export function PointsTable({ standings }: { standings: Standing[] }) {
       <h2 className="text-lg font-semibold tracking-tight text-ink">Points table</h2>
 
       {groups.map((group) => (
-        <div key={group} className="overflow-hidden rounded-xl border border-line bg-surface">
+        <div
+          key={group}
+          className="glass overflow-hidden rounded-card border border-line bg-surface shadow-card"
+        >
           {group && (
             <div className="border-b border-line bg-surface-sunken px-4 py-2 text-xs font-medium uppercase tracking-wide text-ink-subtle">
               {group}

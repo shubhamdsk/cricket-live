@@ -12,7 +12,7 @@ export function FeaturedMatch({ match }: { match: Match }) {
     <Link
       to={`/match/${match.slug}`}
       className={cn(
-        'block rounded-panel border border-brand-line bg-gradient-to-br from-brand-soft to-surface p-5 shadow-card transition duration-200 ease-out hover:-translate-y-0.5 hover:border-brand hover:shadow-lift active:translate-y-0 sm:p-6',
+        'glass block rounded-panel border border-brand-line bg-gradient-to-br from-brand-soft to-surface p-5 shadow-card transition duration-200 ease-out hover:-translate-y-0.5 hover:border-brand hover:shadow-lift active:translate-y-0 sm:p-6',
         focusRing,
       )}
     >

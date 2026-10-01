@@ -9,77 +9,99 @@
  * runtime, so swapping a class on the root element reskins the whole app and no component needs to
  * know which theme is on. There is not one `dark:` variant in the codebase, and that is the point.
  *
- * What makes the dark theme read as glass is not blur on its own. It is three things together:
- * surfaces that are translucent white rather than a flat grey, hairline borders that catch light at
- * the panel edge, and `--page-glow` behind everything so the translucency has something to reveal.
- * Remove the glow and the same surfaces look like grey cards.
+ * Frosted glass is four things, and blur is the one people reach for first and the least important
+ * of them:
  *
- * Blur is applied only where something actually passes behind a panel — the header, and the search
- * dropdown. Elsewhere it would cost a stacking context and compositing for no visible difference.
+ * 1. **Something worth frosting.** `--page-glow` is a mesh of overlapping navy, indigo and cyan
+ *    blobs at strengths you can actually see. Blur over a flat background produces a flat
+ *    background; the colour has to be there before the panel can diffuse it.
+ * 2. **Tinted translucency.** Surfaces are a pale blue-white, not neutral white, so a panel reads
+ *    as navy glass rather than as grey plastic.
+ * 3. **A lit edge.** The inset highlight in `--shadow-card` is what makes the eye read a pane with
+ *    thickness instead of a rectangle with a border.
+ * 4. **Then** blur and a saturation lift, in the `glass` utility, applied to every surface that
+ *    paints one.
  *
- * Contrast was checked against the darkest background each colour is used on, not against pure
- * black, because the translucent surfaces sit above the page. `Badge`'s doc comment records what
- * happens when that distinction is skipped.
+ * Contrast was checked against the darkest background each colour is used on, not against the page,
+ * because the translucent surfaces sit above it. `Badge`'s doc comment records what happens when
+ * that distinction is skipped.
  */
 @theme {
   --font-sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
 
-  /* Not pure black. A hint of blue keeps large dark areas from banding, and gives the green glow
-     something to sit against. */
-  --color-pitch: #07090e;
+  /* Deep navy rather than black. Black flattens the mesh behind the glass into grey and bands
+     badly across a large area; a navy base keeps the hue alive at the dark end. */
+  --color-pitch: #060a16;
 
-  /* Translucent, so panels tint whatever is behind them instead of covering it. */
-  --color-surface: rgb(255 255 255 / 0.05);
-  --color-surface-muted: rgb(255 255 255 / 0.09);
+  /* Blue-white and translucent. Neutral white here is the single biggest reason a dark theme looks
+     like grey cards on black instead of glass. */
+  --color-surface: rgb(173 196 255 / 0.08);
+  --color-surface-muted: rgb(173 196 255 / 0.14);
 
   /* Recessed rather than raised: darker than the panel it sits in, for table header strips. */
-  --color-surface-sunken: rgb(0 0 0 / 0.22);
+  --color-surface-sunken: rgb(3 7 18 / 0.35);
 
   /* The one opaque surface, for overlays that have to hide what is behind them rather than tint
      it — a dropdown over a list of scores, or the skip link over the page. */
-  --color-surface-raised: #111722;
+  --color-surface-raised: #0d1326;
 
   /* The header and footer, which content scrolls underneath. Built on the page colour rather than
-     on white, so blurred content behind it stays dark instead of turning milky. */
-  --color-chrome: rgb(7 9 14 / 0.72);
+     on white, so blurred content behind it stays navy instead of turning milky. */
+  --color-chrome: rgb(6 10 22 / 0.62);
 
-  --color-line: rgb(255 255 255 / 0.1);
-  --color-line-strong: rgb(255 255 255 / 0.22);
+  --color-line: rgb(186 205 255 / 0.16);
+  --color-line-strong: rgb(186 205 255 / 0.32);
 
-  --color-ink: #e8eef8;
-  --color-ink-muted: #b4c0d4;
-  --color-ink-subtle: #8e9cb4;
+  --color-ink: #eaf0ff;
+  --color-ink-muted: #b7c4e0;
+  --color-ink-subtle: #93a3c4;
 
   /* `brand` is a fill and `brand-strong` is a text colour, which is why they move in opposite
      directions between the themes: a readable accent on near-black has to be lighter, while a fill
      carrying white text has to stay dark. Conflating them is how a dark theme ends up with either
-     an unreadable link or an unreadable button. */
-  --color-brand: #059669;
-  --color-brand-hover: #10b981;
+     an unreadable link or an unreadable button.
+
+     Navy is a harder brand to carry than the green it replaces, because a true navy is too dark to
+     read as text on a dark page. So the fill stays navy and the accent is its light shade — which
+     is what "navy with shades" has to mean on a dark background. */
+  --color-brand: #2563eb;
+  --color-brand-hover: #3b82f6;
   --color-on-brand: #ffffff;
-  --color-brand-strong: #34d399;
-  --color-brand-soft: rgb(16 185 129 / 0.14);
-  --color-brand-line: rgb(52 211 153 / 0.32);
+  --color-brand-strong: #93b4ff;
+  --color-brand-soft: rgb(59 130 246 / 0.2);
+  --color-brand-line: rgb(147 180 255 / 0.36);
 
-  --color-live: #f87171;
-  --color-live-soft: rgb(248 113 113 / 0.14);
-  --color-live-line: rgb(248 113 113 / 0.34);
+  --color-live: #fb7185;
+  --color-live-soft: rgb(251 113 133 / 0.16);
+  --color-live-line: rgb(251 113 133 / 0.36);
 
-  --color-upcoming: #38bdf8;
-  --color-upcoming-soft: rgb(56 189 248 / 0.14);
-  --color-upcoming-line: rgb(56 189 248 / 0.32);
+  /* Cyan, not the blue it used to be. Upcoming sat next to a green brand perfectly happily; next
+     to a navy one it would have been a second blue, and a status badge whose colour says the same
+     thing as the furniture around it is not telling anyone anything. */
+  --color-upcoming: #22d3ee;
+  --color-upcoming-soft: rgb(34 211 238 / 0.16);
+  --color-upcoming-line: rgb(34 211 238 / 0.34);
 
-  --color-danger: #f87171;
-  --color-danger-soft: rgb(248 113 113 / 0.14);
-  --color-danger-line: rgb(248 113 113 / 0.34);
+  --color-danger: #fb7185;
+  --color-danger-soft: rgb(251 113 133 / 0.16);
+  --color-danger-line: rgb(251 113 133 / 0.36);
 
-  --radius-card: 0.75rem;
-  --radius-panel: 1rem;
+  /* Rounder than before. A tighter radius reads as a bordered box; this reads as a pane. */
+  --radius-card: 1rem;
+  --radius-panel: 1.25rem;
 
-  /* The inset hairline on top is doing most of the work. A dark panel with a lit top edge reads as
-     a pane of glass; the same panel with only a drop shadow reads as a flat rectangle. */
-  --shadow-card: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 2px 10px -3px rgb(0 0 0 / 0.65);
-  --shadow-lift: inset 0 1px 0 0 rgb(255 255 255 / 0.08), 0 14px 32px -10px rgb(0 0 0 / 0.75);
+  /* Four layers, and only one of them is a drop shadow. The bright inset on top is the lit edge of
+     the pane, the dim inset underneath closes it off at the bottom, and the two outer shadows
+     separate it from the mesh at different distances so it floats rather than sits. */
+  --shadow-card:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.14), inset 0 -1px 0 0 rgb(255 255 255 / 0.04),
+    0 4px 16px -4px rgb(2 6 23 / 0.7), 0 14px 40px -14px rgb(2 6 23 / 0.6);
+
+  /* The brand-tinted outer shadow is the hover state doing the work: a lifted pane should pick up
+     colour from the light behind it, not just cast a bigger black shadow. */
+  --shadow-lift:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.2), 0 10px 24px -6px rgb(2 6 23 / 0.75),
+    0 26px 60px -20px rgb(37 99 235 / 0.45);
 
   /* One easing for everything, so nothing feels like it belongs to a different app. It decelerates
      hard, which reads as "settling into place" rather than "sliding". */
@@ -95,59 +117,132 @@
      the UA stops painting a white canvas behind us during load. */
   color-scheme: dark;
 
-  /* Anchored to the viewport rather than the document, so it behaves as light in the room instead
-     of scrolling away with the content. */
+  --glass-blur: 22px;
+
+  /* Above 100%, because blur averages colour towards grey and the lift puts the hue back. This is
+     the difference between frosted navy and frosted cement. */
+  --glass-saturate: 170%;
+
+  /*
+   * Navy through indigo to cyan, overlapping, at strengths that are meant to be seen — the previous
+   * attempt used a tenth of this and the result was a black page with panels on it.
+   *
+   * Anchored to the viewport rather than the document, so it behaves as light in the room instead
+   * of scrolling away with the content.
+   */
   --page-glow:
-    radial-gradient(58rem 38rem at 12% -12%, rgb(16 185 129 / 0.14), transparent 62%),
-    radial-gradient(48rem 34rem at 92% -6%, rgb(56 189 248 / 0.1), transparent 60%),
-    radial-gradient(42rem 30rem at 50% 108%, rgb(16 185 129 / 0.07), transparent 65%);
+    radial-gradient(46rem 34rem at 6% -10%, rgb(37 99 235 / 0.4), transparent 60%),
+    radial-gradient(40rem 30rem at 92% -6%, rgb(99 102 241 / 0.32), transparent 60%),
+    radial-gradient(44rem 32rem at 74% 38%, rgb(14 165 233 / 0.18), transparent 62%),
+    radial-gradient(42rem 32rem at 14% 82%, rgb(79 70 229 / 0.26), transparent 62%),
+    radial-gradient(34rem 26rem at 96% 96%, rgb(34 211 238 / 0.14), transparent 60%);
+
+  /* Fractal noise, inline, because a 180-byte data URI beats a network request for an image whose
+     whole job is to be almost invisible. The opacity lives inside the SVG so the value is in one
+     place rather than split between the asset and the rule that uses it. */
+  --page-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)' opacity='0.055'/%3E%3C/svg%3E");
 }
 
 /*
- * The light theme, which is the palette this app shipped with. Kept as overrides rather than as the
- * default so that the no-class case is the default case, which is what lets the pre-paint script in
- * `index.html` do nothing at all for most visitors.
+ * The light theme. Kept as overrides rather than as the default so that the no-class case is the
+ * default case, which is what lets the pre-paint script in `index.html` do nothing at all for most
+ * visitors.
+ *
+ * Navy here is the dark shade and carries white text; on the dark theme the same name is the light
+ * shade and carries no text at all. Same token, opposite end of the ramp.
  */
 html.theme-light {
   color-scheme: light;
 
   --page-glow: none;
+  --page-grain: none;
+  --glass-blur: 0px;
+  --glass-saturate: 100%;
 
-  --color-pitch: #f8fafc;
+  --color-pitch: #f5f7fc;
   --color-surface: #ffffff;
-  --color-surface-muted: #f1f5f9;
-  --color-surface-sunken: #f8fafc;
+  --color-surface-muted: #eef2f9;
+  --color-surface-sunken: #f5f7fc;
   --color-surface-raised: #ffffff;
   --color-chrome: rgb(255 255 255 / 0.95);
 
-  --color-line: #e2e8f0;
-  --color-line-strong: #94a3b8;
+  --color-line: #e0e7f1;
+  --color-line-strong: #93a3bd;
 
-  --color-ink: #0f172a;
-  --color-ink-muted: #475569;
-  --color-ink-subtle: #64748b;
+  --color-ink: #0b1220;
+  --color-ink-muted: #44506a;
+  --color-ink-subtle: #5f6d87;
 
-  --color-brand: #059669;
-  --color-brand-hover: #047857;
+  --color-brand: #1d4ed8;
+  --color-brand-hover: #1a3fae;
   --color-on-brand: #ffffff;
-  --color-brand-strong: #047857;
-  --color-brand-soft: #ecfdf5;
-  --color-brand-line: #a7f3d0;
+  --color-brand-strong: #1d4ed8;
+  --color-brand-soft: #eff4ff;
+  --color-brand-line: #bfd3fe;
 
   --color-live: #dc2626;
   --color-live-soft: #fef2f2;
   --color-live-line: #fecaca;
 
-  --color-upcoming: #0369a1;
-  --color-upcoming-soft: #f0f9ff;
-  --color-upcoming-line: #bae6fd;
+  --color-upcoming: #0e7490;
+  --color-upcoming-soft: #ecfeff;
+  --color-upcoming-line: #a5f3fc;
 
   --color-danger: #b91c1c;
   --color-danger-soft: #fef2f2;
   --color-danger-line: #fecaca;
 
-  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.05);
-  --shadow-lift: 0 6px 16px -6px rgb(15 23 42 / 0.12);
+  --shadow-card: 0 1px 2px 0 rgb(11 18 32 / 0.06);
+  --shadow-lift: 0 6px 16px -6px rgb(11 18 32 / 0.14);
+}
+
+/*
+ * Frosting, as one utility rather than a `backdrop-blur-*` scattered across twenty class strings,
+ * so the strength of the effect is a single number per theme.
+ *
+ * Applied to every element that paints a surface, which is a change of mind: the first version
+ * limited it to the header and the dropdown on the grounds that blur only shows where something
+ * passes behind. True, and beside the point — with a mesh gradient behind the page, *everything*
+ * has something behind it, and a page where two panels frost and ten do not looks like a mistake.
+ */
+/*
+ * Only the standard property, deliberately. Writing the `-webkit-` form alongside it made
+ * Lightning CSS collapse the pair and emit *only* the prefixed one, which would have left Firefox
+ * — where `backdrop-filter` is unprefixed and `-webkit-backdrop-filter` is unsupported — with no
+ * frosting whatsoever. Declaring one property and letting the build add prefixes gets both.
+ */
+@utility glass {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+
+/*
+ * Outside any layer, so it beats the utility above regardless of order. Light surfaces are opaque,
+ * so there is nothing to see through and a filter would only buy a stacking context and a
+ * compositing pass.
+ */
+html.theme-light .glass {
+  backdrop-filter: none;
+}
+
+/*
+ * Two ways the effect can be unavailable or unwanted, and in both the answer is the same: stop
+ * pretending, and make the surfaces solid enough to read on their own.
+ */
+@supports not (backdrop-filter: blur(1px)) {
+  :root {
+    --color-surface: rgb(23 32 56 / 0.92);
+    --color-surface-muted: rgb(33 44 74 / 0.94);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --color-surface: #121a30;
+    --color-surface-muted: #1a2440;
+    --color-chrome: #060a16;
+    --page-glow: none;
+    --page-grain: none;
+  }
 }
 
 @keyframes rise {
@@ -183,10 +278,15 @@ body {
 
   /* `background-image` paints above `background-color`, so the glow layers over the page colour
      without needing a pseudo-element — and a pseudo-element would have had to sit behind an opaque
-     body background, where it would not have been visible at all. */
-  background-image: var(--page-glow);
+     body background, where it would not have been visible at all.
+
+     The grain is listed first because the first layer paints on top. It is what stops large smooth
+     gradients from banding into visible steps, and it is most of why the frosting reads as a
+     physical surface rather than a blur filter. A fixed attachment keeps it from crawling as the
+     page scrolls. */
+  background-image: var(--page-grain), var(--page-glow);
   background-attachment: fixed;
-  background-repeat: no-repeat;
+  background-repeat: repeat, no-repeat;
 
   /* Shorter than the transition on an individual element would be, because the whole page changes
      at once and a slow full-page fade reads as a loading state rather than a choice taking effect.

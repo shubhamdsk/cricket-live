@@ -58,7 +58,7 @@ export function SearchPage() {
             replace: true,
           })
         }}
-        className="h-11 w-full rounded-card border border-line bg-surface px-4 text-sm text-ink placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className="glass h-11 w-full rounded-card border border-line bg-surface px-4 text-sm text-ink placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       />
 
       {!enabled && (

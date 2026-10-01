@@ -88,9 +88,30 @@
       }
     </script>
 
-    <!-- Matches the header's surface colour, so mobile browser chrome does not sit against it as
-         a visible seam. -->
-    <meta name="theme-color" content="#ffffff" />
+    <!-- Matches `--color-chrome`, so mobile browser chrome does not sit against the header as a
+         visible seam. The dark value, because dark is the default; `src/store/themeStore.ts`
+         rewrites it when the theme changes. -->
+    <meta name="theme-color" content="#07090e" />
+
+    <!--
+      Blocking, inline, and before the stylesheet on purpose. Dark is the default and needs no
+      class, so this does nothing at all for most visitors; for someone who chose light it adds the
+      class before the first paint, which is the only way to avoid a flash of the wrong theme.
+
+      Deferring it to the bundle would not work: by the time a module runs, the browser has already
+      painted a dark page. The storage key is duplicated from `src/store/themeStore.ts` because a
+      script in the document head cannot import, and that file says so too.
+    -->
+    <script>
+      try {
+        if (localStorage.getItem('cricket-live:theme') === 'light') {
+          document.documentElement.classList.add('theme-light')
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      } catch (error) {
+        // Storage can be refused outright in private browsing. The default theme is a fine answer.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

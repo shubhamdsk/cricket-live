@@ -10,12 +10,20 @@ namespace CricketLive.Application.Matches;
 /// <remarks>
 /// <para>
 /// The provider serves a narrow window — live, imminent and recently finished — and a match that
-/// ages out of it is simply gone. Nothing here fetches anything; it keeps what we were already
-/// given, so history costs no extra provider calls and is the provider's own data unaltered.
+/// ages out of it is simply gone. Everything stored here is the provider's own data unaltered;
+/// nothing is computed, inferred or filled in.
 /// </para>
 /// <para>
-/// It therefore accumulates forward. Matches played before this existed cannot appear, and
-/// pretending otherwise would mean inventing results.
+/// <b>It no longer only accumulates forward.</b> It used to, and the consequence was a results
+/// page holding two matches and a teams page holding two sides, because the archive began the day
+/// the site did and no amount of waiting fixes a past that was never recorded. A background
+/// backfill now walks the provider's match list and writes what it finds here, slowly and within a
+/// fraction of the daily allowance — see <c>CricketDataMatchBackfill</c> and D-036.
+/// </para>
+/// <para>
+/// That does not make this interface a fetcher. Nothing behind these methods calls the provider;
+/// the backfill is a separate writer that happens to use <see cref="SaveFinishedAsync"/>, which is
+/// also why that method has to stay idempotent.
 /// </para>
 /// </remarks>
 public interface IMatchArchive

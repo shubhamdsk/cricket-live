@@ -101,4 +101,57 @@ public sealed class CricketDataOptions
     /// </remarks>
     [Range(0, 1440)]
     public int MatchIndexCacheMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// How deep into the provider's match list the backfill walks before starting again, in pages
+    /// of twenty-five. Zero switches it off.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Zero, which switches the backfill off, and that is deliberate rather than conservative.</b>
+    /// Its guards and its failure paths have been exercised against the live provider; reading a
+    /// page and archiving it has not, because the day's hundred calls were spent verifying the two
+    /// changes before it. Shipping it dormant means the code is reviewed and deployed without
+    /// anything unobserved running against production data. Forty is the intended value and the one
+    /// the rest of these remarks describe; see D-036 for what has to happen before it is set.
+    /// </para>
+    /// <para>
+    /// The list is 15,531 matches deep, which is 621 pages, and walking all of it at a polite rate
+    /// would take months and spend most of that time in seasons nobody will open. Forty pages is a
+    /// thousand of the most recent matches — against the handful the archive accumulated on its own
+    /// — and once reached it starts again from the top, so recent history stays complete rather
+    /// than the walk inching ever further into the past.
+    /// </para>
+    /// <para>
+    /// The provider orders this list by series, newest series first, <b>not</b> by date, so "the
+    /// first forty pages" means the thousand matches of the most recently active series rather
+    /// than the thousand most recent matches. Close enough to the same thing to be useful, and not
+    /// the same thing.
+    /// </para>
+    /// </remarks>
+    [Range(0, 621)]
+    public int MatchBackfillPages { get; set; }
+
+    /// <summary>
+    /// How many pages the backfill may read in one UTC day.
+    /// </summary>
+    /// <remarks>
+    /// Six, so a full lap of the default depth takes about a week and the cost is six of a hundred
+    /// calls — a sixth of what is left after the allowance's own reserve. Counted in the database
+    /// rather than in memory because the host restarts this container several times a day and an
+    /// in-memory counter would reset with it.
+    /// </remarks>
+    [Range(1, 100)]
+    public int MatchBackfillPagesPerDay { get; set; } = 6;
+
+    /// <summary>
+    /// How long between attempts.
+    /// </summary>
+    /// <remarks>
+    /// This is not the spend rate — the daily cap is. Ticking more often than the cap allows only
+    /// means the pages are read earlier in the day and the loop then finds nothing to do, which is
+    /// what should happen on a host that may be asleep for hours at a time.
+    /// </remarks>
+    [Range(1, 1440)]
+    public int MatchBackfillIntervalMinutes { get; set; } = 20;
 }

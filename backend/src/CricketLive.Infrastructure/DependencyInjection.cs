@@ -81,9 +81,15 @@ public static class DependencyInjection
             provider.GetRequiredService<IMatchArchive>(),
             provider.GetRequiredService<ILogger<ArchivingCricketDataProvider>>()));
 
-        // Not behind the archiving decorator: the index returns series, which the archive has no
-        // opinion about, and it shares the budget-claiming client rather than the provider.
+        // Not behind the archiving decorator. The two series sources return series rather than the
+        // live window, so the archive has no opinion about them; the match index returns matches
+        // too thin to archive — no venue, no title, and a team written "India [IND]". All three
+        // share the budget-claiming client.
         services.AddScoped<CricketDataSeriesIndex>();
+        services.AddScoped<CricketDataSeriesFixtures>();
+        services.AddScoped<CricketDataMatchIndex>();
+
+        services.AddScoped<IPendingMatches, PendingMatches>();
 
         services.AddScoped<IMatchService, MatchService>();
         services.AddScoped<ISeriesService, SeriesService>();
@@ -105,6 +111,8 @@ public static class DependencyInjection
         AddScorecards(services, configuration);
         AddStandings(services);
         AddSeriesIndex(services);
+        AddSeriesFixtures(services);
+        AddMatchIndex(services);
         AddHealth(services);
 
         return services;
@@ -403,5 +411,41 @@ public static class DependencyInjection
             provider.GetRequiredService<IOptions<CricketDataOptions>>().Value.SeriesIndexPages > 0
                 ? provider.GetRequiredService<CricketDataSeriesIndex>()
                 : provider.GetRequiredService<NoSeriesIndex>());
+    }
+
+    /// <summary>
+    /// Per-series fixture lists, or nothing when their cache lifetime is set to zero.
+    /// </summary>
+    /// <remarks>
+    /// Zero hours resolves to <see cref="NoSeriesFixtures"/> rather than to a cache that expires
+    /// immediately, which would read the provider on every page view and spend the day's allowance
+    /// in an afternoon. Off is a decision; a zero lifetime would be an accident.
+    /// </remarks>
+    private static void AddSeriesFixtures(IServiceCollection services)
+    {
+        services.AddSingleton<NoSeriesFixtures>();
+
+        services.AddScoped<ISeriesFixtures>(provider =>
+            provider.GetRequiredService<IOptions<CricketDataOptions>>().Value.SeriesFixturesCacheHours > 0
+                ? provider.GetRequiredService<CricketDataSeriesFixtures>()
+                : provider.GetRequiredService<NoSeriesFixtures>());
+    }
+
+    /// <summary>
+    /// The wider view of what is on around now, or nothing when its cache lifetime is set to zero.
+    /// </summary>
+    /// <remarks>
+    /// Switching this off leaves the live and upcoming lists reading the main window alone, which
+    /// is how they behaved before and is the reason the upcoming list was empty. Same shape as the
+    /// two series sources, for the same reason: off is a decision, a zero lifetime is an accident.
+    /// </remarks>
+    private static void AddMatchIndex(IServiceCollection services)
+    {
+        services.AddSingleton<NoMatchIndex>();
+
+        services.AddScoped<IMatchIndex>(provider =>
+            provider.GetRequiredService<IOptions<CricketDataOptions>>().Value.MatchIndexCacheMinutes > 0
+                ? provider.GetRequiredService<CricketDataMatchIndex>()
+                : provider.GetRequiredService<NoMatchIndex>());
     }
 }

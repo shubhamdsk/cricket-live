@@ -14,7 +14,8 @@ public sealed class MatchService(
     ICricketDataProvider provider,
     IMatchEnrichmentProvider enrichment,
     IMatchScorecardProvider scorecards,
-    IMatchArchive archive) : IMatchService
+    IMatchArchive archive,
+    IPendingMatches pending) : IMatchService
 {
     public Task<IReadOnlyList<MatchDto>> GetLiveAsync(
         MatchFilter filter,
@@ -27,12 +28,22 @@ public sealed class MatchService(
         => FromWindowAsync(MatchStatus.Upcoming, filter, cancellationToken);
 
     /// <summary>
-    /// One status out of the provider's window, narrowed by whatever else the caller asked for.
+    /// One status, out of the provider's window and out of everything else it will tell us is on.
     /// </summary>
     /// <remarks>
-    /// Filtered in memory rather than upstream because the window is a single response holding a
+    /// <para>
+    /// Filtered in memory rather than upstream because both sources are single responses holding a
     /// handful of matches and the provider offers no query parameters worth the call. The archive
     /// filters in SQL for the opposite reason — it is the list that grows.
+    /// </para>
+    /// <para>
+    /// <b>Two sources, because the main window turned out not to be the whole window.</b> It held
+    /// two matches, both finished, on a day the provider's own scoreboard listed four fixtures
+    /// still to be played, so the upcoming page was empty for want of asking rather than for want
+    /// of cricket. The window still wins on any match in both: it is the only one of the two that
+    /// carries a score, so a match that has started reads correctly from it and reads as unplayed
+    /// from the other.
+    /// </para>
     /// </remarks>
     private async Task<IReadOnlyList<MatchDto>> FromWindowAsync(
         MatchStatus status,
@@ -46,9 +57,22 @@ public sealed class MatchService(
             return [];
         }
 
-        var matches = await provider.GetCurrentMatchesAsync(cancellationToken);
+        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        var imminent = await pending.GetAsync(cancellationToken);
 
-        return [.. matches
+        var byId = new Dictionary<string, MatchDto>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var match in imminent)
+        {
+            byId[match.Id] = match;
+        }
+
+        foreach (var match in window)
+        {
+            byId[match.Id] = match;
+        }
+
+        return [.. byId.Values
             .Where(match => match.Status == status && filter.Matches(match))
             .OrderBy(match => match.StartTimeUtc)];
     }
@@ -112,21 +136,24 @@ public sealed class MatchService(
     /// Every series we can actually show a match for, from both places matches live.
     /// </summary>
     /// <remarks>
-    /// Both sources, because either alone would offer a filter that finds nothing. The archive
-    /// knows nothing about a tournament that started this morning, and the window has forgotten
-    /// one that finished last week. Neither is a superset of the other.
+    /// All three sources, because each alone would offer a filter that finds nothing. The archive
+    /// knows nothing about a tournament that started this morning, the window has forgotten one
+    /// that finished last week, and neither mentions a tour whose first match is on Tuesday. None
+    /// is a superset of another, and the page this feeds shows matches from all three.
     /// </remarks>
     public async Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
     {
         var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        var imminent = await pending.GetAsync(cancellationToken);
         // Nothing is excluded because nothing here is counted: this reduces to a distinct set of
-        // names, so a series appearing in both sources costs a duplicate that Distinct removes.
+        // names, so a series appearing in two sources costs a duplicate that Distinct removes.
         var archived = await archive.GetSeriesTalliesAsync([], cancellationToken);
 
         return
         [
             .. window
                 .Select(match => match.SeriesName)
+                .Concat(imminent.Select(match => match.SeriesName))
                 .Concat(archived.Select(tally => tally.SeriesName))
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.OrdinalIgnoreCase)

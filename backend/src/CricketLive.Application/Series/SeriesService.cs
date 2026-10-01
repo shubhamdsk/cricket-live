@@ -32,7 +32,8 @@ public sealed class SeriesService(
     ICricketDataProvider provider,
     IMatchArchive archive,
     ISeriesStandingsProvider standings,
-    ISeriesIndex index) : ISeriesService
+    ISeriesIndex index,
+    ISeriesFixtures fixtures) : ISeriesService
 {
     public async Task<IReadOnlyList<SeriesDto>> GetAllAsync(CancellationToken cancellationToken)
     {
@@ -162,61 +163,88 @@ public sealed class SeriesService(
         }
 
         var tallies = await GatherAsync(cancellationToken);
-
-        if (!tallies.TryGetValue(seriesId, out var tally))
-        {
-            // Listed but not held: the index put this series on the list, so refusing it here
-            // would make every one of those links a dead end. The page renders with no matches,
-            // which is a true statement about a real series rather than a 404 about neither.
-            return await ListedOnlyAsync(seriesId, cancellationToken);
-        }
-
-        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
-        var archived = await archive.GetBySeriesAsync(seriesId, cancellationToken);
-
-        // The window holds a match that finished minutes ago before the archive does, and the
-        // archive holds one the window has forgotten. Taken together they double-count whatever
-        // sits in both, so the id decides and the window's copy is the fresher one.
-        var held = window
-            .Where(match => Same(match.SeriesId, seriesId))
-            .ToDictionary(match => match.Id, StringComparer.OrdinalIgnoreCase);
-
-        var matches = held.Values
-            .Cast<MatchDto>()
-            .Concat(archived.Where(match => !held.ContainsKey(match.Id)))
-            .OrderBy(match => match.StartTimeUtc)
-            .ToArray();
+        tallies.TryGetValue(seriesId, out var tally);
 
         // The same enrichment the list does, so the two cannot disagree about one series. Without
         // it a card read "2 of 8 matches held" and the page it opened read "2 matches held",
         // which is the sort of difference a reader notices and cannot explain.
         var listed = await ListedAsync(seriesId, cancellationToken);
-        var series = listed is null ? ToDto(tally) : Enrich(ToDto(tally), listed);
+
+        // Neither source has heard of it, so there is no name to put at the top of a page. That is
+        // a narrower 404 than it used to be: a series we hold nothing of but the index lists now
+        // renders, because listing something and then refusing to open it is worse than not
+        // listing it at all.
+        if (tally is null && listed is null)
+        {
+            return null;
+        }
+
+        var matches = await MatchesOfAsync(seriesId, cancellationToken);
+
+        var series = (tally, listed) switch
+        {
+            (not null, not null) => Enrich(ToDto(tally), listed),
+            (not null, null) => ToDto(tally),
+            _ => FromIndex(listed!),
+        };
 
         return new SeriesDetailsDto
         {
             Series = series,
             Matches = matches,
-            Standings = await standings.GetAsync(series, cancellationToken),
+            // Asked for only when there is something to ask about. The standings source finds its
+            // copy of a series by name and by the teams in its matches, so with no matches there
+            // is nothing to match on and the request would spend itself being told no.
+            Standings = matches.Count == 0
+                ? []
+                : await standings.GetAsync(series, cancellationToken),
         };
     }
 
     /// <summary>
-    /// A series the index lists and we hold no match of, or <see langword="null"/> for one nobody
-    /// has heard of.
+    /// Every match of a series we can show, from the three places they come from.
     /// </summary>
     /// <remarks>
-    /// No standings are fetched. The standings source is matched to a series by its name and the
-    /// teams in its matches, and with no matches there is nothing to match on — asking anyway
-    /// would spend a request to be told no.
+    /// <para>
+    /// Precedence runs weakest to strongest, each source overwriting the last by match id. The
+    /// provider's fixture list is weakest: it is the only one that knows a match exists before it
+    /// is played, and the only one that may carry no score for one that has been. The archive is
+    /// our own captured copy. The window is strongest, because a match that finished minutes ago is
+    /// right there before it is anywhere else.
+    /// </para>
+    /// <para>
+    /// This is what turned a series page from two matches into the whole tour. Before it, the page
+    /// could only show matches that had passed through our window since the site started — so a
+    /// tour's remaining fixtures, which the provider knows about and a reader wants most, were the
+    /// one thing it could not display.
+    /// </para>
     /// </remarks>
-    private async Task<SeriesDetailsDto?> ListedOnlyAsync(string seriesId, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<MatchDto>> MatchesOfAsync(
+        string seriesId,
+        CancellationToken cancellationToken)
     {
-        var entry = await ListedAsync(seriesId, cancellationToken);
+        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        var archived = await archive.GetBySeriesAsync(seriesId, cancellationToken);
+        var scheduled = await fixtures.GetAsync(seriesId, cancellationToken);
 
-        return entry is null
-            ? null
-            : new SeriesDetailsDto { Series = FromIndex(entry), Matches = [] };
+        var byId = new Dictionary<string, MatchDto>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var match in scheduled)
+        {
+            byId[match.Id] = match;
+        }
+
+        foreach (var match in archived)
+        {
+            byId[match.Id] = match;
+        }
+
+        foreach (var match in window.Where(match => Same(match.SeriesId, seriesId)))
+        {
+            byId[match.Id] = match;
+        }
+
+        return [.. byId.Values.OrderBy(match => match.StartTimeUtc)];
     }
 
     /// <summary>

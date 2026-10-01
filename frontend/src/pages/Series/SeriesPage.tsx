@@ -15,15 +15,13 @@ export function SeriesPage() {
       <div className="space-y-1">
         <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">Series</h1>
         {/*
-          Said plainly rather than implied, and the two halves are deliberately separate: the
-          provider's index decides what is listed, our own matches decide what a series page can
-          show. Conflating them is what made this page read as broken when the list came only
-          from the window.
+          No longer explains a shortfall, because there mostly isn't one: a series page lists the
+          provider's fixtures as well as the matches recorded here. What it does say is which of
+          those two a reader is looking at, since only one of them carries a score.
         */}
         <p className="text-sm text-ink-subtle">
-          Recent and upcoming series. Each card says how many of its matches we hold — we keep
-          the ones played since this site started, so an older tournament will show fewer than
-          it played.
+          Recent and upcoming series, each listing its full schedule. Scores appear for matches
+          played since this site started recording them.
         </p>
       </div>
 

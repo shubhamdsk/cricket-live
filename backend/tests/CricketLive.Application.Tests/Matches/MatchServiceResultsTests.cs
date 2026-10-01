@@ -120,7 +120,8 @@ public sealed class MatchServiceResultsTests
             provider,
             new NoEnrichment(),
             new NoScorecards(),
-            new StubArchive([]));
+            new StubArchive([]),
+            new NoPending());
 
         var upcoming = await service.GetUpcomingAsync(new MatchFilter(Status: MatchStatus.Live), default);
 
@@ -161,7 +162,8 @@ public sealed class MatchServiceResultsTests
             new StubProvider(window),
             new NoEnrichment(),
             new NoScorecards(),
-            new StubArchive(archive));
+            new StubArchive(archive),
+            new NoPending());
 
     private static DateTimeOffset Day(int day) => new(2026, 1, day, 9, 0, 0, TimeSpan.Zero);
 
@@ -199,6 +201,20 @@ public sealed class MatchServiceResultsTests
             HasBallByBall = false,
             HasSquads = false,
         };
+    }
+
+    /// <summary>
+    /// No imminent matches beyond the window, which is what these cases are about.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately empty rather than configurable: every case here describes how the window and
+    /// the archive combine, and the provider's wider scoreboard is a third source joined on top of
+    /// that. Giving it content would change what each case is testing.
+    /// </remarks>
+    private sealed class NoPending : IPendingMatches
+    {
+        public Task<IReadOnlyList<MatchDetailsDto>> GetAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<MatchDetailsDto>>([]);
     }
 
     private sealed class StubProvider(IReadOnlyList<MatchDetailsDto> window) : ICricketDataProvider

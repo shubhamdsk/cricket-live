@@ -11,8 +11,15 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ButtonSize
 }
 
+/*
+ * `text-on-brand` and `hover:bg-brand-hover` are tokens of their own rather than reuses of
+ * `surface` and `brand-strong`, which is what they were. Both reuses happened to be true only in
+ * the light theme: `surface` became translucent, which made the label on a green button almost
+ * invisible, and `brand-strong` became a light accent, which made the hover state fill with a
+ * colour that white text cannot sit on.
+ */
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-brand text-surface hover:bg-brand-strong',
+  primary: 'bg-brand text-on-brand hover:bg-brand-hover',
   secondary: 'border border-line-strong bg-surface text-ink-muted hover:bg-surface-muted',
   ghost: 'text-ink-muted hover:bg-surface-muted hover:text-ink',
 }

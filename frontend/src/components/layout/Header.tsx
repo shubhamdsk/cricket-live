@@ -4,6 +4,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 
 import { focusRing } from '@/components/common/focusRing'
 import { Container } from '@/components/layout/Container'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { SearchBox } from '@/features/search/components/SearchBox'
 import { useUiStore } from '@/store/uiStore'
 import { cn } from '@/utils/cn'
@@ -36,7 +37,9 @@ export function Header() {
   }, [pathname, setMobileNavOpen])
 
   return (
-    <header className="sticky top-0 z-10 border-b border-line bg-surface/95 backdrop-blur">
+    /* `bg-chrome` rather than a translucent panel colour: content scrolls under this, and blurring
+       it through white would turn the page milky instead of dark. */
+    <header className="sticky top-0 z-10 border-b border-line bg-chrome backdrop-blur-xl">
       <Container className="flex items-center justify-between gap-4 py-3">
         <NavLink
           to="/"
@@ -53,24 +56,33 @@ export function Header() {
           ))}
         </nav>
 
-        {/* Pushed to the right of the nav on wide screens, and inside the menu on narrow ones. */}
-        <div className="ml-auto hidden sm:block">
-          <SearchBox />
-        </div>
+        {/*
+          One group for everything on the right, so `justify-between` has two children to separate
+          rather than four to spread. The search box is the only member that hides on narrow
+          screens — it reappears inside the menu — while the theme toggle stays out where it can be
+          reached in one tap.
+        */}
+        <div className="ml-auto flex items-center gap-1">
+          <div className="hidden sm:block">
+            <SearchBox />
+          </div>
 
-        <button
-          type="button"
-          onClick={() => setMobileNavOpen(!isMobileNavOpen)}
-          aria-expanded={isMobileNavOpen}
-          aria-controls="mobile-nav"
-          aria-label={isMobileNavOpen ? 'Close menu' : 'Open menu'}
-          className={cn(
-            'inline-flex size-11 items-center justify-center rounded-card text-ink-muted hover:bg-surface-muted sm:hidden',
-            focusRing,
-          )}
-        >
-          {isMobileNavOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-        </button>
+          <ThemeToggle />
+
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(!isMobileNavOpen)}
+            aria-expanded={isMobileNavOpen}
+            aria-controls="mobile-nav"
+            aria-label={isMobileNavOpen ? 'Close menu' : 'Open menu'}
+            className={cn(
+              'inline-flex size-11 items-center justify-center rounded-card text-ink-muted hover:bg-surface-muted sm:hidden',
+              focusRing,
+            )}
+          >
+            {isMobileNavOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
+        </div>
       </Container>
 
       {isMobileNavOpen && (

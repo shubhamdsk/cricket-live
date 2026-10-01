@@ -252,6 +252,27 @@ than a zero score.
 
 - Tailwind utilities with tokens from `index.css`. No hardcoded colour, radius, or shadow in a
   component.
+
+**Two themes, and no `dark:` variant anywhere.** `index.css` defines the token names once; the
+`@theme` block holds the dark values, because dark is the default, and `html.theme-light` restores
+the light palette. Every utility resolves through `var()`, so one class on the root element reskins
+the app and no component knows which theme is on. [D-039](./decisions.md) explains the shape.
+
+What this asks of you when adding a component:
+
+- **Name the role, not the appearance.** `surface` is a glass panel and is translucent in dark;
+  `surface-raised` is the opaque one, for anything that covers content rather than tinting it;
+  `surface-sunken` is recessed, for table header strips; `chrome` is the header and footer, which
+  content scrolls under.
+- **`brand` is a fill, `brand-strong` is a text colour**, and they move in opposite directions
+  between the themes. Text on a brand fill is `text-on-brand`; the hover fill is `brand-hover`.
+  Using `brand-strong` as a background, or `surface` as a text colour, works in light and breaks in
+  dark — both mistakes were in the codebase and are described in D-039.
+- **Check contrast against the background the colour actually lands on**, which for translucent
+  surfaces is the panel over the page, not the page. `Badge`'s doc comment is the cautionary tale.
+- Tailwind's built-in shadows (`shadow-sm`, `shadow-lg`) are tuned for light backgrounds and
+  disappear on dark. Use `shadow-card` and `shadow-lift`.
+
 - Icons come from `lucide-react`, sized with `size-*`, inheriting colour through `currentColor`, and
   `aria-hidden` where the surrounding control already carries the name. Raw `<svg>` is not pasted
   into components, and emoji are not interface icons.

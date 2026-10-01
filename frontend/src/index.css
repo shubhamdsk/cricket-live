@@ -1,11 +1,124 @@
 @import 'tailwindcss';
 
+/*
+ * Two themes, one set of names.
+ *
+ * `@theme` below holds the **dark** values, because dark is the default: a visitor who has never
+ * chosen gets it, and no class on `<html>` means dark. `html.theme-light` further down restores the
+ * light palette. Every utility Tailwind generates from these tokens resolves through `var()` at
+ * runtime, so swapping a class on the root element reskins the whole app and no component needs to
+ * know which theme is on. There is not one `dark:` variant in the codebase, and that is the point.
+ *
+ * What makes the dark theme read as glass is not blur on its own. It is three things together:
+ * surfaces that are translucent white rather than a flat grey, hairline borders that catch light at
+ * the panel edge, and `--page-glow` behind everything so the translucency has something to reveal.
+ * Remove the glow and the same surfaces look like grey cards.
+ *
+ * Blur is applied only where something actually passes behind a panel — the header, and the search
+ * dropdown. Elsewhere it would cost a stacking context and compositing for no visible difference.
+ *
+ * Contrast was checked against the darkest background each colour is used on, not against pure
+ * black, because the translucent surfaces sit above the page. `Badge`'s doc comment records what
+ * happens when that distinction is skipped.
+ */
 @theme {
   --font-sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  /* Not pure black. A hint of blue keeps large dark areas from banding, and gives the green glow
+     something to sit against. */
+  --color-pitch: #07090e;
+
+  /* Translucent, so panels tint whatever is behind them instead of covering it. */
+  --color-surface: rgb(255 255 255 / 0.05);
+  --color-surface-muted: rgb(255 255 255 / 0.09);
+
+  /* Recessed rather than raised: darker than the panel it sits in, for table header strips. */
+  --color-surface-sunken: rgb(0 0 0 / 0.22);
+
+  /* The one opaque surface, for overlays that have to hide what is behind them rather than tint
+     it — a dropdown over a list of scores, or the skip link over the page. */
+  --color-surface-raised: #111722;
+
+  /* The header and footer, which content scrolls underneath. Built on the page colour rather than
+     on white, so blurred content behind it stays dark instead of turning milky. */
+  --color-chrome: rgb(7 9 14 / 0.72);
+
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-line-strong: rgb(255 255 255 / 0.22);
+
+  --color-ink: #e8eef8;
+  --color-ink-muted: #b4c0d4;
+  --color-ink-subtle: #8e9cb4;
+
+  /* `brand` is a fill and `brand-strong` is a text colour, which is why they move in opposite
+     directions between the themes: a readable accent on near-black has to be lighter, while a fill
+     carrying white text has to stay dark. Conflating them is how a dark theme ends up with either
+     an unreadable link or an unreadable button. */
+  --color-brand: #059669;
+  --color-brand-hover: #10b981;
+  --color-on-brand: #ffffff;
+  --color-brand-strong: #34d399;
+  --color-brand-soft: rgb(16 185 129 / 0.14);
+  --color-brand-line: rgb(52 211 153 / 0.32);
+
+  --color-live: #f87171;
+  --color-live-soft: rgb(248 113 113 / 0.14);
+  --color-live-line: rgb(248 113 113 / 0.34);
+
+  --color-upcoming: #38bdf8;
+  --color-upcoming-soft: rgb(56 189 248 / 0.14);
+  --color-upcoming-line: rgb(56 189 248 / 0.32);
+
+  --color-danger: #f87171;
+  --color-danger-soft: rgb(248 113 113 / 0.14);
+  --color-danger-line: rgb(248 113 113 / 0.34);
+
+  --radius-card: 0.75rem;
+  --radius-panel: 1rem;
+
+  /* The inset hairline on top is doing most of the work. A dark panel with a lit top edge reads as
+     a pane of glass; the same panel with only a drop shadow reads as a flat rectangle. */
+  --shadow-card: inset 0 1px 0 0 rgb(255 255 255 / 0.05), 0 2px 10px -3px rgb(0 0 0 / 0.65);
+  --shadow-lift: inset 0 1px 0 0 rgb(255 255 255 / 0.08), 0 14px 32px -10px rgb(0 0 0 / 0.75);
+
+  /* One easing for everything, so nothing feels like it belongs to a different app. It decelerates
+     hard, which reads as "settling into place" rather than "sliding". */
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-rise: rise 360ms var(--ease-settle) both;
+  --animate-drop: drop 200ms var(--ease-settle) both;
+}
+
+:root {
+  /* `color-scheme` is not decoration. It is what makes the native parts obey the theme: the
+     `<select>` on the matches page opens a dark list, form controls and text selection invert, and
+     the UA stops painting a white canvas behind us during load. */
+  color-scheme: dark;
+
+  /* Anchored to the viewport rather than the document, so it behaves as light in the room instead
+     of scrolling away with the content. */
+  --page-glow:
+    radial-gradient(58rem 38rem at 12% -12%, rgb(16 185 129 / 0.14), transparent 62%),
+    radial-gradient(48rem 34rem at 92% -6%, rgb(56 189 248 / 0.1), transparent 60%),
+    radial-gradient(42rem 30rem at 50% 108%, rgb(16 185 129 / 0.07), transparent 65%);
+}
+
+/*
+ * The light theme, which is the palette this app shipped with. Kept as overrides rather than as the
+ * default so that the no-class case is the default case, which is what lets the pre-paint script in
+ * `index.html` do nothing at all for most visitors.
+ */
+html.theme-light {
+  color-scheme: light;
+
+  --page-glow: none;
 
   --color-pitch: #f8fafc;
   --color-surface: #ffffff;
   --color-surface-muted: #f1f5f9;
+  --color-surface-sunken: #f8fafc;
+  --color-surface-raised: #ffffff;
+  --color-chrome: rgb(255 255 255 / 0.95);
 
   --color-line: #e2e8f0;
   --color-line-strong: #94a3b8;
@@ -15,6 +128,8 @@
   --color-ink-subtle: #64748b;
 
   --color-brand: #059669;
+  --color-brand-hover: #047857;
+  --color-on-brand: #ffffff;
   --color-brand-strong: #047857;
   --color-brand-soft: #ecfdf5;
   --color-brand-line: #a7f3d0;
@@ -31,18 +146,8 @@
   --color-danger-soft: #fef2f2;
   --color-danger-line: #fecaca;
 
-  --radius-card: 0.75rem;
-  --radius-panel: 1rem;
-
   --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.05);
   --shadow-lift: 0 6px 16px -6px rgb(15 23 42 / 0.12);
-
-  /* One easing for everything, so nothing feels like it belongs to a different app. It decelerates
-     hard, which reads as "settling into place" rather than "sliding". */
-  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
-
-  --animate-rise: rise 360ms var(--ease-settle) both;
-  --animate-drop: drop 200ms var(--ease-settle) both;
 }
 
 @keyframes rise {
@@ -75,6 +180,20 @@ html {
 
 body {
   @apply bg-pitch text-ink antialiased;
+
+  /* `background-image` paints above `background-color`, so the glow layers over the page colour
+     without needing a pseudo-element — and a pseudo-element would have had to sit behind an opaque
+     body background, where it would not have been visible at all. */
+  background-image: var(--page-glow);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+
+  /* Shorter than the transition on an individual element would be, because the whole page changes
+     at once and a slow full-page fade reads as a loading state rather than a choice taking effect.
+     Colours only: no layout property is involved, so nothing reflows. */
+  transition:
+    background-color 200ms var(--ease-settle),
+    color 200ms var(--ease-settle);
 }
 
 /*

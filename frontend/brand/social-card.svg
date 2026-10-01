@@ -1,0 +1,63 @@
+<!--
+  The source for the og:image. 1200x630 because that is what the unfurlers scale from, and the
+  content sits well inside it because several of them crop to a squarer shape without asking.
+
+  Text is kept to a name and one line. This image is often shown about 200px wide in a chat
+  window, and anything smaller than the tagline here is unreadable at that size.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#047857" />
+      <stop offset="1" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#field)" />
+
+  <!-- The seam motif, oversized and faint, so the card has a shape to it without competing. -->
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-linecap="round">
+    <path d="M980 -60C1180 110 1180 520 980 690" stroke-width="14" />
+    <g stroke-width="12">
+      <path d="M1010 60h90" />
+      <path d="M1060 170h90" />
+      <path d="M1080 315h90" />
+      <path d="M1060 460h90" />
+      <path d="M1010 570h90" />
+    </g>
+  </g>
+
+  <!-- The mark, the same ball as the icons. -->
+  <g transform="translate(140 118) scale(1.95)">
+    <circle cx="32" cy="32" r="30" fill="#ffffff" />
+    <g fill="none" stroke="#059669" stroke-linecap="round" stroke-width="3.2">
+      <path d="M40.6 6.3C51.3 17 51.3 47 40.6 57.7" />
+      <path d="M39.1 11.2h9.8" />
+      <path d="M42.5 20.9h9.8" />
+      <path d="M43.6 32h9.8" />
+      <path d="M42.5 43.1h9.8" />
+      <path d="M39.1 52.8h9.8" />
+    </g>
+  </g>
+
+  <text
+    x="140"
+    y="410"
+    font-family="Segoe UI, Inter, Helvetica Neue, Arial, sans-serif"
+    font-size="108"
+    font-weight="700"
+    fill="#ffffff"
+  >
+    Cricket Live
+  </text>
+  <text
+    x="146"
+    y="478"
+    font-family="Segoe UI, Inter, Helvetica Neue, Arial, sans-serif"
+    font-size="40"
+    font-weight="400"
+    fill="#a7f3d0"
+  >
+    Live scores, fixtures, results and series standings
+  </text>
+</svg>

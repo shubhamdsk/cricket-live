@@ -2,36 +2,91 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!--
-      Static, and deliberately so. Routes live in the fragment (docs/decisions.md, D-019), and a
-      crawler or a link unfurler is served this one document for every URL on the site — it never
-      sees which page the fragment asked for. Per-page tags injected at runtime would therefore be
-      written for an audience that cannot read them.
+      Everything here describes the site rather than a page, and is the fallback for the one reader
+      that cannot run JavaScript. Routes are real paths now (docs/decisions.md, D-038), so a crawler
+      that renders the page gets per-page tags from src/hooks/usePageMeta.ts, which overwrites these.
 
-      So the description below describes the site rather than a page, which is the only honest
-      thing it can say. Per-page naming is done through the document title instead, which reaches
-      tabs, history and screen readers: see src/hooks/usePageTitle.ts.
+      Link unfurlers are the exception: Slack, Twitter and Facebook read the HTML as served and do
+      not run the app, so what follows is what they will always show, whichever page was shared. A
+      per-page preview needs the HTML to differ before JavaScript runs, which means pre-rendering,
+      and that is a bigger change than this one.
     -->
-    <title>Cricket Live</title>
+    <title>Cricket Live · Live cricket scores, fixtures and results</title>
     <meta
       name="description"
       content="Live cricket scores, fixtures, results and series standings, updated while play continues."
     />
+    <link rel="canonical" href="https://cricket-live-shubhamdsk1.vercel.app/" />
+
+    <!-- SVG first for the browsers that take it, then the 32px raster, then favicon.ico for the
+         ones that ask for it by path whether we link to it or not. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Cricket Live" />
-    <meta property="og:title" content="Cricket Live" />
+    <meta
+      property="og:title"
+      content="Cricket Live · Live cricket scores, fixtures and results"
+    />
     <meta
       property="og:description"
       content="Live cricket scores, fixtures, results and series standings, updated while play continues."
     />
+    <meta property="og:url" content="https://cricket-live-shubhamdsk1.vercel.app/" />
+    <meta
+      property="og:image"
+      content="https://cricket-live-shubhamdsk1.vercel.app/social-card.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Cricket Live — live scores, fixtures and results" />
 
-    <!-- No og:image. There is no asset to point at, and a tag resolving to a 404 makes a worse
-         link preview than no tag at all. -->
-    <meta name="twitter:card" content="summary" />
+    <!-- summary_large_image now that there is a 1200x630 asset behind it; with the small `summary`
+         card the same image would be cropped to a square and lose the wordmark. -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Cricket Live · Live cricket scores, fixtures and results"
+    />
+    <meta
+      name="twitter:description"
+      content="Live cricket scores, fixtures, results and series standings, updated while play continues."
+    />
+    <meta
+      name="twitter:image"
+      content="https://cricket-live-shubhamdsk1.vercel.app/social-card.png"
+    />
+
+    <!--
+      Describes the site, not any match, so it is static and correct for every page. Match-level
+      SportsEvent markup would have to be injected per page, and a crawler that runs our JavaScript
+      can read the page itself; one that does not would be handed claims it cannot check.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Cricket Live",
+        "url": "https://cricket-live-shubhamdsk1.vercel.app/",
+        "description": "Live cricket scores, fixtures, results and series standings, updated while play continues.",
+        "inLanguage": "en",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://cricket-live-shubhamdsk1.vercel.app/search?q={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
 
     <!-- Matches the header's surface colour, so mobile browser chrome does not sit against it as
          a visible seam. -->

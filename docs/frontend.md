@@ -166,27 +166,39 @@ makes it.
 All routing lives in `src/app/router.tsx`. Pages never decide routing.
 
 ```text
-/#/                 Home
-/#/live             Live matches
-/#/matches          All matches, filtered by status, date and series
-/#/match/:slug      Match details — Summary, Scorecard, Commentary, Stats
-/#/series/:slug     From Sprint 7
-/#/team/:slug       From Sprint 7
-/#/player/:slug     From Sprint 7
-/#/*                Not found
+/                   Home
+/live               Live matches
+/matches            All matches, filtered by status, date and series
+/match/:slug        Match details — Summary, Scorecard, Commentary, Stats
+/series             Series and tournaments
+/series/:slug       Series details — schedule and standings
+/teams              Teams
+/teams/:slug        Team details — fixtures and results
+/search             Search, by `?q=`
+/*                  Not found
 ```
 
-**Routes live in the fragment** (`createHashRouter`), so a deep link resolves without the host
-being configured to rewrite unknown paths to `index.html` — see [D-019](./decisions.md). Write
-links as `<Link to="/matches">`; react-router adds the `#` itself, and no component should ever
-construct one.
+**Routes are real paths** (`createBrowserRouter`). They were fragments until
+[D-038](./decisions.md), which explains both why they changed — a fragment is never sent to a
+server, so the whole site had one indexable address — and the two traps in the change.
+
+The host must therefore rewrite unmatched paths to `index.html`; see `frontend/vercel.json`. Two
+consequences worth knowing before you touch either file:
+
+- Links shared in the old `/#/teams` form still work. `src/app/legacyHashRoute.ts` rewrites them
+  on load, and it is called from `router.tsx` **above** `createBrowserRouter` rather than from
+  `main.tsx`, because the router reads the location as its own module is evaluated.
+- An unknown path now answers `200`, since a rewrite cannot know a path is wrong. That is why the
+  not-found page sets `noindex`.
+
+Write links as `<Link to="/matches">`, as before; no component should construct a URL by hand.
 
 Matches are addressed by slug, not by provider id, so a URL survives a provider change and reads
 like something a person would send to a friend.
 
 **Filter state belongs in the URL, not in `useState`.** `useMatchFilters` reads and writes it
-through `useSearchParams`, which works inside the fragment exactly as it does on a path. That is
-what makes a filtered view linkable, reloadable and reachable with the back button.
+through `useSearchParams`. That is what makes a filtered view linkable, reloadable and reachable
+with the back button.
 
 Route-level lazy loading arrives in Sprint 8, through the router's own `lazy` option, so each screen
 becomes its own chunk.

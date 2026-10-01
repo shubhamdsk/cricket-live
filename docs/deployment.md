@@ -329,10 +329,16 @@ Set `VITE_API_BASE_URL` to `https://cricket-live-api.onrender.com` as a **build-
 environment variable. It is inlined into the bundle, so changing it requires a rebuild, not a
 restart.
 
-**There is deliberately no SPA rewrite.** Routes live in the URL fragment (`/#/match/...`), which
-is never sent to a server, so the only path Vercel ever serves is `/`. A catch-all rewrite would
-turn every mistyped URL into a 200 serving the app — a soft 404, which is worse for both readers
-and crawlers than the real one.
+**The SPA rewrite in `vercel.json` is required, not optional.** Routes are real paths as of
+[D-038](./decisions.md), so Vercel is asked for `/match/...` directly and must answer with
+`index.html`. Remove the rewrite and every link into the site except the home page 404s.
+
+Vercel checks the filesystem before applying rewrites, so `robots.txt`, `sitemap.xml`,
+`favicon.ico`, `site.webmanifest`, `social-card.png` and the hashed assets still serve themselves.
+
+The rewrite does mean an unknown path answers `200` with the app, which is a soft 404. That is
+unavoidable with static hosting and is why the not-found page sets `noindex` — without it a
+crawler would treat every typo as a real page.
 
 Once the Vercel domain exists, set `Cors__AllowedOrigins__0` to it in the Render dashboard.
 Render restarts the service when an environment variable changes, so there is nothing else to

@@ -5,8 +5,9 @@
 // costs nothing, because editing the route table is not an inner-loop activity.
 
 import { lazy } from 'react'
-import { createHashRouter } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router-dom'
 
+import { rewriteLegacyHashRoute } from '@/app/legacyHashRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { HomePage } from '@/pages/Home/HomePage'
 
@@ -58,10 +59,26 @@ const NotFoundPage = lazy(async () => ({
 }))
 
 /**
- * Hash routing, so a deep link resolves without the host being configured to rewrite unknown
- * paths to `index.html`. Reasoning and its cost are in docs/decisions.md, D-019.
+ * Paths, not fragments.
+ *
+ * This used to be a hash router so that a deep link resolved without the host being configured to
+ * rewrite unknown paths to `index.html` (D-019). The cost was that the site had exactly one
+ * address a crawler could ever see — `/#/series` sends `/` to the server and keeps the rest to
+ * itself — so no page but the home page could be indexed, no sitemap could list anything, and
+ * per-page metadata was written for an audience that could not read it.
+ *
+ * The rewrite that hash routing existed to avoid is three lines of `vercel.json`, which was
+ * already in the repository. D-038 records the reversal; `src/app/legacyHashRoute.ts` keeps links
+ * that were shared in the old form working.
  */
-export const router = createHashRouter([
+
+// Here rather than in `main.tsx`, and the distinction is not stylistic. `createBrowserRouter` reads
+// the current location as this module is evaluated, and a module body runs before the body of
+// whatever imported it — so a rewrite in `main.tsx` would land after the router had already decided
+// it was on `/`. Caught by opening /#/teams and getting the home page at the address /teams.
+rewriteLegacyHashRoute()
+
+export const router = createBrowserRouter([
   {
     path: '/',
     element: <AppLayout />,

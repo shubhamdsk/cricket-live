@@ -5,6 +5,85 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-038 — Routes become paths, because hash routing had made the site unindexable
+
+**Status:** accepted. Supersedes **D-019**, which chose the hash router.
+
+### Context
+
+The request was "improve SEO and add a good favicon". The metadata was not the problem.
+
+D-019 chose `createHashRouter` for one stated reason: a deep link should resolve "without the host
+being configured to rewrite unknown paths to `index.html`". That reason was sound when written and
+is no longer true of anything. The host is Vercel, `frontend/vercel.json` was already in the
+repository configuring caching, and the rewrite in question is one line of it.
+
+What hash routing cost was not subtle. A fragment is never sent to a server. `/#/series` is a
+request for `/`, so:
+
+- every page on the site shared one address, and a crawler could only ever see the home page;
+- `robots.txt` carried a comment explaining why it deliberately had no `Sitemap` line, because a
+  sitemap could have listed exactly one URL;
+- `usePageTitle` deliberately set only the document title, its own doc comment explaining that
+  per-page `<meta>` tags would be "written for an audience that cannot read them". It was right.
+
+Three artefacts had each independently documented the same consequence and accepted it. Adding
+richer metadata on top of that would have been decoration over the actual fault.
+
+### Decision
+
+`createBrowserRouter`, a `rewrites` entry in `vercel.json` sending unmatched paths to
+`index.html`, and `src/app/legacyHashRoute.ts` to keep already-shared links working: on load, a
+URL of the form `/#/teams` is rewritten to `/teams` with `history.replaceState` before the router
+is built.
+
+With real addresses, the rest follows and is no longer decoration:
+
+- `usePageMeta` replaces `usePageTitle` and sets title, description, canonical, Open Graph and
+  Twitter tags per page, and `noindex` on `/search` and the not-found page.
+- `robots.txt` gains the `Sitemap` line it could not have had, and `sitemap.xml` lists the fixed
+  pages.
+- `index.html` gains an `og:image` and `WebSite` JSON-LD.
+
+### What this costs, and the two traps in it
+
+**`replaceState` must happen before the router module is evaluated, not before render.**
+`createBrowserRouter` reads the location as its module is evaluated, and a module body runs before
+the body of whatever imported it. The call therefore lives in `router.tsx` immediately above
+`createBrowserRouter`, not in `main.tsx`. Putting it in `main.tsx` first looked correct and was
+not: opening `/#/teams` gave the home page at the address `/teams`. Found by opening it.
+
+**Unknown paths now return 200.** A rewrite cannot know a path is wrong, so the host answers every
+typo with `index.html` and a success status. Without an instruction, a crawler would read every
+dead link as a real page. Hence `noindex` on the not-found page specifically — that tag is load
+bearing, not tidiness.
+
+**Link unfurlers still see one card.** Slack, Twitter and Facebook read the HTML as served and do
+not run the app, so `usePageMeta`'s tags never reach them; what they show is the static block in
+`index.html`, whichever page was shared. Those tags are therefore written to describe the site
+rather than left to describe nothing. Per-page previews need the HTML to differ before JavaScript
+runs, which means pre-rendering — a larger change, and not attempted here.
+
+`SITE_ORIGIN` in `src/app/site.ts` is a constant rather than `window.location.origin` because the
+app answers on more than one Vercel address. A canonical built from wherever the reader happens to
+be would nominate each address as the original, which is the opposite of the tag's purpose.
+
+### The icons, shipped in the same change
+
+The old `favicon.svg` was the scaffold's purple lightning bolt — not cricket, and not the site's
+green. It is replaced by a stitched cricket ball drawn in `--color-brand`, as two SVG sources:
+`public/favicon.svg` with rounded corners for tabs, and `brand/icon-square.svg` full-bleed with a
+smaller ball, because iOS rounds an apple-touch-icon itself and Android crops a maskable icon to
+the launcher's shape, so an icon bringing its own corners has them clipped or doubled.
+
+`brand/generate-icons.mjs` renders those into `favicon.ico`, `favicon-32.png`,
+`apple-touch-icon.png`, `icon-192.png`, `icon-512.png` and the 1200×630 `social-card.png`. The
+outputs are committed and `sharp` is **not** a dependency: it carries platform-specific binaries
+and is needed only when the brand changes, so it is installed ad hoc, and a fresh clone builds
+without it.
+
+---
+
 ## D-037 — A page with an archive behind it does not fail because the provider did
 
 **Status:** accepted. Fixes a gap that had been there since the archive was built, found by

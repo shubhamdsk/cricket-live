@@ -6,10 +6,13 @@ import {
   useRecentMatches,
   useUpcomingMatches,
 } from '@/features/matches/hooks/useMatches'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageMeta } from '@/hooks/usePageMeta'
 
 export function HomePage() {
-  usePageTitle("Today's cricket")
+  usePageMeta("Today's cricket", {
+    description:
+      "Today's cricket at a glance: matches in play with live scores, the fixtures coming next, and the results just in.",
+  })
 
   const liveQuery = useLiveMatches()
   const upcomingQuery = useUpcomingMatches()

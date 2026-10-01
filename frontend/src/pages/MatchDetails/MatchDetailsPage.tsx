@@ -17,7 +17,7 @@ import {
   formatInningsLabel,
   formatStartTime,
 } from '@/features/matches/utils/format'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageMeta } from '@/hooks/usePageMeta'
 import { ApiError } from '@/services/apiClient'
 import { cn } from '@/utils/cn'
 
@@ -38,7 +38,15 @@ export function MatchDetailsPage() {
 
   // The match title alone, not the score. A title that changed on every ball would make the tab
   // flicker and, worse, make the live region announce a navigation that never happened.
-  usePageTitle(data?.matchTitle ?? null)
+  //
+  // The description can afford to name the sides and the series, because unlike the title it is
+  // not read aloud on every change and no tab shows it.
+  usePageMeta(data?.matchTitle ?? null, {
+    description:
+      data === undefined
+        ? undefined
+        : `${data.home.team.name} vs ${data.away.team.name}, ${data.matchTitle} — ${data.seriesName}. ${data.statusText || 'Scorecard and match details.'}`,
+  })
 
   if (isPending) {
     return (

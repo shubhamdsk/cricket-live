@@ -5,7 +5,7 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { Skeleton } from '@/components/common/Skeleton'
 import { SearchResultGroups } from '@/features/search/components/SearchResultGroups'
 import { MIN_QUERY_LENGTH, useSearch } from '@/features/search/hooks/useSearch'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageMeta } from '@/hooks/usePageMeta'
 
 /**
  * The full results page, whose term lives in the URL.
@@ -18,7 +18,14 @@ export function SearchPage() {
   const term = params.get('q') ?? ''
 
   // The term, so a browser history entry says which search it was rather than nine reading "Search".
-  usePageTitle(term === '' ? 'Search' : `Search: ${term}`)
+  //
+  // Not indexed. The results are a rearrangement of pages that already exist, so every distinct
+  // term anyone searched would otherwise become a thin page competing with the real ones. `follow`
+  // rather than `nofollow`, because the links out of here do lead somewhere worth crawling.
+  usePageMeta(term === '' ? 'Search' : `Search: ${term}`, {
+    description: 'Search cricket matches, teams and series.',
+    noindex: true,
+  })
 
   const { data, isFetching, isError, error, refetch, enabled } = useSearch(term)
 

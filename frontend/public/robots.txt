@@ -5,9 +5,16 @@
 # single-page app's index.html, which is what a catch-all route would otherwise serve — a crawler
 # then reads HTML as robots directives and treats every line as an error.
 #
-# There is no Sitemap line. Routes live in the URL fragment (/#/match/...), which is never sent to
-# a server and cannot be crawled, so a sitemap would list one page. See docs/decisions.md on the
-# hash router and what it costs us in SEO.
+# /search is the one exception, and not because it is private. Its results are a rearrangement of
+# pages that already exist, so every distinct term anyone searched would otherwise become a thin
+# page of its own. The pages it links to are listed below and are crawled directly.
 
 User-agent: *
 Allow: /
+Disallow: /search
+
+# Routes are real paths as of D-038, so there is something to list. The sitemap covers only the
+# fixed pages: match, series and team addresses come from live data and would need generating on
+# every deploy against a provider allowance of 100 calls a day. Those pages are reached by
+# crawling the listings instead, which is what the listings are for.
+Sitemap: https://cricket-live-shubhamdsk1.vercel.app/sitemap.xml

@@ -3,10 +3,13 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { Skeleton } from '@/components/common/Skeleton'
 import { SeriesCard } from '@/features/series/components/SeriesCard'
 import { useAllSeries } from '@/features/series/hooks/useSeries'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageMeta } from '@/hooks/usePageMeta'
 
 export function SeriesPage() {
-  usePageTitle('Series')
+  usePageMeta('Series', {
+    description:
+      'Cricket series and tournaments, recent and upcoming, each with its full schedule of matches.',
+  })
 
   const { data, isPending, isError, error, refetch } = useAllSeries()
 

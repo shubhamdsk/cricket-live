@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The fixed pages only. Match, series and team addresses come from live data, so listing them would
+  mean generating this file on every deploy against a provider allowance of a hundred calls a day;
+  they are reached by crawling the listings below instead, which is what the listings are for.
+
+  No <lastmod>, <changefreq> or <priority>. The content behind these URLs changes whenever play
+  does, so any date written at build time would be wrong within the hour, and a sitemap that
+  reports stale dates is trusted less than one that reports none. Google ignores the other two.
+
+  /search is absent on purpose and is disallowed in robots.txt; see the note there.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://cricket-live-shubhamdsk1.vercel.app/</loc>
+  </url>
+  <url>
+    <loc>https://cricket-live-shubhamdsk1.vercel.app/live</loc>
+  </url>
+  <url>
+    <loc>https://cricket-live-shubhamdsk1.vercel.app/matches</loc>
+  </url>
+  <url>
+    <loc>https://cricket-live-shubhamdsk1.vercel.app/series</loc>
+  </url>
+  <url>
+    <loc>https://cricket-live-shubhamdsk1.vercel.app/teams</loc>
+  </url>
+</urlset>

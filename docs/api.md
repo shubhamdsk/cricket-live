@@ -48,6 +48,14 @@ and [D-037](./decisions.md) is why it no longer is. The trade is that those endp
 quietly thinner than usual rather than saying so; nothing in the envelope yet carries "this answer
 is partial".
 
+**Coverage.** Every endpoint here answers about a deliberately narrow slice of cricket: matches
+between two **ICC Full Member** national sides, and India's own competitions — the IPL, the WPL and
+the BCCI tournaments. Squads below the senior men's team count, so India A and England Women are
+included. Associate-nation internationals and other countries' domestic competitions are not, and
+no response says so: a series outside the coverage is absent rather than flagged, and a match
+outside it is a 404 rather than a 403. The provider knows about far more cricket than this. See
+[D-041](./decisions.md) for the rules and what they cost.
+
 **CORS.** An allow-list from `Cors:AllowedOrigins`, never a wildcard. Development allows the Vite
 dev server only.
 
@@ -208,9 +216,12 @@ the two lists above return.
 }
 ```
 
-`total` is what the archive currently holds **that matches the filter**, so it shrinks as a filter
-narrows and grows as matches finish. **It is not the number of matches ever played.** Page through
-with `hasMore` rather than by comparing counts.
+`total` is what the archive currently holds **that matches the filter and is within the coverage**,
+so it shrinks as a filter narrows and grows as matches finish. **It is not the number of matches
+ever played**, and it is not the number of rows in the archive either — matches outside the
+coverage are stored and not served, which is why turning the coverage wider in
+[D-041](./decisions.md) is a deploy rather than a week of refetching. Page through with `hasMore`
+rather than by comparing counts.
 
 The archive used to only accumulate forward from the day it was switched on, which is why an early
 `total` was tiny. A background backfill now also walks the provider's own match list and writes

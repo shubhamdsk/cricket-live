@@ -904,6 +904,19 @@ November, and their last Tests finished in June. The June and August matches wer
 *results*, though, and that was the archive having never recorded them. The backfill is the fix for
 that half.
 
+**The site now has an opinion about which cricket it is for, which it did not before.** Sprints
+7 and 8 were spent widening every page until all of the provider's cricket could be seen, and the
+answer to "can you see everything" turned out to be the wrong thing to optimise: of 63 series
+listed, a third were associate-nation tours and another third were other countries' domestic
+competitions, so a Sheffield Shield round could crowd this week's Test cricket off the home page
+without anything being broken. The coverage is now internationals between ICC Full Members plus
+India's own competitions — IPL, WPL and the BCCI tournaments — which took the series list from 63
+to 26. Filtered at the five sources rather than on the pages, so no page knows it exists, and the
+archive keeps what it does not show so that widening the rule is a deploy rather than a week of
+refetching. [D-041](./decisions.md) has the rules, the two entry points they need, and the one
+known wart: an ICC event names no nation, so the Women's T20 World Cup waits for its first covered
+match before it appears.
+
 The open judgement call is whether to unset `CricbuzzApi__Enabled` in production, where the
 recommendation on the record is yes.
 

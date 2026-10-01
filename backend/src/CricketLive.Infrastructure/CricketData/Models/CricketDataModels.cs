@@ -93,6 +93,46 @@ internal sealed class CricketDataMatch
     public bool MatchEnded { get; set; }
 }
 
+/// <summary>
+/// One row of the provider's <c>series</c> index.
+/// </summary>
+/// <remarks>
+/// <para>
+/// An index rather than a series: there are no standings here, no squads, and no teams. It is
+/// read for one reason — to learn that a series exists at all, which matches alone cannot tell us
+/// about a series none of whose matches are in the window or our archive.
+/// </para>
+/// <para>
+/// <b><c>endDate</c> is deliberately not mapped.</b> The provider sends it as <c>"Apr 11"</c>,
+/// with no year, for every row sampled — including rows whose <c>startDate</c> is a full ISO date.
+/// Pairing a year to it would mean guessing, and a series that runs across New Year makes the
+/// guess wrong in a way nobody would notice. Absent beats invented.
+/// </para>
+/// <para>
+/// <b><c>startDate</c> arrives in two different formats</b> and which one you get is not random:
+/// across fifty rows sampled, every row with <c>matches</c> above zero carried a full ISO date and
+/// every row with <c>matches</c> of zero carried the year-less form. That correlation is what
+/// <see cref="CricketDataSeriesIndex"/> filters on, and it is why the filter costs us nothing.
+/// </para>
+/// </remarks>
+internal sealed class CricketDataSeries
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    /// <summary>Such as "West Indies tour of India, 2026". Already the name our matches carry.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>A full ISO date, or <c>"Oct 18"</c>. See the remarks on this type.</summary>
+    [JsonPropertyName("startDate")]
+    public string? StartDate { get; set; }
+
+    /// <summary>How many matches the provider holds for this series, which is not how many we hold.</summary>
+    [JsonPropertyName("matches")]
+    public int Matches { get; set; }
+}
+
 internal sealed class CricketDataTeamInfo
 {
     [JsonPropertyName("name")]

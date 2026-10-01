@@ -877,6 +877,14 @@ merge gate rather than a report nobody was obliged to read ([D-032](./decisions.
 call rather than a task — whether to unset `CricbuzzApi__Enabled` in production, where the
 recommendation on the record is yes. Anything beyond that is new scope, not remaining scope.
 
+**One thing was reported as a bug and turned out to be the design.** The series page showed a
+single series, because the list was built only from matches we hold and the provider's window held
+two matches of one tour. Nothing was failing; the specification was. The provider's `series` index
+is now read for existence — 1190 series are listed there, against the 2 matches the window had —
+which took the page from 1 series to 63 and search for "india" from 2 results to 13. The earlier
+decision to ignore that endpoint measured it correctly and drew the wrong conclusion from the
+measurement; both halves are recorded in [D-033](./decisions.md).
+
 The spin-down question is closed. It had sat on this list as "needs twenty idle minutes nobody has
 spent yet", and the reason nobody had spent them was that keep-warm made them impossible to spend.
 Disabling it and waiting 43 minutes produced the first genuine double cold start: `/api/health/ready`

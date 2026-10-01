@@ -223,7 +223,9 @@ public sealed class SeriesService(
         string seriesId,
         CancellationToken cancellationToken)
     {
-        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        // Every one of the three is optional here, and between them a series page survives any
+        // single source being unavailable: the schedule, our own records, and what is in play.
+        var window = await ProviderWindow.OrEmptyAsync(provider, cancellationToken);
         var archived = await archive.GetBySeriesAsync(seriesId, cancellationToken);
         var scheduled = await fixtures.GetAsync(seriesId, cancellationToken);
 
@@ -257,7 +259,7 @@ public sealed class SeriesService(
     /// </remarks>
     private async Task<Dictionary<string, SeriesTally>> GatherAsync(CancellationToken cancellationToken)
     {
-        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        var window = await ProviderWindow.OrEmptyAsync(provider, cancellationToken);
 
         // The window's matches are counted here, so the archive must not count them again: one
         // that finished minutes ago is in both, and a series would claim a match more than it has.

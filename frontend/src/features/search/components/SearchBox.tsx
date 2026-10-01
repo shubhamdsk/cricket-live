@@ -94,7 +94,7 @@ export function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
             }
           }}
           className={cn(
-            'h-10 w-full rounded-card border border-line bg-surface pl-9 pr-9 text-sm text-ink placeholder:text-ink-subtle',
+            'glass h-10 w-full rounded-card border border-line bg-surface pl-9 pr-9 text-sm text-ink placeholder:text-ink-subtle',
             focusRing,
           )}
         />
@@ -120,7 +120,7 @@ export function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
       {open && enabled && (
         /* `surface-raised` and `shadow-lift`: this covers the page rather than sitting on it, so
            it needs an opaque fill and a shadow the dark theme can actually show. */
-        <div className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-card border border-line bg-surface-raised p-2 shadow-lift backdrop-blur-xl">
+        <div className="glass absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-card border border-line bg-surface-raised p-2 shadow-lift">
           {/*
             Announced politely so a screen reader hears the count settle rather than every
             intermediate state as the term is typed.

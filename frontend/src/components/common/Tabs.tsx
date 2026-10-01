@@ -51,7 +51,7 @@ export function Tabs({ items, activeId, onChange, label }: TabsProps) {
       role="tablist"
       aria-label={label}
       onKeyDown={handleKeyDown}
-      className="flex w-full gap-1 rounded-card border border-line bg-surface p-1"
+      className="glass flex w-full gap-1 rounded-card border border-line bg-surface p-1 shadow-card"
     >
       {items.map((item) => {
         const isActive = item.id === activeId

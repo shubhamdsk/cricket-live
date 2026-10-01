@@ -22,7 +22,10 @@ namespace CricketLive.Application.Teams;
 /// are therefore real; the record does not exist and is not implied.
 /// </para>
 /// </remarks>
-public sealed class TeamService(ICricketDataProvider provider, IMatchArchive archive) : ITeamService
+public sealed class TeamService(
+    ICricketDataProvider provider,
+    IMatchArchive archive,
+    IPendingMatches pending) : ITeamService
 {
     /// <summary>
     /// The longest team id the archive stores, and therefore the longest one that could match.
@@ -36,7 +39,7 @@ public sealed class TeamService(ICricketDataProvider provider, IMatchArchive arc
 
     public async Task<IReadOnlyList<TeamSummaryDto>> GetAllAsync(CancellationToken cancellationToken)
     {
-        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        var window = await CurrentAsync(cancellationToken);
 
         var archived = await archive.GetTeamTalliesAsync(
             [.. window.Select(match => match.Id)],
@@ -82,7 +85,7 @@ public sealed class TeamService(ICricketDataProvider provider, IMatchArchive arc
             return null;
         }
 
-        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        var window = await CurrentAsync(cancellationToken);
         var archived = await archive.GetByTeamAsync(teamId, cancellationToken);
 
         // The window's copy of a match is the fresher one, so it decides where both hold it.
@@ -125,6 +128,50 @@ public sealed class TeamService(ICricketDataProvider provider, IMatchArchive arc
             Opponents = Opponents(matches, teamId),
             Formats = Formats(matches),
         };
+    }
+
+    /// <summary>
+    /// Every match the provider will currently tell us about, the live window taking precedence.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the whole of how the teams page gets wider, and it needed no team-specific code:
+    /// teams <i>are</i> the matches, so a source of matches is a source of teams. Reading the
+    /// provider's wider scoreboard alongside the main window took the list from two sides to six,
+    /// the four new ones being the Australian states playing Sheffield Shield fixtures next week.
+    /// </para>
+    /// <para>
+    /// Worth being clear that this does not fix the underlying limitation, it only widens it. There
+    /// is still no team endpoint and still no team id — <c>countries</c> returns two-letter country
+    /// codes, and Queensland is not a country. A side appears here when it has a match and not
+    /// before.
+    /// </para>
+    /// </remarks>
+    private async Task<IReadOnlyList<MatchDetailsDto>> CurrentAsync(CancellationToken cancellationToken)
+    {
+        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        var imminent = await pending.GetAsync(cancellationToken);
+
+        if (imminent.Count == 0)
+        {
+            return window;
+        }
+
+        var byId = new Dictionary<string, MatchDetailsDto>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var match in imminent)
+        {
+            byId[match.Id] = match;
+        }
+
+        // Second, so it wins: a match in both is one that has started, and only the window knows
+        // the score. It is also the only source carrying crests, which Badges reads below.
+        foreach (var match in window)
+        {
+            byId[match.Id] = match;
+        }
+
+        return [.. byId.Values];
     }
 
     private static IEnumerable<TeamTally> FromWindow(IReadOnlyList<MatchDetailsDto> window)

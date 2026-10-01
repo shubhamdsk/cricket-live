@@ -105,9 +105,17 @@ empty list for it would look like an answer rather than a mistake.
 
 ### `GET /api/matches/live` · `GET /api/matches/upcoming`
 
-Two lists, each returning `data` as an array of matches. They are partitions of a
-single upstream response, so asking for both costs one provider call rather than two — see
-[D-012](./decisions.md).
+Two lists, each returning `data` as an array of matches. They are partitions of the same upstream
+read, so asking for both costs no more than asking for one — see [D-012](./decisions.md).
+
+**Two upstream sources, merged.** The provider's main window held 2 matches, both finished, on a
+day its own scoreboard endpoint listed 4 fixtures still to be played, so `/upcoming` was returning
+an empty array while cricket was coming. It now reads both, and the main window wins on any match
+in both — that match has started, and only the window carries a score. The mechanism and its limits
+are [D-035](./decisions.md).
+
+What this is *not* is a schedule. It is as wide as the provider's idea of "on around now", which in
+practice reaches about a week out. A fixture further off is on its series page.
 
 A `status` that contradicts the endpoint — `/upcoming?status=live` — returns an empty array
 **without calling the provider**, which matters because provider calls are the budgeted resource.
@@ -457,8 +465,16 @@ A team's **slug is its identifier** — there is no id to pass instead.
 
 ### `GET /api/teams`
 
-Every side appearing in a match we hold. Teams with a match in progress first, then most recently
-seen.
+Every side appearing in a match we hold or in one the provider says is coming. Teams with a match
+in progress first, then most recently seen.
+
+There is no won-lost record here and there will not be one: the provider reports a result as a
+sentence, and a record parsed out of prose would be a guess presented as a statistic.
+
+A side appears when it has a match and not before — this list is derived from matches rather than
+fetched, because the provider has no team endpoint and no team identifier at all. Widening the
+match sources is therefore the only way to widen this page, and doing so took it from 2 sides to 6;
+see [D-035](./decisions.md).
 
 ```json
 {

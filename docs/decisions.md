@@ -5,6 +5,86 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-035 — `cricScore` decides what is on, `series_info` says what it is
+
+**Status:** accepted. Third and last of the changes that began with [D-033](#d-033).
+
+### Context
+
+The upcoming list was empty. Not thin — empty, for weeks, on a site whose whole purpose is to say
+what cricket is coming. The cause was the same one as D-033 and D-034, one layer further down: we
+asked a single endpoint and treated its answer as the state of the world. Measured within the same
+minute:
+
+```
+/v1/currentMatches  ->  2 rows,  0 unfinished
+/v1/cricScore       ->  6 rows,  4 unfinished   (3rd ODI, 1st T20I, 2 Sheffield Shield fixtures)
+```
+
+Four matches were coming and we were showing none of them. The provider documents no relationship
+between these two endpoints and we could not find one — neither is a subset of the other — so both
+are read.
+
+`cricScore` alone cannot fill the page. It carries an `id`, a `series` *name*, a state, and two
+scores. No series id, no venue, no match description, and a team written `"India [IND]"` with the
+name and abbreviation run together. Building a `MatchDto` from it would mean putting a row with no
+venue and a team called "India [IND]" next to complete ones.
+
+### Decision
+
+Three sources, each doing the one thing it is good at:
+
+1. **`cricScore`** names which matches are on — `IMatchIndex`, one call, cached five minutes to
+   match the live window it is read beside.
+2. **the series index** turns those series names into ids, which `cricScore` does not carry.
+3. **`series_info`** (already built for D-034, already cached) supplies the matches in full, matched
+   back to the ids from step 1.
+
+`PendingMatches` performs the join, and `MatchService` merges its result under the live window —
+under, because a match in both has started and only the window carries a score.
+
+**The index defines the window; the fixture lists only furnish it.** Taking everything unplayed
+from a fixture list would put all 31 Sheffield Shield fixtures on a page asking what is on this
+week. Matching back by id keeps the answer to what the provider itself considers current.
+
+Cost is one call plus one per distinct active series, capped at six, all cached and all shared
+between visitors. Two series were active the day this was built.
+
+### Reading the state field backwards, on purpose
+
+`ms` was measured as `"fixture"` and `"result"`. It is documented nowhere, nothing was in play on
+any day we probed, and so the set is not known to be closed. `IsFinished` therefore asks whether
+the value *is* `"result"` rather than listing the values that mean it is not. An unseen state —
+live, abandoned, anything added later — reads as pending and gets looked at. The asymmetry is
+deliberate: a finished match wrongly shown as pending is corrected by the detail `series_info`
+fills in, whereas a pending match read as finished is dropped and never looked at again.
+
+### The teams page widened without any code about teams
+
+`TeamService` reads the same two sources, so pointing it at the same join took the list from 2
+sides to 6 — Queensland, South Australia, Victoria and Western Australia, from next week's
+Sheffield Shield fixtures. That is the whole change: teams *are* the matches, so a source of
+matches is a source of teams.
+
+It widens the limitation rather than fixing it, and the limitation is worth restating. There is no
+team endpoint and no team identifier — `countries` returns two-letter country codes, and Queensland
+is not a country, so ours stay derived from the team name. A side appears when it has a match and
+not before.
+
+### Cost
+
+- Series names are matched **exactly**, case-insensitively. The index lists "Sri Lanka tour of West
+  Indies 2026" and "Sri Lanka tour of West Indies, 2026" as different series, so anything looser
+  would pick whichever came first and be confidently wrong about which season it was showing. The
+  price is that a match whose series name is not in the pages of the index we read contributes
+  nothing, silently.
+- An upcoming match shows "Yet to bat" for both sides, because it is true and because the
+  alternative is a blank.
+- The upcoming list is now as wide as `cricScore`, which is a provider-shaped window and not a
+  schedule. A fixture three weeks out is on its series page, not here.
+
+---
+
 ## D-034 — A series page lists the provider's fixtures, and the title overrules `matchType`
 
 **Status:** accepted. Builds on [D-033](#d-033), which fixed the list and left every page it

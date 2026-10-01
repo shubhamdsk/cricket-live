@@ -84,4 +84,21 @@ public sealed class CricketDataOptions
     /// </remarks>
     [Range(0, 168)]
     public int SeriesFixturesCacheHours { get; set; } = 3;
+
+    /// <summary>
+    /// How long the match index is reused, and whether it is read at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately the same five minutes as <see cref="CurrentMatchesCacheSeconds"/>, because it
+    /// answers the same question about the same moment and the two are read together. Diverging
+    /// would mean the live and upcoming lists on one page disagreed about what time it was.
+    /// </para>
+    /// <para>
+    /// Zero switches the source off, and the upcoming list falls back to whatever the main window
+    /// holds — which today is nothing. See <c>AddMatchIndex</c>.
+    /// </para>
+    /// </remarks>
+    [Range(0, 1440)]
+    public int MatchIndexCacheMinutes { get; set; } = 5;
 }

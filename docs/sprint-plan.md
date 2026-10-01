@@ -873,14 +873,13 @@ instruction not to write new tests. `8.21`, the wiring those three would hang of
 branches require `backend`, `frontend` and `scan`, so the 203 tests that already exist are a real
 merge gate rather than a report nobody was obliged to read ([D-032](./decisions.md)).
 
-**Next action:** the two remaining items are new scope rather than remaining scope, and both come
-out of the audit that followed D-033. The Upcoming page is empty because `currentMatches` has
-nothing imminent in it, and `cricScore` does — one call that names the series with activity, which
-the index can resolve to ids and `series_info` can expand. The Matches page is the awkward one: it
-filters and pages in SQL over the archive, so letting provider rows into it means reconciling two
-sources of truth about paging, not just adding a source. Beyond those, the open judgement call is
-whether to unset `CricbuzzApi__Enabled` in production, where the recommendation on the record is
-yes.
+**Next action:** one item of new scope remains, and it is the awkward one. Results on the Matches
+page come from the archive, which filters and pages in SQL, so widening it from the provider's
+`matches` endpoint — 15,531 rows at 25 a page — is not a matter of adding a source. Either the
+provider's rows are ingested into the archive, after which every page widens with no query changes,
+or paging is reconciled across two sources of truth. The first looks right and is the larger piece
+of work. Beyond that, the open judgement call is whether to unset `CricbuzzApi__Enabled` in
+production, where the recommendation on the record is yes.
 
 **One thing was reported as a bug and turned out to be the design.** The series page showed a
 single series, because the list was built only from matches we hold and the provider's window held
@@ -897,6 +896,18 @@ from 0 to 31, Ranji Trophy from 0 to 119. Building it also caught the provider l
 T20Is of that tour as `matchType = "odi"`, which would have put an ODI badge on a card reading "4th
 T20I" — the title now overrules the field, and every disagreement is logged. See
 [D-034](./decisions.md).
+
+**And the layer below that was the upcoming page, which was empty.** Not thin, empty, on a site
+whose purpose is to say what cricket is coming. `currentMatches` held 2 matches and both were
+finished on a day `cricScore` listed 4 fixtures still to be played. Reading both took the upcoming
+list from 0 to 4 real fixtures with venues and formats, and the teams page from 2 sides to 6
+without a line of code about teams — a team is only ever what the matches say, so a source of
+matches is a source of teams. See [D-035](./decisions.md).
+
+**All three changes were the same mistake.** Each page asked one endpoint and published its answer
+as the state of the world, and in each case the endpoint was narrower than the question. That is
+worth recording as a pattern rather than three bugs, because the next page built here will be
+tempted to make it a fourth time.
 
 The spin-down question is closed. It had sat on this list as "needs twenty idle minutes nobody has
 spent yet", and the reason nobody had spent them was that keep-warm made them impossible to spend.

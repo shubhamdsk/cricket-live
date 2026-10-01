@@ -94,6 +94,48 @@ internal sealed class CricketDataMatch
 }
 
 /// <summary>
+/// One row of the provider's <c>cricScore</c> endpoint.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A scoreboard strip rather than a match: it exists to be read at a glance, so it carries a score
+/// and a state and almost nothing else. No series id, no venue, no match description, and a team
+/// written as <c>"India [IND]"</c> with the name and the abbreviation run together in one string.
+/// </para>
+/// <para>
+/// Only three fields are mapped, because only three are worth anything here. The <c>id</c> is the
+/// same id the provider's other endpoints use, which is what makes this row joinable to a real
+/// match; <c>series</c> names the series; <c>ms</c> says whether it is over. The rest —
+/// <c>t1</c>, <c>t2</c>, <c>t1s</c>, <c>t2s</c>, <c>t1img</c>, <c>t2img</c>, <c>matchType</c>,
+/// <c>status</c>, <c>dateTimeGMT</c> — are all available in better form from <c>series_info</c>,
+/// and the two image fields are on the provider's own host, which <c>D-031</c> forbids us carrying
+/// into a DTO at all.
+/// </para>
+/// </remarks>
+internal sealed class CricketDataScoreboardRow
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    /// <summary>Such as "West Indies tour of India, 2026". A name; there is no id to be had.</summary>
+    [JsonPropertyName("series")]
+    public string? Series { get; set; }
+
+    /// <summary>
+    /// Match state. Measured values: <c>"fixture"</c> for a match not yet played and
+    /// <c>"result"</c> for one that is over.
+    /// </summary>
+    /// <remarks>
+    /// Documented nowhere, so the set is not known to be closed and a live match was never
+    /// observed — nothing was in play on any day this was probed. Read by asking whether it says
+    /// the match is <i>finished</i>, so an unseen value such as a live or abandoned state reads as
+    /// pending rather than being silently discarded.
+    /// </remarks>
+    [JsonPropertyName("ms")]
+    public string? MatchState { get; set; }
+}
+
+/// <summary>
 /// One row of the provider's <c>series</c> index.
 /// </summary>
 /// <remarks>

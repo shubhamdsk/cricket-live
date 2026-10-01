@@ -44,7 +44,7 @@ export function SeriesCard({ series }: { series: Series }) {
     <Link
       to={`/series/${series.slug}`}
       className={cn(
-        'block rounded-xl border border-line bg-surface p-4 transition hover:border-brand/40 hover:shadow-lift',
+        'glass block rounded-card border border-line bg-surface p-4 shadow-card transition hover:-translate-y-0.5 hover:border-brand-line hover:shadow-lift',
         focusRing,
       )}
     >

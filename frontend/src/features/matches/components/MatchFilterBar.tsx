@@ -19,7 +19,7 @@ const statusLabels: Record<StatusFilter, string> = {
 }
 
 const fieldClasses = cn(
-  'min-h-11 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink',
+  'glass min-h-11 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink',
   'disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-10',
   focusRing,
 )
@@ -34,7 +34,7 @@ export function MatchFilterBar({ state, series, isSeriesPending }: MatchFilterBa
     filters.series && !series.includes(filters.series) ? [filters.series, ...series] : series
 
   return (
-    <section className="space-y-3 rounded-card border border-line bg-surface p-4">
+    <section className="glass space-y-3 rounded-card border border-line bg-surface p-4 shadow-card">
       <h2 className="sr-only">Filter matches</h2>
 
       {/*

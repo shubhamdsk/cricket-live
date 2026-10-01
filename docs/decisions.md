@@ -5,6 +5,85 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-040 — Navy, and frosting that is actually frosting
+
+**Status:** accepted. Revises the palette and the blur policy of **D-039**; its structure — one set
+of token names, dark as the default, the DOM class as the source of truth — is unchanged and is
+what made this a second palette rather than a second theme.
+
+### Context
+
+Two pieces of feedback on D-039, and both were right.
+
+**"Still looks so basic, not proper glassy."** D-039 argued that blur is the least important part
+of frosted glass and limited it to the header and the search dropdown, on the grounds that blur
+only shows where something passes behind a panel. The premise was correct and the conclusion was
+wrong, because the glow it relied on was pitched at roughly a tenth of the strength it needed. With
+nothing visible behind the panels, the translucency had nothing to reveal and the result was
+exactly what D-039 warned about: grey cards on black.
+
+**"Don't keep green, need navy blue with shades."** A brand change.
+
+### Decision
+
+Frosting is four things, in this order of importance:
+
+1. **Something worth frosting.** `--page-glow` is now a mesh of five overlapping navy, indigo and
+   cyan blobs at alphas between 0.14 and 0.40, against roughly 0.07–0.14 before. The colour has to
+   be there before a panel can diffuse it.
+2. **Tinted translucency.** Surfaces are a pale blue-white rather than neutral white. This is the
+   single biggest reason a dark theme reads as grey plastic instead of glass, and it costs nothing.
+3. **A lit edge.** `--shadow-card` is four layers, only one of which is a drop shadow: a bright
+   inset on top, a dim inset underneath, and two outer shadows at different distances. The insets
+   are what make the eye read a pane with thickness.
+4. **Then** blur and a saturation lift above 100%, because blur averages colour towards grey and
+   the lift puts the hue back.
+
+Blur now applies to **every element that paints a surface**, through a single `glass` utility
+rather than a `backdrop-blur-*` scattered across twenty class strings, so the strength of the
+effect is one number per theme. The reversal is deliberate: with a mesh behind the page,
+*everything* has something behind it, and a page where two panels frost and ten do not looks like
+a mistake rather than a decision.
+
+Grain — 180 bytes of inline `feTurbulence` — is the last ingredient. It stops large smooth
+gradients banding into visible steps, and it is most of why the surface reads as physical rather
+than as a blur filter.
+
+### Navy is a harder brand to carry than green was
+
+A true navy is too dark to read as text on a dark page, so the fill stays navy and the accent is
+its light shade. That is what "navy with shades" has to mean on a dark background, and it is the
+same `brand` / `brand-strong` split D-039 already needed — the two tokens simply sit at opposite
+ends of the ramp in each theme.
+
+One knock-on that is easy to miss: **`upcoming` had to move from blue to cyan.** It sat next to a
+green brand perfectly happily; next to a navy one it would have been a second blue, and a status
+badge whose colour says the same thing as the furniture around it is not telling anyone anything.
+
+The icon sources and the social card are regenerated from the same navy, so the favicon, the touch
+icon, the manifest icons and the link preview all match the site rather than its previous brand.
+
+### A real bug found in the build output
+
+Writing both `backdrop-filter` and `-webkit-backdrop-filter` in the `glass` utility made Lightning
+CSS collapse the pair and emit **only the prefixed one**. Firefox supports `backdrop-filter`
+unprefixed and does not support the `-webkit-` form at all, so every Firefox user would have had no
+frosting whatsoever — and the page would still have looked deliberate, which is how that kind of
+thing survives.
+
+The utility now declares the standard property only and lets the build add prefixes, which emits
+both. Checked by reading the compiled CSS rather than by reasoning about it, because the first
+version also looked correct in the source.
+
+### Degrading
+
+Two ways the effect can be unavailable or unwanted, and the same answer to both: stop pretending,
+and make the surfaces solid enough to read on their own. `@supports not (backdrop-filter: …)`
+raises them to near-opaque; `prefers-reduced-transparency: reduce` makes them opaque and drops the
+mesh and the grain entirely.
+
+---
+
 ## D-039 — A dark default and a light option, as one set of token names rather than two sets of classes
 
 **Status:** accepted.

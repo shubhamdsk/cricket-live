@@ -256,7 +256,13 @@ than a zero score.
 **Two themes, and no `dark:` variant anywhere.** `index.css` defines the token names once; the
 `@theme` block holds the dark values, because dark is the default, and `html.theme-light` restores
 the light palette. Every utility resolves through `var()`, so one class on the root element reskins
-the app and no component knows which theme is on. [D-039](./decisions.md) explains the shape.
+the app and no component knows which theme is on. [D-039](./decisions.md) explains the shape and
+[D-040](./decisions.md) the navy palette and the frosting.
+
+**Anything that paints a surface also gets `glass`**, the one utility that carries the
+`backdrop-filter`. Put it alongside `bg-surface`; it is inert in the light theme, where surfaces
+are opaque and there is nothing to see through. Do not reach for `backdrop-blur-*` — the strength
+of the effect is meant to be one number per theme, not a decision per component.
 
 What this asks of you when adding a component:
 
@@ -264,10 +270,11 @@ What this asks of you when adding a component:
   `surface-raised` is the opaque one, for anything that covers content rather than tinting it;
   `surface-sunken` is recessed, for table header strips; `chrome` is the header and footer, which
   content scrolls under.
-- **`brand` is a fill, `brand-strong` is a text colour**, and they move in opposite directions
-  between the themes. Text on a brand fill is `text-on-brand`; the hover fill is `brand-hover`.
-  Using `brand-strong` as a background, or `surface` as a text colour, works in light and breaks in
-  dark — both mistakes were in the codebase and are described in D-039.
+- **`brand` is a fill, `brand-strong` is a text colour**, and they sit at opposite ends of the navy
+  ramp in each theme, because a true navy is too dark to read as text on a dark page. Text on a
+  brand fill is `text-on-brand`; the hover fill is `brand-hover`. Using `brand-strong` as a
+  background, or `surface` as a text colour, works in light and breaks in dark — both mistakes were
+  in the codebase and are described in D-039.
 - **Check contrast against the background the colour actually lands on**, which for translucent
   surfaces is the panel over the page, not the page. `Badge`'s doc comment is the cautionary tale.
 - Tailwind's built-in shadows (`shadow-sm`, `shadow-lg`) are tuned for light backgrounds and

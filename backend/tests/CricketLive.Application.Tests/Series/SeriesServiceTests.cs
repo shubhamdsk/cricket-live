@@ -100,7 +100,11 @@ public sealed class SeriesServiceTests
     public async Task Something_that_is_not_an_identifier_is_refused_without_a_lookup()
     {
         var provider = new StubProvider([]);
-        var service = new SeriesService(provider, new StubArchive([]), new NoSeriesStandingsProvider());
+        var service = new SeriesService(
+            provider,
+            new StubArchive([]),
+            new NoSeriesStandingsProvider(),
+            new NoSeriesIndex());
 
         Assert.Null(await service.GetByIdAsync("../etc/passwd", default));
 
@@ -158,10 +162,18 @@ public sealed class SeriesServiceTests
         Assert.Empty(details.Standings);
     }
 
+    /// <summary>
+    /// Built without a series index, so these cases keep describing the join between the two
+    /// sources of matches rather than the list the index contributes to.
+    /// </summary>
     private static SeriesService Build(
         IReadOnlyList<MatchDetailsDto> window,
         IReadOnlyList<MatchDetailsDto> archive)
-        => new(new StubProvider(window), new StubArchive(archive), new NoSeriesStandingsProvider());
+        => new(
+            new StubProvider(window),
+            new StubArchive(archive),
+            new NoSeriesStandingsProvider(),
+            new NoSeriesIndex());
 
     private static DateTimeOffset Day(int day) => new(2026, 1, day, 9, 0, 0, TimeSpan.Zero);
 

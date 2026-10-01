@@ -15,12 +15,15 @@ export function SeriesPage() {
       <div className="space-y-1">
         <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">Series</h1>
         {/*
-          Said plainly rather than implied. A series here is assembled from the matches we hold,
-          so a tournament that started before this site did will look shorter than it was.
+          Said plainly rather than implied, and the two halves are deliberately separate: the
+          provider's index decides what is listed, our own matches decide what a series page can
+          show. Conflating them is what made this page read as broken when the list came only
+          from the window.
         */}
         <p className="text-sm text-ink-subtle">
-          Built from the matches recorded here, so a tournament shows the matches we have rather
-          than everything it played.
+          Recent and upcoming series. Each card says how many of its matches we hold — we keep
+          the ones played since this site started, so an older tournament will show fewer than
+          it played.
         </p>
       </div>
 
@@ -44,8 +47,8 @@ export function SeriesPage() {
       {data !== undefined &&
         (data.length === 0 ? (
           <EmptyState
-            title="No series yet"
-            description="Series appear as matches are recorded, so this fills in as cricket is played."
+            title="No series to show"
+            description="This fills in from the provider's series list and from the matches recorded here, so an empty page means neither could be read just now."
           />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

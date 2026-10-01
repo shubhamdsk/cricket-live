@@ -3,8 +3,9 @@ import type { Match } from '@/features/matches/types'
 /**
  * Mirrors the series DTOs returned by our API. See docs/api.md.
  *
- * A series here is assembled from the matches we hold rather than fetched as an entity, which is
- * why `matchCount` means what it says below and nothing more.
+ * Two sources with two jobs behind these fields: the provider's index says which series exist,
+ * and the matches we hold say what a page about one can actually show. That is why there are two
+ * counts below and why they are not interchangeable.
  */
 
 export interface Series {
@@ -13,19 +14,29 @@ export interface Series {
   /** Always ends in `id`, so a readable URL resolves without a lookup. */
   slug: string
   name: string
-  /** When the earliest match we hold began. */
+  /** When the earliest match we hold began, or when the series began if we hold none. */
   startTimeUtc: string
-  /** When the latest match we hold began — not when the series ends, which we cannot know. */
-  lastMatchUtc: string
+  /**
+   * When the latest match we hold began, or `null` when we hold none.
+   *
+   * Never when the series ends: the provider sends `endDate` without a year, so we do not know.
+   */
+  lastMatchUtc: string | null
   /**
    * How many matches of this series we can show, not how many it contains.
    *
    * Our history starts when the archive did and the provider's window is a few days wide, so a
-   * long tournament will report far fewer than it played. The UI says "held" rather than implying
-   * this is the full count.
+   * long tournament will report far fewer than it played. Compare `totalMatchCount`.
    */
   matchCount: number
-  /** True when at least one match we hold has not finished. */
+  /**
+   * How many matches the series has, or `null` when the provider's index did not cover it.
+   *
+   * `null` means "we were not told", never "none". Shown alongside `matchCount` so a small number
+   * of held matches reads as a narrow window rather than as a short series.
+   */
+  totalMatchCount: number | null
+  /** True when at least one match we hold has not finished. Always false for a series we hold none of. */
   isOngoing: boolean
 }
 

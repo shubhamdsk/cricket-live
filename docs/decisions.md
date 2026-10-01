@@ -5,6 +5,97 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-033 — The series list reads the provider's index after all, and D-013 was wrong about why
+
+**Status:** accepted. Reverses the reasoning in [D-013](#d-013) while keeping its finding intact.
+
+### Context
+
+The series page showed one series: "West Indies tour of India, 2026". It was reported as a fault
+and it was not one — it was the design working exactly as specified, which is a worse problem.
+
+`SeriesService` built the list entirely from matches we hold, meaning the provider's current window
+plus our archive. Measured on the day this was written:
+
+```
+/v1/currentMatches  ->  status=success  totalRows=2   returned=2   (both India v West Indies)
+/v1/series          ->  status=success  totalRows=1190  25 per page
+/v1/matches         ->  status=success  totalRows=15531 25 per page
+```
+
+Nothing was broken. One series went in and one came out. The provider's window is a few days wide,
+so outside a busy fortnight the list was always going to be a handful of rows, and the quota was
+barely touched: 7 calls of 100 used that day.
+
+### What the original reasoning got wrong
+
+The note on `SeriesDto` said the index "would cost a call from a hundred-a-day budget and buy a
+worse answer than counting the matches we already have in hand". Every factual claim in it still
+holds — `endDate` has never once arrived as an ISO date, always `"Apr 11"` with the year left to
+guess — but it answered the wrong question. The index is a bad source of *detail* and the only
+source of *existence*, and those do not compete. Rejecting it for being thin on fields meant the
+list could only ever contain series we already had a match of.
+
+The budget argument was also weaker than it sounded, and nobody re-checked it. The poller only
+spends calls when something is live, so the allowance sits almost untouched most days.
+
+### Decision
+
+Read the index for existence; keep deriving everything else from matches.
+
+`ISeriesIndex` lives in Application, separate from `ICricketDataProvider`, and the separation is
+load-bearing: provider failure means the site has nothing to show and must propagate, whereas index
+failure means a shorter list and is swallowed. `CricketDataSeriesIndex` serves the last good answer
+or an empty list, and an empty list is treated as silence rather than as "there are no series".
+
+Two things the index is filtered on, which turn out to be one thing:
+
+| Condition | Why |
+| --- | --- |
+| `matches > 0` | a series with no fixtures opens a page with nothing on it |
+| `startDate` parses as a full ISO date | the year-less form cannot be placed on a calendar |
+
+Across fifty rows sampled these correlated perfectly — every row with matches had an ISO date, every
+row without had `"Oct 18"` — so requiring both costs nothing that requiring either would have kept.
+It also removes a duplicate: the provider lists some tours twice, once as a stub with no matches and
+again with its fixtures, and a naive read showed both.
+
+**Four pages, cached six hours**, which is 16 calls a day against the budget of 100. Four pages of
+25 yielded 63 series after filtering, reaching about four months back and five ahead.
+
+### Two counts, not one
+
+`MatchCount` is what we can show. `TotalMatchCount` is what the series has, or null when the index
+did not cover it. Null and zero are different claims and only the first is ours to make. The UI
+prints both — "2 of 8 matches held" — because printing only the first invites it to be read as the
+second, which is the error this whole entry is about.
+
+A series the index lists and we hold nothing of now resolves to a real page with no matches rather
+than a 404. Listing something and then refusing to open it is worse than not listing it.
+
+### Ordering, which took two attempts
+
+Descending by date was tried first and read badly: the index lists fixtures a year out, so the page
+opened on a tour in March 2027 with this week's cricket far below it. The list is now ordered by
+whether a match is in progress, then whether we hold anything, then by **distance from today in
+either direction**. That needs no end dates — and we have none — and it puts the current week at the
+top with the page falling away in both directions.
+
+### Cost
+
+16 calls a day, and a series page that can show a name and a match total for a series it holds no
+matches of. The second is the honest state of affairs rather than a defect: we keep matches from the
+live window and from our own archive, which starts when this site did.
+
+### What this says about the earlier decision
+
+D-013 measured the endpoint carefully and recorded the measurement accurately. The error was in the
+inference, not the data — "thin on fields" was converted into "not worth reading" without asking
+what question it would be answering. The measurement is still in the codebase and still correct; a
+re-read of it two sprints later is what produced the opposite conclusion.
+
+---
+
 ## D-032 — Branch protection, and the second mechanism today that ran without having authority
 
 **Status:** accepted. Completes `1.4`, which was written in Sprint 1 and never done, and `8.21`.

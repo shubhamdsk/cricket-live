@@ -41,4 +41,30 @@ public sealed class CricketDataOptions
     /// <summary>A finished match cannot change, so its detail is worth caching until the process restarts.</summary>
     [Range(1, 168)]
     public int FinishedMatchCacheHours { get; set; } = 24;
+
+    /// <summary>
+    /// How many pages of the provider's series index to read, at twenty-five series a page.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The index is around 1190 series deep, so reading all of it is 48 calls out of a hundred a
+    /// day for one list. It is ordered start-date descending, so the early pages are the current
+    /// season and this number is really "how far back to go". Four pages reached roughly a year
+    /// back when it was measured.
+    /// </para>
+    /// <para>
+    /// Multiply this by 24 divided by <see cref="SeriesIndexCacheHours"/> to get the daily cost:
+    /// the defaults are sixteen calls, against a budget of a hundred that the poller currently
+    /// leaves almost untouched.
+    /// </para>
+    /// </remarks>
+    [Range(0, 48)]
+    public int SeriesIndexPages { get; set; } = 4;
+
+    /// <summary>
+    /// How long the series index is reused. Series do not begin and end quickly, so this is hours
+    /// rather than the minutes that the live window needs.
+    /// </summary>
+    [Range(1, 168)]
+    public int SeriesIndexCacheHours { get; set; } = 6;
 }

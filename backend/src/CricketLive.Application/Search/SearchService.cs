@@ -114,7 +114,7 @@ public sealed class SearchService(
             {
                 Id = item.Slug,
                 Title = item.Name,
-                Subtitle = Held(item.MatchCount),
+                Subtitle = Held(item),
             });
 
         var matchResults = Rank(trimmed, matchHits);
@@ -164,6 +164,26 @@ public sealed class SearchService(
     /// </remarks>
     private static string Held(int count)
         => count == 1 ? "1 match held" : $"{count} matches held";
+
+    /// <summary>
+    /// The same three readings the series pages use, and for the same reason.
+    /// </summary>
+    /// <remarks>
+    /// A series the provider's index lists and we hold no match of would otherwise come back as
+    /// "0 matches held" — true, and it reads as a fault. Saying how many the series has instead
+    /// turns the zero into a fact about our records rather than about the cricket.
+    /// </remarks>
+    private static string Held(Series.Dtos.SeriesDto series) => series switch
+    {
+        { MatchCount: 0, TotalMatchCount: null } => "No matches held yet",
+        // The total agrees with the noun, not the held count: "1 of 1 match held". A one-match
+        // series does exist — the provider lists tours with a single fixture.
+        { MatchCount: 0, TotalMatchCount: { } total } => $"None of {total} {Matches(total)} held yet",
+        { TotalMatchCount: null } => Held(series.MatchCount),
+        { MatchCount: var held, TotalMatchCount: { } total } => $"{held} of {total} {Matches(total)} held",
+    };
+
+    private static string Matches(int count) => count == 1 ? "match" : "matches";
 
     private static string Versus(MatchDto match)
         => $"{match.Home.Team.Name} vs {match.Away.Team.Name}";

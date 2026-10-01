@@ -148,6 +148,10 @@ Field notes worth knowing before building against this:
 
 - `status` is one of `live`, `upcoming`, `completed`. `format` is `T20`, `ODI`, `TEST` or `OTHER` —
   the provider covers formats we do not model, such as T10.
+- **`format` comes from `matchTitle` whenever the two disagree.** The provider's own `matchType`
+  labelled all five T20Is of the West Indies tour as `odi`, so a title naming a format outranks it;
+  see [D-034](./decisions.md). A title naming no format, like `1st Match`, leaves `matchType` to
+  decide.
 - `overs` is a **string** in cricket notation, where `41.4` means 41 overs and 4 balls. It is never
   arithmetic.
 - `innings` is an array because a Test side bats twice. It is empty for a side that has not batted.
@@ -355,17 +359,22 @@ better than distance because the provider gives us no end dates.
 }
 ```
 
-**The two counts are not interchangeable.** `matchCount` is how many matches of this series we can
-show; `totalMatchCount` is how many the series has, as the index counts them. A tournament that
-began before this site started recording reports a small `matchCount` and a large
+**The two counts are not interchangeable.** `matchCount` is how many matches of this series we hold
+a score for; `totalMatchCount` is how many the series has, as the index counts them. A tournament
+that began before this site started recording reports a small `matchCount` and a large
 `totalMatchCount`, which is the difference between a narrow window and a short series.
+
+`matchCount` is **not** the length of the `matches` array on the detail response, which also
+includes the provider's unplayed fixtures. It is the subset of them that carries a score.
 
 `totalMatchCount` is `null` when the index did not cover the series — anything outside the pages we
 read. **`null` means "we were not told", never "none"**; a row claiming zero matches is dropped on
 the way in, so zero never reaches a client.
 
 `lastMatchUtc` is when the latest match we hold began, and `null` when we hold none. It is never
-when the series ends, which we have no way of knowing.
+when the series ends, which we have no way of knowing. For a tour still being played it is a date
+somewhere in the middle of the schedule, which is why the frontend only draws a closed date range
+when `matchCount` has caught up with `totalMatchCount`.
 
 `isOngoing` is only ever derived from held matches, so a series known solely from the index reports
 `false` whatever its dates suggest. Deciding otherwise would mean comparing a start date against a
@@ -392,13 +401,25 @@ hold a match of it. That second condition used to be just "no match we hold", wh
 index-only series on the list a dead link — listing something and then refusing to open it is worse
 than not listing it.
 
-So a series the index lists and we hold nothing of returns **200** with `matches: []` and a
-`matchCount` of zero. That is a true statement about a real series, and distinct from the 404, which
-now means neither source has heard of it.
+**`matches` merges three sources**, keyed by match id, each overriding the last:
+
+| Source | Contributes | Beaten by |
+| --- | --- | --- |
+| `series_info` fixtures | the full schedule, with venues and dates, all reading as unplayed | both of the below |
+| our archive | scores for matches played since this site started | the live window |
+| the live window | the current state of anything in progress | — |
+
+So a match we hold a score for keeps its score, and one we do not still appears with its venue and
+its start time rather than being omitted. Ordered by start time, which for a schedule is playing
+order.
+
+One provider call per series, cached for a few hours, spent only when a series is actually opened.
+If that call fails or the series has no published schedule, `matches` falls back to what we hold
+and the response stays a 200 — a thinner page, not an error.
 
 `matchCount` and `totalMatchCount` here are the same values the list gives for the same series.
-They are filled in from the index on this path too, specifically so a card reading "2 of 8 matches
-held" cannot open a page reading "2 matches held".
+They are filled in from the index on this path too, specifically so a card reading "8 matches"
+cannot open a page reading "2 matches".
 
 **`standings` is empty unless a source supplied a table, which is the normal case.** A bilateral
 tour has no points table at all, and the only source that publishes one for the tournaments that

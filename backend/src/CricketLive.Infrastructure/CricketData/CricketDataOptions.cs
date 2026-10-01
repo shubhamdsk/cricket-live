@@ -67,4 +67,21 @@ public sealed class CricketDataOptions
     /// </summary>
     [Range(1, 168)]
     public int SeriesIndexCacheHours { get; set; } = 6;
+
+    /// <summary>
+    /// How long one series' fixture list is reused, and whether it is read at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A fixture list changes when a match finishes or is rescheduled, so this is shorter than the
+    /// index. The cost is one call per series somebody opens, not one per series listed, which is
+    /// what makes it affordable: the page that benefits is the page that pays.
+    /// </para>
+    /// <para>
+    /// Zero switches the source off entirely and leaves held matches as the only source, which is
+    /// where the series page started. See <c>AddSeriesFixtures</c>.
+    /// </para>
+    /// </remarks>
+    [Range(0, 168)]
+    public int SeriesFixturesCacheHours { get; set; } = 3;
 }

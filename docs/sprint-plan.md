@@ -873,9 +873,14 @@ instruction not to write new tests. `8.21`, the wiring those three would hang of
 branches require `backend`, `frontend` and `scan`, so the 203 tests that already exist are a real
 merge gate rather than a report nobody was obliged to read ([D-032](./decisions.md)).
 
-**Next action:** none is outstanding. The build work is finished, and what is left is a judgement
-call rather than a task — whether to unset `CricbuzzApi__Enabled` in production, where the
-recommendation on the record is yes. Anything beyond that is new scope, not remaining scope.
+**Next action:** the two remaining items are new scope rather than remaining scope, and both come
+out of the audit that followed D-033. The Upcoming page is empty because `currentMatches` has
+nothing imminent in it, and `cricScore` does — one call that names the series with activity, which
+the index can resolve to ids and `series_info` can expand. The Matches page is the awkward one: it
+filters and pages in SQL over the archive, so letting provider rows into it means reconciling two
+sources of truth about paging, not just adding a source. Beyond those, the open judgement call is
+whether to unset `CricbuzzApi__Enabled` in production, where the recommendation on the record is
+yes.
 
 **One thing was reported as a bug and turned out to be the design.** The series page showed a
 single series, because the list was built only from matches we hold and the provider's window held
@@ -884,6 +889,14 @@ is now read for existence — 1190 series are listed there, against the 2 matche
 which took the page from 1 series to 63 and search for "india" from 2 results to 13. The earlier
 decision to ignore that endpoint measured it correctly and drew the wrong conclusion from the
 measurement; both halves are recorded in [D-033](./decisions.md).
+
+**Fixing the list exposed the next layer of the same flaw.** 63 series were now listed and 61 of
+them opened onto an empty page explaining why it was empty. `series_info?id=` fills those in at one
+call per series actually opened: the West Indies tour went from 2 matches to 8, Sheffield Shield
+from 0 to 31, Ranji Trophy from 0 to 119. Building it also caught the provider labelling all five
+T20Is of that tour as `matchType = "odi"`, which would have put an ODI badge on a card reading "4th
+T20I" — the title now overrules the field, and every disagreement is logged. See
+[D-034](./decisions.md).
 
 The spin-down question is closed. It had sat on this list as "needs twenty idle minutes nobody has
 spent yet", and the reason nobody had spent them was that keep-warm made them impossible to spend.

@@ -6,7 +6,6 @@ import { Skeleton } from '@/components/common/Skeleton'
 import { focusRing } from '@/components/common/focusRing'
 import { MatchCard } from '@/components/match/MatchCard'
 import { PointsTable } from '@/features/series/components/PointsTable'
-import { heldCount } from '@/features/series/held'
 import { useSeriesDetails } from '@/features/series/hooks/useSeries'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { ApiError } from '@/services/apiClient'
@@ -89,7 +88,18 @@ export function SeriesDetailsPage() {
           )}
         </div>
 
-        <p className="text-sm text-ink-subtle">{heldCount(series)}.</p>
+        {/*
+          The list below, counted. Not the "held" figure the card shows: this page merges our own
+          records with the provider's fixture list, so what is on screen is usually the whole tour
+          and a count of our records would describe something the reader cannot see.
+        */}
+        <p className="text-sm text-ink-subtle">
+          {matches.length} {matches.length === 1 ? 'match' : 'matches'}
+          {series.matchCount > 0 && series.matchCount < matches.length
+            ? `, ${series.matchCount} with scores recorded here`
+            : ''}
+          .
+        </p>
       </div>
 
       {/* Rendered only when a source supplied one. Absence is not an empty table. */}
@@ -99,12 +109,11 @@ export function SeriesDetailsPage() {
         <h2 className="text-lg font-semibold tracking-tight text-ink">Matches</h2>
 
         {matches.length === 0 ? (
-          // Reached by a real series the provider's index listed and we hold no match of, which
-          // is the normal case for anything outside the live window and our own history. Saying
-          // why is the difference between an explanation and a dead end.
+          // Now a narrow case: the series is real and the provider has no fixtures for it either,
+          // which happens for a tour announced before its schedule is published.
           <EmptyState
-            title="No matches held for this series"
-            description="We list it because the provider does, but we only hold matches from the live window and from our own archive, which starts when this site did."
+            title="No matches listed yet"
+            description="The series exists, but the provider has not published its fixtures and we hold no record of it. The list fills in once either does."
           />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

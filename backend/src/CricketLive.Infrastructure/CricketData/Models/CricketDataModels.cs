@@ -133,6 +133,57 @@ internal sealed class CricketDataSeries
     public int Matches { get; set; }
 }
 
+/// <summary>
+/// The <c>series_info</c> response: a header, and every match of the series.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This is the endpoint the <c>series</c> index is not. The rows in <see cref="MatchList"/> arrive
+/// in the same shape as <see cref="CricketDataMatch"/> — a composite name carrying the match title,
+/// a venue, teams and <c>teamInfo</c> — so the existing mapper reads them without changes and a
+/// series page can show fixtures that have not been played yet.
+/// </para>
+/// <para>
+/// <b>The rows carry no <c>series_id</c>.</b> Measured: zero of eight. That is not a problem so
+/// long as the caller remembers it already knows the id — it had to supply one to ask the question
+/// — and fills it in rather than letting the mapper record an empty series for every match.
+/// </para>
+/// </remarks>
+internal sealed class CricketDataSeriesInfo
+{
+    [JsonPropertyName("info")]
+    public CricketDataSeriesHeader? Info { get; set; }
+
+    [JsonPropertyName("matchList")]
+    public List<CricketDataMatch>? MatchList { get; set; }
+}
+
+/// <summary>
+/// The header of a <c>series_info</c> response.
+/// </summary>
+/// <remarks>
+/// <c>enddate</c> is as unusable here as it is in the index — measured as <c>"Oct 17"</c> while
+/// <c>startdate</c> on the same object was <c>"2026-09-27"</c> — so it is not mapped. The per-format
+/// counts are, because a series page can say "3 ODIs and 5 T20Is" from them without arithmetic.
+/// </remarks>
+internal sealed class CricketDataSeriesHeader
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("matches")]
+    public int Matches { get; set; }
+
+    [JsonPropertyName("odi")]
+    public int Odi { get; set; }
+
+    [JsonPropertyName("t20")]
+    public int T20 { get; set; }
+
+    [JsonPropertyName("test")]
+    public int Test { get; set; }
+}
+
 internal sealed class CricketDataTeamInfo
 {
     [JsonPropertyName("name")]

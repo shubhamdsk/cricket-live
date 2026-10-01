@@ -5,6 +5,90 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-034 — A series page lists the provider's fixtures, and the title overrules `matchType`
+
+**Status:** accepted. Builds on [D-033](#d-033), which fixed the list and left every page it
+linked to nearly empty.
+
+### Context
+
+D-033 made the series list honest: 63 series instead of one. It also made a new problem obvious.
+The list came from the provider's index, but each series *page* still showed only matches we hold,
+so 61 of those 63 cards opened onto an empty page explaining why it was empty. A list of links to
+apologies is not much better than a list of one.
+
+`GET /v1/series_info?id=` closes it in a single call. Measured on the West Indies tour:
+
+```
+series_info?id=702ce6cb-…  ->  info{…}  matchList[8]
+  rows carry: id, name ("India vs West Indies, 4th T20I"), matchType, status, venue,
+              date, dateTimeGMT, teams[], teamInfo[], matchStarted, matchEnded
+  rows carry series_id on 0 of 8
+```
+
+That is the same shape `CricketDataMatchMapper` already consumes for the live window, which is the
+whole reason this was cheap: no new mapping, no new DTO, no new shape for the frontend to learn.
+The missing `series_id` is filled in from the id we asked about, which is not a guess — it is the
+question.
+
+### Decision
+
+`ISeriesFixtures` is a second existence-only source, parallel to `ISeriesIndex` and deliberately
+not part of `ICricketDataProvider`. `SeriesService.GetByIdAsync` merges three sources weakest-first
+into a dictionary keyed by match id:
+
+1. the provider's fixture list — complete, but every match reads as unplayed
+2. our archive — scores, for matches played since this site started
+3. the live window — the current state of anything in play
+
+Later wins, so a match we hold a score for keeps the score, and one we do not still appears with
+its venue and its date. The West Indies tour went from 2 matches to 8; Sheffield Shield from 0 to
+31; Ranji Trophy from 0 to 119.
+
+One call per series *actually opened*, cached three hours, so the page that benefits is the page
+that pays and nobody pays for the 61 cards they scrolled past. `SeriesFixturesCacheHours = 0`
+resolves to `NoSeriesFixtures` rather than to a zero-length cache, because a cache that expires
+immediately would read the provider on every page view and spend the day's allowance in an
+afternoon. Off is a decision; a zero lifetime would be an accident.
+
+### The provider contradicts itself about format
+
+Building this surfaced a data-quality bug that would have shipped straight to the user's screen.
+Every one of the five T20Is on the West Indies tour arrives with `matchType = "odi"`:
+
+```
+India vs West Indies, 1st T20I   matchType=odi
+India vs West Indies, 2nd T20I   matchType=odi
+India vs West Indies, 3rd T20I   matchType=odi
+India vs West Indies, 4th T20I   matchType=odi
+India vs West Indies, 5th T20I   matchType=odi
+```
+
+Five fixtures, five wrong labels, and the format filter would have agreed with all of them. When
+the two disagree the title wins, because the title is what a human wrote and read back, and it is
+also what our own page displays — a card reading "4th T20I" with an ODI badge is visibly wrong in
+a way that a wrong-but-consistent label is not. Every disagreement is logged at warning level, so
+if the provider's `matchType` ever becomes trustworthy we will see the logs go quiet rather than
+having to go looking.
+
+The title is only consulted when it names a format unambiguously. "1st Match" and "Elite Group A"
+name none, so those keep `matchType`.
+
+### Cost
+
+- A series page can show a fixture with no score where it previously showed nothing. The counts
+  say which is which: "8 matches, 2 with scores recorded here."
+- A card can no longer show a closed date range for a tour in progress. The only end date we have
+  is that of the last match *we hold*, which for a live tour is somewhere in the middle, and a
+  range ending there would contradict the list it opens. Closed range only when we hold every
+  match; otherwise "From ⟨start⟩". Computing real end dates would mean fetching all 63 series'
+  fixtures to render one list.
+- `FromTitle` is a word-match against English fixture names. It will not read a title in another
+  language, and it reads "T20I", "T20", and "Super T20" all as T20, which is correct here and is
+  an assumption worth remembering.
+
+---
+
 ## D-033 — The series list reads the provider's index after all, and D-013 was wrong about why
 
 **Status:** accepted. Reverses the reasoning in [D-013](#d-013) while keeping its finding intact.

@@ -104,7 +104,8 @@ public sealed class SeriesServiceTests
             provider,
             new StubArchive([]),
             new NoSeriesStandingsProvider(),
-            new NoSeriesIndex());
+            new NoSeriesIndex(),
+            new NoSeriesFixtures());
 
         Assert.Null(await service.GetByIdAsync("../etc/passwd", default));
 
@@ -163,8 +164,8 @@ public sealed class SeriesServiceTests
     }
 
     /// <summary>
-    /// Built without a series index, so these cases keep describing the join between the two
-    /// sources of matches rather than the list the index contributes to.
+    /// Built without a series index or a fixture source, so these cases keep describing the join
+    /// between the two sources of matches rather than what the provider adds on top of it.
     /// </summary>
     private static SeriesService Build(
         IReadOnlyList<MatchDetailsDto> window,
@@ -173,7 +174,8 @@ public sealed class SeriesServiceTests
             new StubProvider(window),
             new StubArchive(archive),
             new NoSeriesStandingsProvider(),
-            new NoSeriesIndex());
+            new NoSeriesIndex(),
+            new NoSeriesFixtures());
 
     private static DateTimeOffset Day(int day) => new(2026, 1, day, 9, 0, 0, TimeSpan.Zero);
 

@@ -73,16 +73,44 @@ a different problem and marking the day spent would hide it.
   failure. `LapsCompleted` is logged so that this is visible as a number that stops rising rather
   than as silence.
 
-### The part that is not verified
+### Shipped switched off, and why that is the decision rather than a hedge
+
+`MatchBackfillPages` defaults to **0**, which resolves to a loop that logs that it is off and
+returns. Forty is the intended value.
 
 Everything here builds, the 203 tests pass, the migration applies, the loop starts, and the
 **refusal path was observed in a real run against the live provider.** The **happy path — reading a
 page and writing its matches — has not been.** The day's hundred calls were spent verifying D-034
 and D-035, and the provider refused with "hits today exceeded hits limit", which is itself the
-evidence. It needs a run after the allowance resets before this entry can claim to work.
+evidence.
 
-Recording that here rather than leaving it to be assumed, because [D-032](#d-032) was written about
-exactly this: a mechanism that looked finished and had never actually run.
+So the code ships reviewed, deployed and dormant. Nothing unobserved runs against production data,
+and the alternative — holding the branch — would have left a migration unapplied and a week of
+drift to re-resolve for no gain. **To turn it on:** run locally with
+`CricketData__MatchBackfillPages=40` once the allowance has reset, confirm a page is read and the
+archive grows, then change the default here. That is one line and this paragraph is the record of
+why it was not written yet.
+
+Recording it rather than leaving it to be assumed, because [D-032](#d-032) was written about
+exactly this: a mechanism that looked finished and had never actually run. The difference is that
+this one says so out loud and is switched off until it has.
+
+### What exhausting the allowance accidentally proved
+
+With the day's calls gone, the deployed site was measured rather than guessed at:
+
+```
+matches/live      200   0 rows
+matches/upcoming  200   0 rows
+matches/recent    200   1 row
+series            200   63 rows
+teams             200   2 rows
+```
+
+No errors anywhere — it degrades to empty lists, which is what every "failures are swallowed"
+remark in D-033 through D-035 claimed would happen and none of them had seen. `series` still
+answering with all 63 is the last-known-good cache from D-033 serving a stale index through a
+provider outage, which is the one path in that change that could not be tested when it was written.
 
 ---
 

@@ -108,6 +108,14 @@ public sealed class CricketDataOptions
     /// </summary>
     /// <remarks>
     /// <para>
+    /// <b>Zero, which switches the backfill off, and that is deliberate rather than conservative.</b>
+    /// Its guards and its failure paths have been exercised against the live provider; reading a
+    /// page and archiving it has not, because the day's hundred calls were spent verifying the two
+    /// changes before it. Shipping it dormant means the code is reviewed and deployed without
+    /// anything unobserved running against production data. Forty is the intended value and the one
+    /// the rest of these remarks describe; see D-036 for what has to happen before it is set.
+    /// </para>
+    /// <para>
     /// The list is 15,531 matches deep, which is 621 pages, and walking all of it at a polite rate
     /// would take months and spend most of that time in seasons nobody will open. Forty pages is a
     /// thousand of the most recent matches — against the handful the archive accumulated on its own
@@ -122,7 +130,7 @@ public sealed class CricketDataOptions
     /// </para>
     /// </remarks>
     [Range(0, 621)]
-    public int MatchBackfillPages { get; set; } = 40;
+    public int MatchBackfillPages { get; set; }
 
     /// <summary>
     /// How many pages the backfill may read in one UTC day.

@@ -873,13 +873,15 @@ instruction not to write new tests. `8.21`, the wiring those three would hang of
 branches require `backend`, `frontend` and `scan`, so the 203 tests that already exist are a real
 merge gate rather than a report nobody was obliged to read ([D-032](./decisions.md)).
 
-**Next action:** one item of new scope remains, and it is the awkward one. Results on the Matches
-page come from the archive, which filters and pages in SQL, so widening it from the provider's
-`matches` endpoint — 15,531 rows at 25 a page — is not a matter of adding a source. Either the
-provider's rows are ingested into the archive, after which every page widens with no query changes,
-or paging is reconciled across two sources of truth. The first looks right and is the larger piece
-of work. Beyond that, the open judgement call is whether to unset `CricbuzzApi__Enabled` in
-production, where the recommendation on the record is yes.
+**Next action:** turn the match backfill on. It is built, deployed and switched off, because its
+guards and failure paths were observed against the live provider but reading and archiving a page
+was not — the day's hundred calls had gone on the two changes before it. Run locally with
+`CricketData__MatchBackfillPages=40` once the allowance resets, confirm the archive grows, then
+change the default. [D-036](./decisions.md) is the record of why it was left off rather than
+assumed to work.
+
+After that, the open judgement call is whether to unset `CricbuzzApi__Enabled` in production, where
+the recommendation on the record is yes.
 
 **One thing was reported as a bug and turned out to be the design.** The series page showed a
 single series, because the list was built only from matches we hold and the provider's window held
@@ -908,6 +910,19 @@ matches is a source of teams. See [D-035](./decisions.md).
 as the state of the world, and in each case the endpoint was narrower than the question. That is
 worth recording as a pattern rather than three bugs, because the next page built here will be
 tempted to make it a fourth time.
+
+**The results page is the one that could not be fixed that way.** It filters, counts and pages in
+SQL over the archive, so letting provider rows into the query at read time would mean two sources
+with no shared opinion about what page three is. The provider's rows are written into the archive
+instead, by a rate-limited background walk, which leaves every query untouched and widens results,
+series pages, teams and search from one writer. See [D-036](./decisions.md) — and note it is
+deployed switched off.
+
+**Spending the day's allowance proved something nobody had been able to test.** Every one of these
+changes claims its new source swallows failure and degrades rather than breaking; none of them had
+seen it happen. With the hundred calls gone, the deployed site returned 200 everywhere and simply
+emptied out — and the series list still answered with all 63, because the last-known-good cache
+written for D-033 served a stale index through a genuine provider outage for the first time.
 
 The spin-down question is closed. It had sat on this list as "needs twenty idle minutes nobody has
 spent yet", and the reason nobody had spent them was that keep-warm made them impossible to spend.

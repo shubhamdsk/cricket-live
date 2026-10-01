@@ -198,9 +198,15 @@ the two lists above return.
 ```
 
 `total` is what the archive currently holds **that matches the filter**, so it shrinks as a filter
-narrows and grows as matches finish. **It is not the number of matches ever played.** The archive
-accumulates forward from the day it was switched on, so an early `total` being small is expected
-rather than a sign of missing data. Page through with `hasMore` rather than by comparing counts.
+narrows and grows as matches finish. **It is not the number of matches ever played.** Page through
+with `hasMore` rather than by comparing counts.
+
+The archive used to only accumulate forward from the day it was switched on, which is why an early
+`total` was tiny. A background backfill now also walks the provider's own match list and writes
+what it finds here, so `total` grows without a match having to be played first. It is rate-limited
+to a few pages a day against a hundred-call allowance, so it grows steadily rather than all at
+once — see [D-036](./decisions.md), including the fact that it ships switched off until its happy
+path has been observed.
 
 Filtering happens in the database rather than over the returned page, so a filtered page is a full
 page and `total` agrees with what came back.

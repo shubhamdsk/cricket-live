@@ -7,7 +7,7 @@ import { focusRing } from '@/components/common/focusRing'
 import { MatchCard } from '@/components/match/MatchCard'
 import { PointsTable } from '@/features/series/components/PointsTable'
 import { useSeriesDetails } from '@/features/series/hooks/useSeries'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageMeta } from '@/hooks/usePageMeta'
 import { ApiError } from '@/services/apiClient'
 import { cn } from '@/utils/cn'
 
@@ -15,7 +15,14 @@ export function SeriesDetailsPage() {
   const { slug } = useParams<{ slug: string }>()
   const { data, isPending, isError, error, refetch } = useSeriesDetails(slug)
 
-  usePageTitle(data?.series.name ?? null)
+  usePageMeta(data?.series.name ?? null, {
+    description:
+      data === undefined
+        ? undefined
+        : `Full schedule and results for ${data.series.name}: ${data.matches.length} ${
+            data.matches.length === 1 ? 'match' : 'matches'
+          }, with scores for those already played.`,
+  })
 
   if (isPending) {
     return (

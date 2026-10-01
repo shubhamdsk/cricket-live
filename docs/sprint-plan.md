@@ -873,6 +873,18 @@ instruction not to write new tests. `8.21`, the wiring those three would hang of
 branches require `backend`, `frontend` and `scan`, so the 203 tests that already exist are a real
 merge gate rather than a report nobody was obliged to read ([D-032](./decisions.md)).
 
+**The site was unindexable, and the metadata was not the reason.** Asked to improve SEO, the thing
+in the way turned out to be the router: routes lived in the URL fragment, a fragment is never sent
+to a server, so `/#/series` was a request for `/` and the whole site had one address a crawler
+could see. Three separate artefacts had each documented that consequence and accepted it — the
+`robots.txt` comment explaining why it had no `Sitemap` line, the `usePageTitle` doc comment saying
+per-page tags would be "written for an audience that cannot read them", and D-019 itself. All three
+were correct; adding richer tags on top would have been decoration over the fault. Routes are paths
+now, old `/#/` links are rewritten on load, and the per-page titles, descriptions, canonicals, Open
+Graph tags, sitemap and icon set follow from that. [D-038](./decisions.md) records the reversal and
+the two traps in it, one of which bit: the rewrite has to run before the router's *module* is
+evaluated, not before the first render.
+
 **Next action:** turn the match backfill on. It is built, deployed and switched off, because its
 guards and failure paths were observed against the live provider but reading and archiving a page
 was not — the day's hundred calls had gone on the two changes before it. Run locally with

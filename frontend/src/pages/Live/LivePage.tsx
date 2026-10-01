@@ -1,9 +1,12 @@
 import { MatchListSection } from '@/features/matches/components/MatchListSection'
 import { useLiveMatches } from '@/features/matches/hooks/useMatches'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageMeta } from '@/hooks/usePageMeta'
 
 export function LivePage() {
-  usePageTitle('Live matches')
+  usePageMeta('Live matches', {
+    description:
+      'Every cricket match in play right now, with scores, overs and the state of the game updating as it happens.',
+  })
 
   const liveQuery = useLiveMatches()
 

@@ -1,0 +1,23 @@
+<!--
+  The source for every raster icon. Square and full-bleed on purpose: iOS rounds the corners of an
+  apple-touch-icon itself, and Android crops a maskable icon to whatever shape the launcher uses, so
+  an icon that brings its own rounded corners ends up with them clipped or doubled.
+
+  The ball is smaller here than in favicon.svg for the same reason. A maskable icon is only
+  guaranteed the circle of 80% diameter, and this ball spans 44% of the canvas, well inside it.
+
+  ../public/favicon.svg is the rounded sibling, for tabs, where nobody masks anything.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Cricket Live</title>
+  <rect width="64" height="64" fill="#059669" />
+  <circle cx="32" cy="32" r="14" fill="#ffffff" />
+  <g fill="none" stroke="#059669" stroke-linecap="round" stroke-width="1.5">
+    <path d="M36 20C41 25 41 39 36 44" />
+    <path d="M35.3 22.3h4.6" />
+    <path d="M36.9 26.8h4.6" />
+    <path d="M37.5 32h4.6" />
+    <path d="M36.9 37.2h4.6" />
+    <path d="M35.3 41.7h4.6" />
+  </g>
+</svg>

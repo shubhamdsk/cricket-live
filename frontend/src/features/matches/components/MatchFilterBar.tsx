@@ -53,7 +53,7 @@ export function MatchFilterBar({ state, series, isSeriesPending }: MatchFilterBa
               'min-h-9 rounded-full px-3.5 text-sm font-medium transition duration-150',
               focusRing,
               filters.status === status
-                ? 'bg-brand text-surface'
+                ? 'bg-brand text-on-brand'
                 : 'border border-line-strong text-ink-muted hover:bg-surface-muted',
             )}
           >

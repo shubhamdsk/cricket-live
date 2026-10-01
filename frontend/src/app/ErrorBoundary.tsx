@@ -66,7 +66,7 @@ export class ErrorBoundary extends Component<Props, State> {
           type="button"
           onClick={() => window.location.reload()}
           className={cn(
-            'mt-6 inline-flex min-h-11 items-center rounded-card bg-brand px-4 text-sm font-medium text-white transition hover:bg-brand-strong',
+            'mt-6 inline-flex min-h-11 items-center rounded-card bg-brand px-4 text-sm font-medium text-on-brand transition hover:bg-brand-hover',
             focusRing,
           )}
         >

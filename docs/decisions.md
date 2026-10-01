@@ -5,6 +5,75 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-039 — A dark default and a light option, as one set of token names rather than two sets of classes
+
+**Status:** accepted.
+
+### Context
+
+The app shipped with a single light palette, already expressed as semantic tokens in `index.css`:
+`surface`, `ink-muted`, `brand-strong` and so on. A survey of every component found **one** raw
+colour in the whole codebase — a `text-white` on a brand button — and no hardcoded hex anywhere.
+That groundwork is what made a second theme a palette change rather than a rewrite.
+
+### Decision
+
+The token **names** are declared once. The `@theme` block holds the **dark** values, and
+`html.theme-light` overrides them. Tailwind compiles every utility to `var(--color-…)`, so swapping
+one class on the root element reskins the application, and **there is not a single `dark:` variant
+in the codebase**. A component cannot tell which theme is on, which is the property worth having:
+nothing can drift, because there is nothing per-theme to keep in step.
+
+Dark is the default, and that choice has a mechanical payoff. No class means dark, so the pre-paint
+script in `index.html` does nothing at all for a visitor who has not chosen — the common case
+costs nothing and cannot flash.
+
+`src/store/themeStore.ts` treats **the DOM class as the single source of truth** and reads it on
+init rather than re-reading storage. The class is already correct by then, so consulting storage
+again would create a second answer that could disagree with what is on screen; storage is only how
+the preference survives a reload.
+
+### What makes it look like glass, and what does not
+
+Blur is the part people reach for first and it is the least of it. Three things together do the
+work: surfaces that are **translucent white** rather than flat grey, **hairline light borders** so
+a panel edge catches light, and `--page-glow` — fixed radial gradients behind everything — so the
+translucency has something to reveal. Remove the glow and the identical surfaces read as grey
+cards on black.
+
+So `backdrop-filter` is applied **only where something actually passes behind a panel**: the
+sticky header, and the search dropdown. Everywhere else it would buy a stacking context and
+compositing cost for no visible difference.
+
+The glow is a `background-image` on `body` rather than a pseudo-element, because a pseudo-element
+would have had to sit behind an opaque body background, where it would not have been visible at
+all. `background-attachment: fixed` is what makes it read as light in the room rather than
+decoration that scrolls away.
+
+`color-scheme` is set per theme and is not cosmetic: it is what makes the native `<select>` on the
+matches page open a dark list, and stops the browser painting a white canvas during load.
+
+### Three latent bugs this surfaced, which is the interesting part
+
+A second theme is a test of whether tokens mean what their names say. Three did not:
+
+1. **`Button`'s primary variant was `bg-brand text-surface`.** Correct only because `surface`
+   happened to be white. Once `surface` became translucent, the label on a green button was almost
+   invisible. Now `text-on-brand`, a token that exists to mean exactly that.
+2. **`hover:bg-brand-strong` on brand buttons.** `brand-strong` is a *text* colour, and a readable
+   accent on near-black has to be lighter — while a fill carrying white text has to stay dark. The
+   same token cannot do both. Now `brand-hover`.
+3. **`PointsTable` used `bg-surface-sunken`, a token that did not exist.** Tailwind emits nothing
+   for an unknown token, so the element had simply had no background since it was written, in
+   silence. The token is now defined, because the component's intent was right and only the
+   declaration was missing.
+
+None of the three was a dark-theme bug. They were existing bugs that a light-only palette could
+not reveal, and that is the general lesson: a theme that reuses a token for a second purpose is
+borrowing against the day the two purposes diverge.
+
+---
+
 ## D-038 — Routes become paths, because hash routing had made the site unindexable
 
 **Status:** accepted. Supersedes **D-019**, which chose the hash router.

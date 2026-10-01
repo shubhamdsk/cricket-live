@@ -118,7 +118,9 @@ export function SearchBox({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       {open && enabled && (
-        <div className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-card border border-line bg-surface p-2 shadow-lg">
+        /* `surface-raised` and `shadow-lift`: this covers the page rather than sitting on it, so
+           it needs an opaque fill and a shadow the dark theme can actually show. */
+        <div className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-card border border-line bg-surface-raised p-2 shadow-lift backdrop-blur-xl">
           {/*
             Announced politely so a screen reader hears the count settle rather than every
             intermediate state as the term is typed.

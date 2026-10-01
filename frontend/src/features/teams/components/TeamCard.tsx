@@ -10,7 +10,7 @@ export function TeamCard({ team }: { team: Team }) {
     <Link
       to={`/teams/${team.id}`}
       className={cn(
-        'flex items-center gap-3 rounded-xl border border-line bg-surface p-4 transition hover:border-brand/40 hover:shadow-sm',
+        'flex items-center gap-3 rounded-xl border border-line bg-surface p-4 transition hover:border-brand/40 hover:shadow-lift',
         focusRing,
       )}
     >

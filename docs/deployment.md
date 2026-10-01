@@ -41,8 +41,10 @@ server, and it is not negotiable — see [security.md](./security.md).
 **This is the one that will cost you real data.**
 
 The archive is not a cache. It is the only record of matches that have fallen out of the
-provider's few-day window, and it cannot be backfilled — CricketData does not serve history on
-the free plan. Data lost here is lost permanently. This is what Sprint 7 was for.
+provider's few-day window. Data lost here is replaceable only at a hundred calls a day: the
+backfill in [D-036](./decisions.md) walks the provider's match list at six pages a day, so a
+thousand matches take about a week to come back and anything outside that depth does not. Treat it
+as permanent loss. This is what Sprint 7 was for.
 
 Set `ConnectionStrings__Archive` to a PostgreSQL database. **If you do not, nothing fails**: the
 app falls back to a SQLite file inside the container, `MigrateArchiveAsync` creates a fresh

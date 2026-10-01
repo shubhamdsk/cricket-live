@@ -17,6 +17,8 @@ internal sealed class CricketLiveDbContext(DbContextOptions<CricketLiveDbContext
 
     public DbSet<ArchivedMatch> ArchivedMatches => Set<ArchivedMatch>();
 
+    public DbSet<BackfillState> BackfillState => Set<BackfillState>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         // SQLite's NOCASE only folds ASCII, and this one folds by Unicode rules, so a series name
@@ -81,5 +83,15 @@ internal sealed class CricketLiveDbContext(DbContextOptions<CricketLiveDbContext
 
         match.HasIndex(entity => new { entity.AwayTeamId, entity.StartTimeUtc })
             .HasDatabaseName("ix_archived_matches_away_team");
+
+        var backfill = builder.Entity<BackfillState>();
+
+        backfill.ToTable("backfill_state");
+        // No generation strategy: the single row writes its own fixed key, so that the row can be
+        // addressed before it exists rather than having to be looked up to be found.
+        backfill.HasKey(entity => entity.Id);
+        backfill.Property(entity => entity.Id).ValueGeneratedNever();
+        // Unindexed, and correctly so. One row is read once every tick of a background loop and
+        // never as part of answering a request.
     }
 }

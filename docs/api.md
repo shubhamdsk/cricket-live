@@ -42,6 +42,12 @@ decision entry and a pass over [security.md](./security.md).
 did nothing wrong, so the frontend can say "scores are temporarily unavailable" instead of showing
 a generic failure.
 
+**Only the live and upcoming lists return it.** Every other endpoint has our archive behind it and
+answers from that during an outage, so a 503 anywhere else is a bug — it used to be the behaviour,
+and [D-037](./decisions.md) is why it no longer is. The trade is that those endpoints can be
+quietly thinner than usual rather than saying so; nothing in the envelope yet carries "this answer
+is partial".
+
 **CORS.** An allow-list from `Cors:AllowedOrigins`, never a wildcard. Development allows the Vite
 dev server only.
 
@@ -107,6 +113,11 @@ empty list for it would look like an answer rather than a mistake.
 
 Two lists, each returning `data` as an array of matches. They are partitions of the same upstream
 read, so asking for both costs no more than asking for one — see [D-012](./decisions.md).
+
+**These two are the endpoints that fail during a provider outage, on purpose.** Everything else
+here has the archive behind it and serves what it holds; these have no second source, so an empty
+array would claim that no cricket is on rather than that we cannot currently say. They return
+**503** — see [D-037](./decisions.md).
 
 **Two upstream sources, merged.** The provider's main window held 2 matches, both finished, on a
 day its own scoreboard endpoint listed 4 fixtures still to be played, so `/upcoming` was returning

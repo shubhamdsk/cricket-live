@@ -918,11 +918,21 @@ instead, by a rate-limited background walk, which leaves every query untouched a
 series pages, teams and search from one writer. See [D-036](./decisions.md) — and note it is
 deployed switched off.
 
-**Spending the day's allowance proved something nobody had been able to test.** Every one of these
-changes claims its new source swallows failure and degrades rather than breaking; none of them had
-seen it happen. With the hundred calls gone, the deployed site returned 200 everywhere and simply
-emptied out — and the series list still answered with all 63, because the last-known-good cache
-written for D-033 served a stale index through a genuine provider outage for the first time.
+**Spending the day's allowance proved something nobody had been able to test, and then found a
+real bug.** Every one of these changes claims its new source swallows failure and degrades rather
+than breaking, and none of them had seen it happen. With the hundred calls gone the deployed site
+returned 200 everywhere and simply emptied out, and the series list still answered with all 63
+because D-033's last-known-good cache served a stale index through a genuine outage for the first
+time.
+
+Then the next deploy restarted the container, the warm caches went with it, and **results, series,
+teams and search all returned 503** — pages whose answers were sitting in our own database,
+needing no provider call. They each read the provider's window first and let a failed read fail the
+request, which had been true since the archive was built and had never been visible, because an
+outage had never outlived the caches before. Fixed in [D-037](./decisions.md): a page with
+something durable behind it serves what it holds, while live and upcoming still fail loudly because
+an empty list there would claim no cricket is on. Verified against the real outage rather than a
+simulated one, which is the only reason it could be verified at all.
 
 The spin-down question is closed. It had sat on this list as "needs twenty idle minutes nobody has
 spent yet", and the reason nobody had spent them was that keep-warm made them impossible to spend.

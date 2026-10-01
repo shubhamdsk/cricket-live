@@ -5,6 +5,80 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-037 — A page with an archive behind it does not fail because the provider did
+
+**Status:** accepted. Fixes a gap that had been there since the archive was built, found by
+watching the deployed site refuse to serve pages it could have served.
+
+### Context
+
+With the day's provider allowance spent and a freshly restarted container, the live site returned
+**503 on results, series, teams and search**:
+
+```
+GET /api/series  ->  503
+{"success":false,"data":null,"message":"Live cricket data is temporarily unavailable..."}
+```
+
+Every one of those pages reads the archive. The archive is in our own database, needed no provider
+call, and held the answers. They failed because each one reads the provider's window first and let
+a failed read fail the whole request.
+
+This had been true since the archive existed and had simply never been visible. Warm caches masked
+it: the window is cached five minutes and the series index keeps a last-known-good copy for a day,
+so an outage short enough to sit inside those never reached a reader. It took an exhausted
+allowance *and* a restart on the same afternoon to expose it — which is to say, it took a worse day
+than any we had had.
+
+**The whole purpose of the archive is that the provider's window is narrow and temporary.** Letting
+a window failure take down the pages built on the archive defeats the reason the archive was built.
+
+### Decision
+
+`ProviderWindow.OrEmptyAsync` reads the window and returns an empty one when the provider cannot be
+reached. Applied to every read that merges the window with something durable: results, the series
+list and series pages, teams, search, and the series-name filter. The window contributes what is in
+play right now, and contributing nothing makes those pages slightly stale instead of absent.
+
+**Deliberately not applied to the live and upcoming lists.** They have no second source, so an
+empty array there would be a claim that no cricket is on — which is a different statement from "we
+cannot currently tell you", and during an outage only one of them is true. Those still return 503.
+Degrading honestly means degrading differently depending on what else you have.
+
+Nothing is logged at the swallow. Every path that raises `CricketDataUnavailableException` has
+already logged the cause with the detail that matters — status code, refusal reason, or exhausted
+allowance — and a second line saying a caller swallowed it would add nothing and appear once per
+page view.
+
+### Verified against a real outage
+
+A genuine provider outage is not something you can arrange; this one was available because the
+day's hundred calls were gone:
+
+```
+matches/recent    200   1 row        from the archive
+series            200   1 row        from the archive
+teams             200   2 rows       from the archive
+search?q=india    200   2 matches, 1 team, 1 series
+matches/live      503                correctly, no second source
+matches/upcoming  503                correctly, no second source
+```
+
+Before this change the first four were 503.
+
+### Cost
+
+- A page can be quietly thinner during an outage rather than announcing one. The series list
+  dropped from 63 to 1, because a cold process has no cached index and no last-known-good copy to
+  fall back on, and nothing on the page says so. The honest alternative — a banner — needs a way
+  for a response to carry "this is partial", which no DTO here has. Worth doing; not worth blocking
+  a restored site on.
+- `ProviderWindow` is a static helper rather than a decorator on `ICricketDataProvider`, because the
+  behaviour is a property of the *caller's* situation, not of the provider. The same failed read
+  must break the live list and not break the series list, and a decorator cannot tell them apart.
+
+---
+
 ## D-036 — History is ingested into the archive, not merged into the query that reads it
 
 **Status:** accepted. The happy path is **not yet verified against the provider** — see the last

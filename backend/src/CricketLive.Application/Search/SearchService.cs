@@ -76,7 +76,9 @@ public sealed class SearchService(
             trimmed = trimmed[..MaximumQueryLength];
         }
 
-        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        // Optional: search over the archive alone is a narrower search, which is a far better
+        // answer than refusing to search at all because the provider is down.
+        var window = await ProviderWindow.OrEmptyAsync(provider, cancellationToken);
 
         // The archive is read unfiltered and matched in memory. Pushing the term into SQL would
         // mean LIKE against a payload column, which is neither indexed nor safe for a term

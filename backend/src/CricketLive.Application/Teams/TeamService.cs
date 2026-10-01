@@ -149,7 +149,9 @@ public sealed class TeamService(
     /// </remarks>
     private async Task<IReadOnlyList<MatchDetailsDto>> CurrentAsync(CancellationToken cancellationToken)
     {
-        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        // Optional, because a team is mostly what the archive says it is. A provider outage should
+        // cost this page the sides that are only in today's fixtures, not every side we know of.
+        var window = await ProviderWindow.OrEmptyAsync(provider, cancellationToken);
         var imminent = await pending.GetAsync(cancellationToken);
 
         if (imminent.Count == 0)

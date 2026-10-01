@@ -96,8 +96,10 @@ public sealed class MatchService(
         }
 
         // Fetching the window is also what archives it, so by the time the archive is read below it
-        // already holds everything the window could contribute. The archive is the source here.
-        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        // already holds everything the window could contribute. The archive is the source here, and
+        // because it is, a provider outage costs this list the last few minutes rather than all of
+        // it — see ProviderWindow for the day that distinction was learned the hard way.
+        var window = await ProviderWindow.OrEmptyAsync(provider, cancellationToken);
 
         var stored = await archive.GetFinishedAsync(filter, page.Skip, page.Take, cancellationToken);
         var total = await archive.CountFinishedAsync(filter, cancellationToken);
@@ -143,7 +145,7 @@ public sealed class MatchService(
     /// </remarks>
     public async Task<IReadOnlyList<string>> GetSeriesNamesAsync(CancellationToken cancellationToken)
     {
-        var window = await provider.GetCurrentMatchesAsync(cancellationToken);
+        var window = await ProviderWindow.OrEmptyAsync(provider, cancellationToken);
         var imminent = await pending.GetAsync(cancellationToken);
         // Nothing is excluded because nothing here is counted: this reduces to a distinct set of
         // names, so a series appearing in two sources costs a duplicate that Distinct removes.

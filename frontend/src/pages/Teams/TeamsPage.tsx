@@ -3,10 +3,13 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { Skeleton } from '@/components/common/Skeleton'
 import { TeamCard } from '@/features/teams/components/TeamCard'
 import { useAllTeams } from '@/features/teams/hooks/useTeams'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageMeta } from '@/hooks/usePageMeta'
 
 export function TeamsPage() {
-  usePageTitle('Teams')
+  usePageMeta('Teams', {
+    description:
+      'Cricket teams we hold matches for, with their fixtures, results and opponents.',
+  })
 
   const { data, isPending, isError, error, refetch } = useAllTeams()
 

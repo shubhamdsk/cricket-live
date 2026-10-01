@@ -9,10 +9,13 @@ import {
   useSeriesNames,
   useUpcomingMatches,
 } from '@/features/matches/hooks/useMatches'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageMeta } from '@/hooks/usePageMeta'
 
 export function MatchesPage() {
-  usePageTitle('Matches')
+  usePageMeta('Matches', {
+    description:
+      'Cricket matches live, upcoming and completed, filterable by series, format and team.',
+  })
 
   const filterState = useMatchFilters()
   const { filters, params, isFiltered } = filterState

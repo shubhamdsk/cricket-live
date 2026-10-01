@@ -7,7 +7,7 @@ import { focusRing } from '@/components/common/focusRing'
 import { MatchCard } from '@/components/match/MatchCard'
 import { TeamCrest } from '@/features/teams/components/TeamCrest'
 import { useTeamDetails } from '@/features/teams/hooks/useTeams'
-import { usePageTitle } from '@/hooks/usePageTitle'
+import { usePageMeta } from '@/hooks/usePageMeta'
 import { ApiError } from '@/services/apiClient'
 import { cn } from '@/utils/cn'
 
@@ -16,7 +16,14 @@ export function TeamDetailsPage() {
   const { data, isPending, isError, error, refetch } = useTeamDetails(slug)
 
   // Null until the side has a name, so the tab does not read "undefined" on the way there.
-  usePageTitle(data?.team.name ?? null)
+  usePageMeta(data?.team.name ?? null, {
+    description:
+      data === undefined
+        ? undefined
+        : `${data.team.name} cricket fixtures and results: ${data.team.matchCount} ${
+            data.team.matchCount === 1 ? 'match' : 'matches'
+          } across ${data.series.length} series.`,
+  })
 
   if (isPending) {
     return (

@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 
 interface UiState {
-  isMobileNavOpen: boolean
-  setMobileNavOpen: (isOpen: boolean) => void
+  isMobileSearchOpen: boolean
+  setMobileSearchOpen: (isOpen: boolean) => void
 
   /**
    * What the route announcer should read out next, or the empty string for nothing pending.
@@ -16,8 +16,8 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  isMobileNavOpen: false,
-  setMobileNavOpen: (isMobileNavOpen) => set({ isMobileNavOpen }),
+  isMobileSearchOpen: false,
+  setMobileSearchOpen: (isMobileSearchOpen) => set({ isMobileSearchOpen }),
 
   announcement: '',
   announce: (announcement) => set({ announcement }),

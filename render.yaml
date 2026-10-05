@@ -73,6 +73,13 @@ services:
       - key: CricbuzzApi__ApiKey
         sync: false
 
+      # Pairs our match ids with Cricbuzz's by reading cricbuzz.com's listing pages. Without it the
+      # scorecard source above never makes a call, because no match can be identified in its terms.
+      # Reading those pages goes against Cricbuzz's robots.txt and "private viewing only" terms;
+      # that was accepted explicitly. See D-031 and D-043.
+      - key: Cricbuzz__AutoResolve
+        value: true
+
       # The Neon connection string, which carries its own password and so belongs here rather
       # than in the file. Use the pooled host Neon offers and keep sslmode=require.
       #

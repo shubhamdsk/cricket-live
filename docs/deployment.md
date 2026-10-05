@@ -267,6 +267,10 @@ alone was enough to start reading Cricbuzz's website — a permission from one p
 switch named after another. If a deployment has the scorecard on and wants automatic pairing, it
 must now say so explicitly. `Cricbuzz__MatchIds` pairs by hand and reads no page.
 
+**Production now says so:** `render.yaml` sets `Cricbuzz__AutoResolve=true`, because with the
+scorecard on and no pairing the source made no calls at all and every match page reported no
+scorecard. The other two switches stay off. See [D-043](./decisions.md).
+
 ---
 
 ## Neon — the archive

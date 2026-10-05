@@ -128,3 +128,6 @@ app.MapHealthChecks(
 app.MapControllers();
 
 app.Run();
+
+// The entry point for WebApplicationFactory in the pipeline tests.
+public partial class Program;

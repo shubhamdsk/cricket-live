@@ -29,6 +29,8 @@ jobs:
 
       - run: npm run format:check
 
+      - run: npm test
+
       # The build refuses to run without this, because Vite inlines it and an unset variable
       # becomes the literal string "undefined" in every request URL rather than an error. CI is
       # checking that the code compiles, not producing a deployable bundle, so the value here is
@@ -36,3 +38,30 @@ jobs:
       - run: npm run build
         env:
           VITE_API_BASE_URL: http://localhost:5140
+
+  # Not a required check yet: a browser suite earns that by staying green for a while first.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      # Every API call is answered inside the test, so this needs no backend and spends no
+      # provider allowance. The config builds the site against a placeholder address itself.
+      - run: npm run e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: frontend/test-results
+          retention-days: 7

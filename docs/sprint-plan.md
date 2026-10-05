@@ -917,8 +917,14 @@ refetching. [D-041](./decisions.md) has the rules, the two entry points they nee
 known wart: an ICC event names no nation, so the Women's T20 World Cup waits for its first covered
 match before it appears.
 
-The open judgement call is whether to unset `CricbuzzApi__Enabled` in production, where the
-recommendation on the record is yes.
+**Cricbuzz stays on in production** — scorecards need a second source on the free CricketData plan,
+with the monthly cap and licence caveats unchanged. [D-042](./decisions.md) reconciles that with
+what deployment.md had recommended.
+
+**Outage resilience:** the live window is snapshotted to the database so a container restart does
+not wipe the fallback; live and upcoming can answer with `asOfUtc` instead of 503; match detail
+falls back to the archive when the provider throws; the daily burn was cut (24h series index cache,
+20 reserved hits, three backfill pages a day).
 
 **One thing was reported as a bug and turned out to be the design.** The series page showed a
 single series, because the list was built only from matches we hold and the provider's window held

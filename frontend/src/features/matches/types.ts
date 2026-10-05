@@ -73,6 +73,20 @@ export interface Paged<T> {
   hasMore: boolean
 }
 
+/**
+ * A list from the provider's live window, with when that window was read.
+ *
+ * `asOfUtc` is absent on almost every response and its absence is the meaning: the data is
+ * current. It is set when the API could not reach the score provider and answered from the last
+ * window it stored, so the page can say what the data is from rather than presenting an old score
+ * as a live one. Only live and upcoming carry it.
+ */
+export interface DatedMatches {
+  matches: Match[]
+  /** An ISO instant, or absent when the data is current. */
+  asOfUtc?: string
+}
+
 export interface Batter {
   name: string
   runs: number

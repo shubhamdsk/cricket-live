@@ -19,7 +19,7 @@ export function HomePage() {
   // A single row of results here; the matches page is where the rest of the archive lives.
   const recentQuery = useRecentMatches(3)
 
-  const featuredMatch = liveQuery.data?.[0]
+  const featuredMatch = liveQuery.data?.matches[0]
 
   return (
     <div className="space-y-8">

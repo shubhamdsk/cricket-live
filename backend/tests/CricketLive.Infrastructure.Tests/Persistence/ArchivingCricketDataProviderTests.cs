@@ -51,6 +51,27 @@ public sealed class ArchivingCricketDataProviderTests
     }
 
     [Fact]
+    public async Task When_provider_is_unavailable_and_archive_has_match_it_is_served_from_archive()
+    {
+        var archive = new RecordingArchive { Held = Match("a") };
+        var provider = Build(new ThrowingProvider(), archive);
+
+        var match = await provider.GetMatchAsync("a", default);
+
+        Assert.Equal("a", match?.Id);
+    }
+
+    [Fact]
+    public async Task When_provider_is_unavailable_and_archive_does_not_have_match_exception_rethrows()
+    {
+        var archive = new RecordingArchive();
+        var provider = Build(new ThrowingProvider(), archive);
+
+        await Assert.ThrowsAsync<CricketDataUnavailableException>(
+            () => provider.GetMatchAsync("never-existed", default));
+    }
+
+    [Fact]
     public async Task A_failed_write_does_not_fail_the_read()
     {
         // The home page loading matters more than history being complete.
@@ -106,6 +127,15 @@ public sealed class ArchivingCricketDataProviderTests
 
         public Task<MatchDetailsDto?> GetMatchAsync(string matchId, CancellationToken cancellationToken)
             => Task.FromResult(window.FirstOrDefault(match => match.Id == matchId));
+    }
+
+    private sealed class ThrowingProvider : ICricketDataProvider
+    {
+        public Task<IReadOnlyList<MatchDetailsDto>> GetCurrentMatchesAsync(CancellationToken cancellationToken)
+            => throw new CricketDataUnavailableException("Simulated provider outage");
+
+        public Task<MatchDetailsDto?> GetMatchAsync(string matchId, CancellationToken cancellationToken)
+            => throw new CricketDataUnavailableException("Simulated provider outage");
     }
 
     private sealed class RecordingArchive : IMatchArchive

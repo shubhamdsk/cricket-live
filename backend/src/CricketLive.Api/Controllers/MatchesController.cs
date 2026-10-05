@@ -10,7 +10,7 @@ namespace CricketLive.Api.Controllers;
 [ApiController]
 [Route(ApiRoutes.Matches)]
 [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status503ServiceUnavailable)]
-public sealed class MatchesController(IMatchService matches) : ControllerBase
+public sealed class MatchesController(IMatchService matches, WindowFreshness freshness) : ControllerBase
 {
     [HttpGet("live")]
     [ProducesResponseType<ApiResponse<IReadOnlyList<MatchDto>>>(StatusCodes.Status200OK)]
@@ -26,7 +26,7 @@ public sealed class MatchesController(IMatchService matches) : ControllerBase
 
         var result = await matches.GetLiveAsync(filter, cancellationToken);
 
-        return Ok(ApiResponse<IReadOnlyList<MatchDto>>.Ok(result));
+        return Ok(Dated(result));
     }
 
     [HttpGet("upcoming")]
@@ -43,8 +43,24 @@ public sealed class MatchesController(IMatchService matches) : ControllerBase
 
         var result = await matches.GetUpcomingAsync(filter, cancellationToken);
 
-        return Ok(ApiResponse<IReadOnlyList<MatchDto>>.Ok(result));
+        return Ok(Dated(result));
     }
+
+    /// <summary>
+    /// Stamps the response with a capture time if the window behind it was recovered from storage.
+    /// </summary>
+    /// <remarks>
+    /// Only the two endpoints that read the provider's live window need this. The results, series
+    /// and teams lists come from the archive, which is never stale in a way a reader could be misled
+    /// by — a match that finished last week finished last week.
+    /// </remarks>
+    private ApiResponse<IReadOnlyList<MatchDto>> Dated(IReadOnlyList<MatchDto> result)
+        => freshness.CapturedAtUtc is { } capturedAt
+            ? ApiResponse<IReadOnlyList<MatchDto>>.Stale(
+                result,
+                capturedAt,
+                "Served from the last data we were able to read; the score provider is unavailable")
+            : ApiResponse<IReadOnlyList<MatchDto>>.Ok(result);
 
     /// <summary>
     /// Every series a match can currently be filtered to.

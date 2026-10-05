@@ -38,19 +38,61 @@ internal sealed class ArchivingCricketDataProvider(
         return window;
     }
 
+    /// <remarks>
+    /// <para>
+    /// Two fallbacks to the archive, for two different situations that used to be one.
+    /// </para>
+    /// <para>
+    /// <b>The provider answered and has never heard of this match</b> — its window has moved on. If
+    /// we kept the match while it was still in the window, we can still answer, which is the whole
+    /// point of having an archive.
+    /// </para>
+    /// <para>
+    /// <b>The provider could not be reached at all.</b> This one was missing, and the gap was
+    /// visible: during an outage, a match sitting in our archive answered 503 while the results
+    /// list that linked to it answered 200 — so every result on the page was a dead link, and
+    /// docs/api.md said in as many words that a 503 outside the live and upcoming lists is a bug.
+    /// The exception path simply never reached the archive, because only a <see langword="null"/>
+    /// did.
+    /// </para>
+    /// <para>
+    /// A miss here rethrows rather than returning <see langword="null"/>. Not holding a match while
+    /// the provider is unreachable means we cannot tell whether it exists, and a 404 would claim we
+    /// can.
+    /// </para>
+    /// </remarks>
     public async Task<MatchDetailsDto?> GetMatchAsync(
         string matchId,
         CancellationToken cancellationToken)
     {
-        var match = await inner.GetMatchAsync(matchId, cancellationToken);
+        MatchDetailsDto? match;
+
+        try
+        {
+            match = await inner.GetMatchAsync(matchId, cancellationToken);
+        }
+        catch (CricketDataUnavailableException exception)
+        {
+            var held = await archive.GetAsync(matchId, cancellationToken);
+
+            if (held is null)
+            {
+                throw;
+            }
+
+            logger.LogInformation(
+                exception,
+                "Serving match {MatchId} from the archive because the provider is unavailable",
+                matchId);
+
+            return held;
+        }
 
         if (match is not null)
         {
             return await ArchiveThenReturnAsync(match, cancellationToken);
         }
 
-        // The provider's window has moved on. If we kept this match while it was still in the
-        // window, we can still answer — which is the whole point of having an archive.
         return await archive.GetAsync(matchId, cancellationToken);
     }
 

@@ -245,8 +245,14 @@ agent it has not named, and ours is not named. The RapidAPI route supplies no pe
 RapidAPI's terms put the licence squarely between the consumer and the listing's publisher, who is
 not Cricbuzz.
 
-**The recommendation is to leave `CricbuzzApi__Enabled` unset in production.** A public site fails
-the "private viewing only" half of the grant no matter how little it polls.
+**Production leaves `CricbuzzApi__Enabled` on** (`render.yaml`), and that is an accepted trade rather
+than an oversight. CricketData's free plan carries no player-level scorecard at all, so without this
+source a match page can show a team total and nothing else. The cost is the one [D-031](./decisions.md)
+already recorded: neither route to Cricbuzz data is licensed, the RapidAPI allowance is **200
+requests a month**, and the frontend loads the card only after a press so the cap is not spent on
+every page view. A public site still fails Cricbuzz's "private viewing only" grant; turning the
+source off would align with that text and would also remove the only batter-level detail on the free
+stack. See [D-042](./decisions.md) for when that choice was made explicit.
 
 Three switches now govern every path to `www.cricbuzz.com`, and **all three are off by default**:
 

@@ -125,11 +125,17 @@ Work goes into `develop` through feature-branch pull requests and is released by
 into `master`. Pushing to `master` deploys both the frontend (Vercel) and the API (Render).
 Both branches require the `backend`, `frontend` and `scan` checks to pass.
 
-**Cold starts.** Render's free plan stops the API after about 15 minutes without traffic, and the
-next visitor waits 30–60 seconds. An outside uptime monitor pinging
-`https://cricket-live-api-qwo6.onrender.com/api/health/live` every 5 minutes keeps it awake. That
-endpoint runs no checks and calls no provider, so it costs no API calls. The GitHub
-`keep-warm.yml` workflow does the same, but GitHub runs free schedules only every few hours.
+**Keeping the API awake.** Render's free plan stops the API after about 15 minutes without
+traffic, and the next visitor waits 30–60 seconds while it starts. To prevent that, a free
+[cron-job.org](https://cron-job.org) job named **Cricket Live keep-awake** calls
+`https://cricket-live-api-qwo6.onrender.com/api/health/live` every 5 minutes.
+
+* That endpoint runs no checks and calls no provider, so the ping costs no CricketData or RapidAPI
+  calls. Do not point it at `/api/health/ready`, which queries the database and would keep Neon
+  awake too.
+* The job's history on cron-job.org should show `200 OK` every 5 minutes; it emails on failure.
+* The GitHub `keep-warm.yml` workflow pings the same endpoint as a backup, but GitHub runs free
+  schedules only every few hours, so it cannot keep the API awake on its own.
 
 Full details in [docs/deployment.md](docs/deployment.md).
 

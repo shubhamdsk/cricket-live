@@ -97,6 +97,20 @@ stream of junk identifiers would spend a daily allowance that is only a hundred 
 
 **Transport.** HTTPS redirection is on outside Development ([D-008](./decisions.md)).
 
+**Rate limiting.** Per caller IP: 120 API requests a minute, 600 crest images a minute, and 4
+concurrent live streams (`RateLimiting.cs`, configurable under `RateLimits`). Over the limit is a
+429 in the standard envelope with `Retry-After`. Production sets `ForwardedHeaders__Enabled`, since
+behind Render's proxy every visitor would otherwise share one bucket.
+
+**Security headers.** The API sends a `default-src 'none'` Content-Security-Policy, `nosniff`,
+`X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`, hides the server header, and adds HSTS
+in production (`SecurityHeadersMiddleware`). The website sets its own in `frontend/vercel.json`:
+a Content-Security-Policy that allows only the site itself and the API origin, plus the theme
+script in `index.html` by its sha256 hash; `nosniff`; `X-Frame-Options: DENY`;
+`Referrer-Policy: strict-origin-when-cross-origin`; and a `Permissions-Policy` that turns off camera,
+microphone, location, payment and USB. Changing the API host, or editing that inline script, means
+updating the policy.
+
 **Dependencies.** `npm audit` reports clean at the time of writing; the lockfile is committed.
 
 ---
@@ -105,8 +119,8 @@ stream of junk identifiers would spend a daily allowance that is only a hundred 
 
 | Gap | Risk | Closes |
 | --- | --- | --- |
-| No rate limiting | One client can exhaust the provider budget for everyone | Sprint 8 |
-| No security headers | Clickjacking, sniffing, referrer leakage | Sprint 8 |
+| ~~No rate limiting~~ | One client can exhaust the provider budget for everyone | **Closed**, see §3 |
+| ~~No security headers~~ | Clickjacking, sniffing, referrer leakage | **Closed** for the API and the website, see §3 |
 | No request size limit | Trivially large bodies accepted | Sprint 8 |
 | No dependency scanning in CI | A vulnerable package lands unnoticed | Sprint 8 |
 | Key not in a GitHub Actions secret | — none today | Sprint 8 (`8.16`) |

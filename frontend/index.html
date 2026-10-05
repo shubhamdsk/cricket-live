@@ -101,6 +101,10 @@
       Deferring it to the bundle would not work: by the time a module runs, the browser has already
       painted a dark page. The storage key is duplicated from `src/store/themeStore.ts` because a
       script in the document head cannot import, and that file says so too.
+
+      The Content-Security-Policy in vercel.json allows this script by its sha256 hash. Any edit
+      inside the script tag changes the hash, and the browser will then refuse to run it until the
+      hash in vercel.json is updated to match.
     -->
     <script>
       try {

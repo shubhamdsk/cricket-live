@@ -5,6 +5,35 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-043 — Production pairs scorecard matches automatically
+
+**Status:** accepted. Reverses, for production only, the default that [D-031](#d-031) set.
+
+### Context
+
+With `CricbuzzApi__Enabled` on and a key configured, every match page still answered "No scorecard
+is available". The scorecard source needs a Cricbuzz match id, and with `Cricbuzz:AutoResolve` off
+and `Cricbuzz:MatchIds` empty nothing could supply one, so the source declined before making a
+call. The RapidAPI dashboard showed 11 calls in 30 days.
+
+### Decision
+
+**`render.yaml` sets `Cricbuzz__AutoResolve=true`.** The project owner chose it over pairing matches
+by hand, knowing that it reads cricbuzz.com's listing pages against its `robots.txt` and its
+"private viewing only" terms. The code default stays `false`, so any other deployment still has to
+opt in. `Cricbuzz__Enabled` and `Cricbuzz__StandingsEnabled` stay off.
+
+### What this costs
+
+- **The licensing objection in D-031 is accepted, not answered.** Reading is light (the directory
+  is cached for half an hour) but it is still reading a site that asked not to be read.
+- **Calls are now actually spent.** Each scorecard opened costs at most one of the 200 monthly
+  calls, and a finished match is cached for a day; misses are cached for an hour.
+- **Pairing can still miss.** It matches on title and series name and declines when unsure, so
+  some matches, especially ones the listing pages no longer show, will still have no scorecard.
+
+---
+
 ## D-042 — When the provider is down, serve what we kept — and say when we kept it
 
 **Status:** accepted. Follows a day the home page showed two error cards above a working results

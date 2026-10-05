@@ -1,9 +1,9 @@
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import { describeMatch, isLinkPreviewBot, withPreview } from '@/share/linkPreview'
 import { match, side } from '@/test/fixtures'
+
+import html from '../../index.html?raw'
 
 describe('isLinkPreviewBot', () => {
   it.each([
@@ -58,7 +58,6 @@ describe('describeMatch', () => {
 })
 
 describe('withPreview', () => {
-  const html = readFileSync('index.html', 'utf8')
   const preview = {
     title: 'IND 351/7 vs WI 352/5 · 3rd ODI',
     description: 'West Indies won by 5 wkts. India vs "West Indies" <b>',

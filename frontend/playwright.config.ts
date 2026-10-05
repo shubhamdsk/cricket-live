@@ -17,6 +17,8 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${port}`,
     trace: 'retain-on-failure',
+    // A service worker's own requests bypass `page.route`, so it is off unless a test asks for it.
+    serviceWorkers: 'block',
   },
   projects: [{ name: 'phone', use: { ...devices['Pixel 7'] } }],
   webServer: {

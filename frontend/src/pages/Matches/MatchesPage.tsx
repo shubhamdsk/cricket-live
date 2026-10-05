@@ -37,8 +37,8 @@ export function MatchesPage() {
   // reader gets one banner and three identical empty panels for the same single fact.
   const noneMatch =
     isFiltered &&
-    (!shows('live') || liveQuery.data?.length === 0) &&
-    (!shows('upcoming') || upcomingQuery.data?.length === 0) &&
+    (!shows('live') || liveQuery.data?.matches.length === 0) &&
+    (!shows('upcoming') || upcomingQuery.data?.matches.length === 0) &&
     (!shows('completed') || (recentQuery.isSuccess && shown === 0))
 
   return (

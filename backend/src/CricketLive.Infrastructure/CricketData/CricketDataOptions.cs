@@ -28,8 +28,14 @@ public sealed class CricketDataOptions
     /// <summary>
     /// Calls held back from the polling loop so a match page opened late in the day can still be served.
     /// </summary>
+    /// <remarks>
+    /// Twenty, raised from ten after a day the allowance ran out entirely and the home page spent
+    /// hours showing two error cards. The reserve is the only thing that keeps a page load working
+    /// once the background poller has eaten the day, and ten of a hundred turned out to be about
+    /// one browsing session's worth.
+    /// </remarks>
     [Range(0, 1000)]
-    public int ReservedHits { get; set; } = 10;
+    public int ReservedHits { get; set; } = 20;
 
     /// <summary>
     /// How long a current-matches response is reused. At 100 calls a day this is the setting that
@@ -41,6 +47,25 @@ public sealed class CricketDataOptions
     /// <summary>A finished match cannot change, so its detail is worth caching until the process restarts.</summary>
     [Range(1, 168)]
     public int FinishedMatchCacheHours { get; set; } = 24;
+
+    /// <summary>
+    /// How old the stored window may be and still be served during an outage.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Twelve hours, and the number is a compromise between two kinds of data that travel in the
+    /// same response. A fixture does not go stale — "3rd ODI, Friday 08:30" is as true an hour
+    /// later — while a score in a match being played goes stale in minutes. Labelling the answer
+    /// with its capture time covers that difference up to a point; past this bound it stops
+    /// covering it and the endpoint reports the outage instead.
+    /// </para>
+    /// <para>
+    /// Shorter would mean the common case — an allowance exhausted overnight, recovered the next
+    /// morning — falls outside it, which is the case this exists for.
+    /// </para>
+    /// </remarks>
+    [Range(1, 168)]
+    public int WindowSnapshotMaxAgeHours { get; set; } = 12;
 
     /// <summary>
     /// How many pages of the provider's series index to read, at twenty-five series a page.
@@ -65,8 +90,15 @@ public sealed class CricketDataOptions
     /// How long the series index is reused. Series do not begin and end quickly, so this is hours
     /// rather than the minutes that the live window needs.
     /// </summary>
+    /// <remarks>
+    /// A day, up from six hours, which takes this from sixteen calls a day to four. Six hours was
+    /// the single largest standing cost against a hundred-call allowance, and it was buying
+    /// freshness nobody can use: the index is read for <i>existence</i>, and a series appears in it
+    /// when a board announces a tour — weeks ahead, not minutes. The cost is that a newly announced
+    /// series can be up to a day late to the list.
+    /// </remarks>
     [Range(1, 168)]
-    public int SeriesIndexCacheHours { get; set; } = 6;
+    public int SeriesIndexCacheHours { get; set; } = 24;
 
     /// <summary>
     /// How long one series' fixture list is reused, and whether it is read at all.
@@ -135,13 +167,15 @@ public sealed class CricketDataOptions
     /// How many pages the backfill may read in one UTC day.
     /// </summary>
     /// <remarks>
-    /// Six, so a full lap of the default depth takes about a week and the cost is six of a hundred
-    /// calls — a sixth of what is left after the allowance's own reserve. Counted in the database
-    /// rather than in memory because the host restarts this container several times a day and an
-    /// in-memory counter would reset with it.
+    /// Three, halved from six after the allowance ran out and the site spent a day unable to show a
+    /// live score. History is the one thing here that nobody is waiting for, so it is the first
+    /// thing to give up calls: a lap of the default depth now takes a fortnight instead of a week,
+    /// which costs nothing a reader would notice. Counted in the database rather than in memory
+    /// because the host restarts this container several times a day and an in-memory counter would
+    /// reset with it.
     /// </remarks>
     [Range(1, 100)]
-    public int MatchBackfillPagesPerDay { get; set; } = 6;
+    public int MatchBackfillPagesPerDay { get; set; } = 3;
 
     /// <summary>
     /// How long between attempts.

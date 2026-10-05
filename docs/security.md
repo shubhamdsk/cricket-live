@@ -179,8 +179,9 @@ may carry an image URL on a host that is not ours**. The second has a guard in c
 not and cannot.
 
 The Cricbuzz sources had their own review in [D-031](./decisions.md), with the same outcome in a
-harder form: **neither route to that data is licensed**, so the condition there is that
-`CricbuzzApi__Enabled` should stay unset in production. Three switches now govern every path to
+harder form: **neither route to that data is licensed**. Production still enables
+`CricbuzzApi__Enabled` for scorecard depth on the free CricketData plan; that does not resolve the
+licence question and is recorded in [D-042](./decisions.md). Three switches now govern every path to
 `www.cricbuzz.com` — `Cricbuzz__Enabled`, `Cricbuzz__StandingsEnabled` and `Cricbuzz__AutoResolve` —
 and all three are off by default. The last of those was `true`, which meant a switch named after the
 RapidAPI gateway silently granted a permission belonging to Cricbuzz; that is the class of bug worth

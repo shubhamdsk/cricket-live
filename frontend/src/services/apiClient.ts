@@ -29,7 +29,24 @@ function isApiResponse(value: unknown): value is ApiResponse<unknown> {
   return typeof value === 'object' && value !== null && 'success' in value && 'message' in value
 }
 
+/**
+ * A successful response with the part of the envelope that is not the data.
+ *
+ * Only `asOfUtc` so far, and only two endpoints read it, which is why this is a second function
+ * rather than the shape `apiGet` returns. Thirty-odd call sites unwrapping a `.data` to reach a
+ * field that two of them use would be a worse trade than one extra export.
+ */
+export interface Dated<T> {
+  data: T
+  asOfUtc?: string
+}
+
 export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const { data } = await apiGetDated<T>(path, signal)
+  return data
+}
+
+export async function apiGetDated<T>(path: string, signal?: AbortSignal): Promise<Dated<T>> {
   let response: Response
 
   try {
@@ -61,5 +78,5 @@ export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> 
     throw new ApiError(payload.message, response.status, payload.errors)
   }
 
-  return payload.data as T
+  return { data: payload.data as T, asOfUtc: payload.asOfUtc }
 }

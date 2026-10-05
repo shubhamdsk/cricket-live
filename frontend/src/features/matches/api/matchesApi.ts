@@ -1,6 +1,6 @@
 import type { Scorecard } from '@/features/matches/scorecardTypes'
-import type { Match, MatchDetails, Paged } from '@/features/matches/types'
-import { ApiError, apiGet, apiUrl } from '@/services/apiClient'
+import type { DatedMatches, Match, MatchDetails, Paged } from '@/features/matches/types'
+import { ApiError, apiGet, apiGetDated, apiUrl } from '@/services/apiClient'
 import type { MatchFilterParams } from '@/services/endpoints'
 import { endpoints } from '@/services/endpoints'
 
@@ -10,20 +10,29 @@ import { endpoints } from '@/services/endpoints'
  *
  * Results are different: they come from what the API kept rather than from the provider's short
  * window, so the list has no natural end and is the one list that is paged.
+ *
+ * These two are also the only lists that can come back stale, which is why they carry a capture
+ * time and the others do not. They are the provider's live window; results, series and teams come
+ * from what the API stored, and a match that finished last week finished last week.
  */
 
-export function getLiveMatches(
+export async function getLiveMatches(
   filter: MatchFilterParams = {},
   signal?: AbortSignal,
-): Promise<Match[]> {
-  return apiGet<Match[]>(endpoints.matches.live(filter), signal)
+): Promise<DatedMatches> {
+  const { data, asOfUtc } = await apiGetDated<Match[]>(endpoints.matches.live(filter), signal)
+  return { matches: data, asOfUtc }
 }
 
-export function getUpcomingMatches(
+export async function getUpcomingMatches(
   filter: MatchFilterParams = {},
   signal?: AbortSignal,
-): Promise<Match[]> {
-  return apiGet<Match[]>(endpoints.matches.upcoming(filter), signal)
+): Promise<DatedMatches> {
+  const { data, asOfUtc } = await apiGetDated<Match[]>(
+    endpoints.matches.upcoming(filter),
+    signal,
+  )
+  return { matches: data, asOfUtc }
 }
 
 export function getRecentMatches(

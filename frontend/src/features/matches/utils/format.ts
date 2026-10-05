@@ -32,3 +32,24 @@ const startTimeFormatter = new Intl.DateTimeFormat(undefined, {
 export function formatStartTime(startTimeUtc: string): string {
   return startTimeFormatter.format(new Date(startTimeUtc))
 }
+
+/**
+ * How long ago the API last managed to read the score provider.
+ *
+ * Relative rather than a clock time, because the question a reader has about stale data is "how
+ * out of date is this", and "3 hours ago" answers it where "05:12" needs them to do the subtraction
+ * themselves. Rounded coarsely for the same reason: nobody deciding whether to trust a score cares
+ * about the difference between 3h 10m and 3h 25m.
+ */
+export function formatAsOf(asOfUtc: string): string {
+  const timestamp = new Date(asOfUtc).getTime()
+  if (Number.isNaN(timestamp)) return 'recently'
+
+  const minutes = Math.round((Date.now() - timestamp) / 60_000)
+
+  if (minutes < 2) return 'moments ago'
+  if (minutes < 60) return `${minutes} minutes ago`
+
+  const hours = Math.round(minutes / 60)
+  return hours === 1 ? 'about an hour ago' : `about ${hours} hours ago`
+}

@@ -183,7 +183,8 @@ harder form: **neither route to that data is licensed**. Production still enable
 `CricbuzzApi__Enabled` for scorecard depth on the free CricketData plan; that does not resolve the
 licence question and is recorded in [D-042](./decisions.md). Three switches now govern every path to
 `www.cricbuzz.com` — `Cricbuzz__Enabled`, `Cricbuzz__StandingsEnabled` and `Cricbuzz__AutoResolve` —
-and all three are off by default. The last of those was `true`, which meant a switch named after the
+and all three are off by default. Production turns on `Cricbuzz__AutoResolve` so scorecards can be
+paired at all; see [D-043](./decisions.md). The last of those was `true`, which meant a switch named after the
 RapidAPI gateway silently granted a permission belonging to Cricbuzz; that is the class of bug worth
 looking for elsewhere, where one flag stands in for two parties' consent.
 

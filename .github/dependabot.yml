@@ -1,0 +1,31 @@
+version: 2
+
+# Weekly and grouped, so a small project gets one pull request per ecosystem rather than a dozen.
+# Security fixes are not held to this schedule: Dependabot raises those as soon as an alert opens.
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    target-branch: develop
+    schedule:
+      interval: weekly
+    groups:
+      frontend:
+        patterns: ['*']
+
+  - package-ecosystem: nuget
+    directory: /backend
+    target-branch: develop
+    schedule:
+      interval: weekly
+    groups:
+      backend:
+        patterns: ['*']
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

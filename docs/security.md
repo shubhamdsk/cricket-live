@@ -130,12 +130,8 @@ updating the policy.
 | ~~No rate limiting~~ | One client can exhaust the provider budget for everyone | **Closed**, see §3 |
 | ~~No security headers~~ | Clickjacking, sniffing, referrer leakage | **Closed** for the API and the website, see §3 |
 | ~~No request size limit~~ | Trivially large bodies accepted | **Closed by design**: the API has no write endpoints and never reads a body; Kestrel's default cap still applies |
-| No dependency scanning in CI | A vulnerable package lands unnoticed | **Open.** `npm audit` is run by hand; Dependabot alerts are not yet enabled |
+| ~~No dependency scanning~~ | A vulnerable package lands unnoticed | **Closed**: Dependabot alerts and security fixes are on, with weekly grouped updates for npm, NuGet and Actions (`.github/dependabot.yml`) |
 | Key not in a GitHub Actions secret | — none today | Not needed, see below |
-
-The application is public, so the one open row is a known risk being carried, not a pre-launch
-allowance. It is low because the dependency set is small and the lockfiles are committed, but it
-should close.
 
 The last row is a deliberate non-action rather than an oversight. No workflow needs a provider
 key: the mapper tests run against committed fixtures, CI never calls a provider, and deployment is

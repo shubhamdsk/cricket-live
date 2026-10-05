@@ -283,31 +283,40 @@ html.theme-light .glass {
 }
 
 html {
+  @apply bg-pitch;
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  transition: background-color 200ms var(--ease-settle);
 }
 
 body {
-  @apply bg-pitch text-ink antialiased;
-
-  /* `background-image` paints above `background-color`, so the glow layers over the page colour
-     without needing a pseudo-element — and a pseudo-element would have had to sit behind an opaque
-     body background, where it would not have been visible at all.
-
-     The grain is listed first because the first layer paints on top. It is what stops large smooth
-     gradients from banding into visible steps, and it is most of why the frosting reads as a
-     physical surface rather than a blur filter. A fixed attachment keeps it from crawling as the
-     page scrolls. */
-  background-image: var(--page-grain), var(--page-glow);
-  background-attachment: fixed;
-  background-repeat: repeat, no-repeat;
+  @apply text-ink antialiased;
 
   /* Shorter than the transition on an individual element would be, because the whole page changes
      at once and a slow full-page fade reads as a loading state rather than a choice taking effect.
      Colours only: no layout property is involved, so nothing reflows. */
-  transition:
-    background-color 200ms var(--ease-settle),
-    color 200ms var(--ease-settle);
+  transition: color 200ms var(--ease-settle);
+}
+
+/* The glow and grain sit on a fixed layer behind everything rather than on `body` with
+   `background-attachment: fixed`. Mobile browsers size a fixed background to the viewport with
+   the address bar showing, so while the bar slid away mid-scroll the strip it uncovered had
+   nothing painted in it. `100lvh` is the height with the bar hidden, which covers that strip.
+
+   The page colour is on `html` so it paints beneath this layer; on `body` it would cover it.
+   The grain is listed first because the first layer paints on top. It is what stops large smooth
+   gradients from banding into visible steps, and it is most of why the frosting reads as a
+   physical surface rather than a blur filter. */
+body::before {
+  content: '';
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  height: 100lvh;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--page-grain), var(--page-glow);
+  background-repeat: repeat, no-repeat;
 }
 
 /*

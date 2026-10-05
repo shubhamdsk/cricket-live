@@ -84,6 +84,33 @@ public sealed class SqlMatchArchiveTests : IDisposable
     }
 
     [Fact]
+    public async Task A_held_match_with_impossible_innings_is_replaced_by_a_possible_one()
+    {
+        var archive = Build();
+        var india = new TeamDto("india", "India", "IND", null);
+        var westIndies = new TeamDto("west-indies", "West Indies", "WI", null);
+
+        var wrong = Match("a", MatchStatus.Completed) with
+        {
+            Home = new TeamInningsDto(india, [new InningsScoreDto(1, 351, 7, "50"), new InningsScoreDto(1, 352, 5, "48.2")]),
+            Away = new TeamInningsDto(westIndies, []),
+        };
+        await archive.SaveFinishedAsync([wrong], default);
+
+        var right = wrong with
+        {
+            Home = new TeamInningsDto(india, [new InningsScoreDto(1, 351, 7, "50")]),
+            Away = new TeamInningsDto(westIndies, [new InningsScoreDto(1, 352, 5, "48.2")]),
+        };
+        await archive.SaveFinishedAsync([right], default);
+
+        var stored = await archive.GetAsync("a", default);
+        Assert.Equal([351], stored!.Home.Innings.Select(innings => innings.Runs));
+        Assert.Equal([352], stored.Away.Innings.Select(innings => innings.Runs));
+        Assert.Equal(1, await archive.CountFinishedAsync(MatchFilter.None, default));
+    }
+
+    [Fact]
     public async Task Matches_come_back_most_recently_played_first()
     {
         var archive = Build();

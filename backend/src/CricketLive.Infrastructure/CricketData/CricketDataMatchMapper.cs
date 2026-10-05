@@ -170,22 +170,32 @@ internal sealed class CricketDataMatchMapper(ILogger<CricketDataMatchMapper> log
         var homeInnings = new List<InningsScoreDto>();
         var awayInnings = new List<InningsScoreDto>();
 
-        foreach (var entry in source.Score ?? [])
+        var entries = (source.Score ?? [])
+            .Select(entry => (Entry: entry, Label: InningsLabel.Parse(entry.Inning)))
+            .ToList();
+
+        // Labels naming one side first, so that a label naming both can be settled against them:
+        // a side cannot bat the same innings twice, which is the only reliable rule the comma form
+        // leaves us. See InningsLabel for the match that proved its first name is not always right.
+        foreach (var (entry, label) in entries.OrderBy(item => item.Label.NamesBothSides))
         {
-            var (battingTeam, number) = InningsLabel.Parse(entry.Inning);
             var innings = new InningsScoreDto(
-                number,
+                label.Number,
                 entry.Runs,
                 entry.Wickets,
                 entry.Overs.ToString("0.#", CultureInfo.InvariantCulture));
 
-            if (Matches(battingTeam, homeTeam.Name))
+            var side = SideOf(label.TeamName);
+
+            if (label.NamesBothSides && side is not null && HasBatted(side, label.Number))
             {
-                homeInnings.Add(innings);
+                var other = SideOf(label.OtherTeamName!);
+                side = other is not null && other != side && !HasBatted(other, label.Number) ? other : null;
             }
-            else if (Matches(battingTeam, awayTeam.Name))
+
+            if (side is not null)
             {
-                awayInnings.Add(innings);
+                side.Add(innings);
             }
             else
             {
@@ -196,6 +206,14 @@ internal sealed class CricketDataMatchMapper(ILogger<CricketDataMatchMapper> log
                     source.Name);
             }
         }
+
+        List<InningsScoreDto>? SideOf(string battingTeam) =>
+            Matches(battingTeam, homeTeam.Name) ? homeInnings
+            : Matches(battingTeam, awayTeam.Name) ? awayInnings
+            : null;
+
+        static bool HasBatted(List<InningsScoreDto> side, int number) =>
+            side.Exists(innings => innings.Number == number);
 
         return (
             new TeamInningsDto(homeTeam, [.. homeInnings.OrderBy(innings => innings.Number)]),

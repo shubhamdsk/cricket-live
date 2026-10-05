@@ -35,6 +35,25 @@ public class InningsLabelTests
     }
 
     [Fact]
+    public void Parse_keeps_the_second_name_of_the_comma_form()
+    {
+        var label = InningsLabel.Parse("India,West Indies Inning 1");
+
+        Assert.True(label.NamesBothSides);
+        Assert.Equal("India", label.TeamName);
+        Assert.Equal("West Indies", label.OtherTeamName);
+    }
+
+    [Fact]
+    public void Parse_has_no_second_name_in_the_plain_form()
+    {
+        var label = InningsLabel.Parse("West Indies Inning 1");
+
+        Assert.False(label.NamesBothSides);
+        Assert.Null(label.OtherTeamName);
+    }
+
+    [Fact]
     public void Parse_defaults_to_the_first_innings_when_no_number_is_given()
     {
         var (team, number) = InningsLabel.Parse("Kent");

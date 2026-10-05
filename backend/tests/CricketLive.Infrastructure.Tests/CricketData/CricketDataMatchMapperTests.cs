@@ -201,6 +201,53 @@ public class CricketDataMatchMapperTests
         Assert.Empty(match.Away.Innings);
     }
 
+    /// <summary>
+    /// India v West Indies, 3rd ODI 2026: West Indies' chase was labelled with India named first,
+    /// and the site showed India batting twice and West Indies yet to bat.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Gives_a_comma_label_to_the_other_side_when_the_first_has_already_batted_that_innings(
+        bool commaLabelFirst)
+    {
+        var india = new CricketDataScore { Runs = 351, Wickets = 7, Overs = 50m, Inning = "India Inning 1" };
+        var westIndies = new CricketDataScore
+        {
+            Runs = 352, Wickets = 5, Overs = 48.2m, Inning = "India,West Indies Inning 1",
+        };
+
+        var match = Map(new CricketDataMatch
+        {
+            Id = "da91f633-acac-4449-86f8-9bff6244053f",
+            Name = "India vs West Indies, 3rd ODI, West Indies tour of India, 2026",
+            Teams = ["India", "West Indies"],
+            Score = commaLabelFirst ? [westIndies, india] : [india, westIndies],
+        });
+
+        Assert.Equal([351], match!.Home.Innings.Select(innings => innings.Runs));
+        Assert.Equal([352], match.Away.Innings.Select(innings => innings.Runs));
+    }
+
+    [Fact]
+    public void Settles_two_comma_labels_naming_the_same_side_first()
+    {
+        var match = Map(new CricketDataMatch
+        {
+            Id = "22222222-2222-2222-2222-222222222222",
+            Name = "Aardvarks vs Badgers, Only Match, Some Trophy 2026",
+            Teams = ["Aardvarks", "Badgers"],
+            Score =
+            [
+                new CricketDataScore { Runs = 200, Wickets = 6, Overs = 50m, Inning = "Aardvarks,Badgers Inning 1" },
+                new CricketDataScore { Runs = 180, Wickets = 9, Overs = 50m, Inning = "Aardvarks,Badgers Inning 1" }
+            ]
+        });
+
+        Assert.Equal([200], match!.Home.Innings.Select(innings => innings.Runs));
+        Assert.Equal([180], match.Away.Innings.Select(innings => innings.Runs));
+    }
+
     [Fact]
     public void Discards_a_match_with_no_id_because_nothing_could_link_to_it()
     {

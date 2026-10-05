@@ -1,102 +1,92 @@
 # 🏏 Cricket Live
 
-A responsive real-time cricket score platform built with React, TypeScript, Tailwind CSS and ASP.NET Core: live scores, match details, full scorecards and SSE-powered updates.
+**Live site: [cricket-live-shubhamdsk1.vercel.app](https://cricket-live-shubhamdsk1.vercel.app/)**
 
-Commentary is not built. The data exists and the reason is cost rather than availability, which is written up in [D-027](docs/decisions.md) rather than left for someone to rediscover.
+A responsive cricket score platform built with React, TypeScript, Tailwind CSS and ASP.NET Core.
+Live scores update without a refresh, and every match has its own page with a full scorecard.
 
-## Documentation
+## Features
 
-* [Project plan](project-plan.md) — architecture and requirements
-* [Sprint plan](docs/sprint-plan.md) — what gets built, in what order
-* [Deployment](docs/deployment.md) — and the four things most likely to go wrong
-* [Decisions](docs/decisions.md) — what was chosen, why, and what it costs
+* **Live scores** that update in place over Server-Sent Events
+* **Home, Live, Matches, Series and Teams** sections, always one tap away on mobile
+* **Match pages** with batting and bowling cards, fall of wickets and partnerships
+* **Results archive** that keeps finished matches past the provider's short window
+* **Search** across matches, teams and series
+* **Outage-tolerant:** when the score provider is down, the site serves the last data it stored
+  and labels how old it is
+* Light and dark themes
 
-## Repository layout
+Coverage is deliberately narrow: matches between ICC Full Member nations, plus India's own
+competitions (IPL, WPL and domestic). See [D-041](docs/decisions.md).
+
+## Data sources
+
+| Source | Used for | Free limit |
+| --- | --- | --- |
+| [CricketData](https://cricketdata.org) | Live scores, fixtures, results, series, teams | 100 calls / day |
+| [Cricbuzz Cricket on RapidAPI](https://rapidapi.com/cricketapilive/api/cricbuzz-cricket) | Full scorecards, only when a reader presses the button | 200 calls / month |
+
+Nothing polls the scorecard source; a finished match's card is fetched once and cached. Ball-by-ball
+commentary is not built, because following one match would use the whole monthly allowance in
+minutes ([D-027](docs/decisions.md)). The scorecard source is not a licensed Cricbuzz product; read
+[D-031](docs/decisions.md) and [D-043](docs/decisions.md) before enabling it anywhere public.
+
+## Tech stack
 
 ```text
-frontend/   React + TypeScript + Vite + Tailwind CSS
-backend/    ASP.NET Core API (Api, Application, Domain, Infrastructure)
-docs/       Project documentation
+frontend/   React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, Zustand
+backend/    ASP.NET Core (.NET 10): Api, Application, Domain, Infrastructure
+            EF Core with PostgreSQL (Neon) in production, SQLite locally
+docs/       Architecture, decisions, deployment and sprint documentation
 ```
 
-## Prerequisites
+Hosting: frontend on **Vercel**, API on **Render**, archive database on **Neon**. All on free plans.
+
+## Getting started
+
+### Prerequisites
 
 ```text
 Node.js 22+
 .NET SDK 10
 ```
 
-## Cricket data provider
+### 1. API keys
 
-Cricket data comes from [CricketData](https://cricketdata.org) (formerly CricAPI). The free plan is permanent, needs no card, and allows 100 requests per day.
+Keys go in .NET user secrets, never in `appsettings.json`, which is tracked by git.
 
-1. Sign up at [cricketdata.org/member.aspx](https://cricketdata.org/member.aspx).
-2. Confirm your email, then open the member area. The API key is a GUID shown under your plan details.
-3. Store it in .NET user secrets — **never** in `appsettings.json`, which is tracked by git:
-
-```bash
-cd backend
-dotnet user-secrets set "CricketData:ApiKey" "your-guid-here" --project src/CricketLive.Api
-```
-
-To confirm it was stored, and to remove it later:
-
-```bash
-dotnet user-secrets list --project src/CricketLive.Api
-dotnet user-secrets remove "CricketData:ApiKey" --project src/CricketLive.Api
-```
-
-User secrets live outside the repository, at `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json` on Windows. `Host.CreateApplicationBuilder` loads them automatically in Development, so no code change is needed.
-
-In deployed environments set the environment variable `CricketData__ApiKey` instead — the double underscore is how .NET maps an environment variable onto a nested configuration key.
-
-### Optional: scorecards
-
-Scorecards come from a second source and the app runs fine without them. If you skip this, the scorecard section on a match page says there is none.
-
-The source is the Cricbuzz listing on [RapidAPI](https://rapidapi.com/). It is a reseller of a scrape rather than a Cricbuzz product, and its free plan allows **200 requests per month** — not per day. That number is why the feature ships disabled and why the app never polls it.
-
-**Read [D-031](docs/decisions.md) before turning it on, not just [D-027](docs/decisions.md).** The terms of all three parties have now been read, and neither route to Cricbuzz's data is licensed: Cricbuzz grants its site for "private viewing only", and RapidAPI's terms put the licence between you and the listing's publisher, who is not Cricbuzz. Running this locally against a handful of matches is one thing; serving it on a public site is the thing the grant excludes.
-
-Pairing needs a second switch. `Cricbuzz:AutoResolve` reads Cricbuzz's own listing pages to match a fixture to its Cricbuzz id, and it is **off by default** — so with only `CricbuzzApi:Enabled` set, the scorecard pairs nothing unless you write ids into `Cricbuzz:MatchIds` by hand.
+**CricketData (required).** Sign up at [cricketdata.org](https://cricketdata.org/member.aspx); the
+key is the GUID shown under your plan.
 
 ```bash
 cd backend
+dotnet user-secrets set "CricketData:ApiKey" "your-guid" --project src/CricketLive.Api
+```
+
+**Scorecards (optional).** Subscribe to the free plan of the
+[Cricbuzz Cricket listing](https://rapidapi.com/cricketapilive/api/cricbuzz-cricket), then:
+
+```bash
 dotnet user-secrets set "CricbuzzApi:ApiKey" "your-rapidapi-key" --project src/CricketLive.Api
+dotnet user-secrets set "CricbuzzApi:Enabled" "true" --project src/CricketLive.Api
+dotnet user-secrets set "Cricbuzz:AutoResolve" "true" --project src/CricketLive.Api
 ```
 
-Then enable it, either in `appsettings.Development.json` or with `CricbuzzApi__Enabled=true`:
+`Cricbuzz:AutoResolve` pairs our match ids with Cricbuzz's by reading cricbuzz.com's listing pages.
+Without it, no match can be paired and no scorecard is ever fetched. To pair by hand instead, set
+`Cricbuzz:MatchIds:<our-id>` to the Cricbuzz match id.
 
-```json
-{ "CricbuzzApi": { "Enabled": true } }
-```
+In deployed environments use environment variables, with a double underscore for each level:
+`CricketData__ApiKey`, `CricbuzzApi__ApiKey`, and so on.
 
-For automatic pairing you must opt in separately, because it reads Cricbuzz's own listing pages rather than the gateway — a different party's permission, so a different switch:
+### 2. Run
 
-```json
-{ "CricbuzzApi": { "Enabled": true }, "Cricbuzz": { "AutoResolve": true } }
-```
-
-Our match ids are CricketData GUIDs and the source uses Cricbuzz's integers, so something has to pair them, and there is no way to use the source without pairing. See [D-020](docs/decisions.md) and [D-031](docs/decisions.md).
-
-## Running locally
-
-Run the backend and frontend in two terminals.
-
-### Backend
+Backend and frontend in two terminals:
 
 ```bash
 cd backend
 dotnet run --project src/CricketLive.Api
 ```
-
-```text
-API       http://localhost:5140
-Swagger   http://localhost:5140/swagger
-Health    http://localhost:5140/api/health
-```
-
-### Frontend
 
 ```bash
 cd frontend
@@ -105,12 +95,17 @@ npm run dev
 ```
 
 ```text
-App   http://localhost:5173
+App       http://localhost:5173
+API       http://localhost:5140
+Swagger   http://localhost:5140/swagger
 ```
 
-The frontend reads the API base URL from `VITE_API_BASE_URL`. See `frontend/.env.example`; `frontend/.env.development` already points at the local API.
+The frontend reads the API address from `VITE_API_BASE_URL`; `frontend/.env.development` already
+points at the local API.
 
 ## Checks
+
+These are what CI runs on every pull request.
 
 ```bash
 # frontend
@@ -123,3 +118,27 @@ npm run build
 dotnet build
 dotnet test
 ```
+
+## Deployment
+
+Work goes into `develop` through feature-branch pull requests and is released by merging `develop`
+into `master`. Pushing to `master` deploys both the frontend (Vercel) and the API (Render).
+Both branches require the `backend`, `frontend` and `scan` checks to pass.
+
+**Cold starts.** Render's free plan stops the API after about 15 minutes without traffic, and the
+next visitor waits 30–60 seconds. An outside uptime monitor pinging
+`https://cricket-live-api-qwo6.onrender.com/api/health/live` every 5 minutes keeps it awake. That
+endpoint runs no checks and calls no provider, so it costs no API calls. The GitHub
+`keep-warm.yml` workflow does the same, but GitHub runs free schedules only every few hours.
+
+Full details in [docs/deployment.md](docs/deployment.md).
+
+## Documentation
+
+* [Project plan](project-plan.md): architecture and requirements
+* [Sprint plan](docs/sprint-plan.md): what was built, in what order
+* [Architecture](docs/architecture.md) and [system design](docs/system-design.md)
+* [API reference](docs/api.md)
+* [Deployment](docs/deployment.md)
+* [Security](docs/security.md)
+* [Decisions](docs/decisions.md): what was chosen, why, and what it costs

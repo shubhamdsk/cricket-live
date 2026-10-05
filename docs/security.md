@@ -3,7 +3,15 @@
 Binding alongside [engineering-standards.md](./engineering-standards.md). It records the controls
 in place today and the gaps we are carrying, and grows as each sprint lands.
 
-Last updated: Sprint 3.
+Last updated: 5 October 2026, with the site live at
+[cricket-live-shubhamdsk1.vercel.app](https://cricket-live-shubhamdsk1.vercel.app/).
+
+## Reporting a vulnerability
+
+Please do not open a public issue. Use **Report a vulnerability** on the repository's
+[Security tab](https://github.com/shubhamdsk/cricket-live/security), which reaches the maintainer
+privately. Include the URL or endpoint, what you sent, and what came back. A leaked credential is
+treated as the most urgent case and is rotated first, before anything else is investigated.
 
 ---
 
@@ -30,9 +38,9 @@ Nothing here risks a person's data. Everything here risks availability and a bil
 
 | Actor | Wants | Mitigated by |
 | --- | --- | --- |
-| Opportunistic scraper | Free cricket data through our API | Rate limiting (Sprint 8), caching so scraping costs us nothing extra |
-| Someone who reads the repository | The provider key | Key never committed; configuration from the environment |
-| Someone probing the host | Stack traces, versions, internal paths | Global exception handler returning a fixed message; security headers (Sprint 8) |
+| Opportunistic scraper | Free cricket data through our API | Per-IP rate limiting, caching so scraping costs us nothing extra |
+| Someone who reads the repository | The provider keys | Keys never committed; configuration from the environment |
+| Someone probing the host | Stack traces, versions, internal paths | Global exception handler returning a fixed message; security headers |
 | A browser page on another origin | To call our API as a user | CORS allow-list |
 | The provider itself | — | Treated as untrusted input: responses are mapped, never echoed |
 
@@ -121,17 +129,18 @@ updating the policy.
 | --- | --- | --- |
 | ~~No rate limiting~~ | One client can exhaust the provider budget for everyone | **Closed**, see §3 |
 | ~~No security headers~~ | Clickjacking, sniffing, referrer leakage | **Closed** for the API and the website, see §3 |
-| No request size limit | Trivially large bodies accepted | Sprint 8 |
-| No dependency scanning in CI | A vulnerable package lands unnoticed | Sprint 8 |
-| Key not in a GitHub Actions secret | — none today | Sprint 8 (`8.16`) |
+| ~~No request size limit~~ | Trivially large bodies accepted | **Closed by design**: the API has no write endpoints and never reads a body; Kestrel's default cap still applies |
+| No dependency scanning in CI | A vulnerable package lands unnoticed | **Open.** `npm audit` is run by hand; Dependabot alerts are not yet enabled |
+| Key not in a GitHub Actions secret | — none today | Not needed, see below |
 
-These are accepted for now because nothing is deployed and nothing is public. **None of them may
-still be open when the application is first exposed to the internet.**
+The application is public, so the one open row is a known risk being carried, not a pre-launch
+allowance. It is low because the dependency set is small and the lockfiles are committed, but it
+should close.
 
-The last row is a deliberate non-action rather than an oversight. No workflow needs the provider
-key: the mapper tests run against committed fixtures, and CI never calls the provider. Storing a
-credential that nothing consumes adds a place for it to leak without removing one, so it waits for
-the deployment workflow in `8.16` that will actually read it.
+The last row is a deliberate non-action rather than an oversight. No workflow needs a provider
+key: the mapper tests run against committed fixtures, CI never calls a provider, and deployment is
+done by Vercel and Render reading their own environment. Storing a credential that nothing
+consumes adds a place for it to leak without removing one.
 
 **The repository is public.** That raises the cost of a leaked secret from "rotate it quietly" to
 "assume it was harvested within minutes", which is why the scan below is a merge gate rather than
@@ -173,16 +182,21 @@ pattern. Absence of an alert from it is not evidence of absence of a key.
 
 ## 6. Before anything is public
 
+The site is public, and every item here was settled before or at launch.
+
 ```text
-[ ] Rate limiting in place and tested
-[ ] Security headers set
-[ ] CORS allow-list contains only real origins
-[ ] Provider key supplied by the host, absent from the repository and from logs
-[ ] Request size limits set
-[ ] Health endpoint reports dependencies without leaking their addresses
+[x] Rate limiting in place and tested
+[x] Security headers set, on the API and on the website
+[x] CORS allow-list contains only real origins (the Vercel site, via Cors__AllowedOrigins__0)
+[x] Provider keys supplied by the host, absent from the repository and from logs
+[x] Request size limits set (no endpoint accepts a body)
+[x] Health endpoint reports dependencies without leaking their addresses
 [x] Provider terms reviewed: usage limits, attribution, redistribution, commercial use
 [x] CricketData attribution visible in the UI
 ```
+
+The health endpoints answer with a bare status word. `/api/health/live` runs no checks at all,
+which is why the external keep-awake pinger uses it: a ping never spends a provider call.
 
 The last two are legal rather than technical, and they gate a launch just as firmly. Both are
 settled in [D-030](./decisions.md): the terms are read, attribution turns out not to be required
@@ -197,10 +211,11 @@ harder form: **neither route to that data is licensed**. Production still enable
 `CricbuzzApi__Enabled` for scorecard depth on the free CricketData plan; that does not resolve the
 licence question and is recorded in [D-042](./decisions.md). Three switches now govern every path to
 `www.cricbuzz.com` — `Cricbuzz__Enabled`, `Cricbuzz__StandingsEnabled` and `Cricbuzz__AutoResolve` —
-and all three are off by default. Production turns on `Cricbuzz__AutoResolve` so scorecards can be
-paired at all; see [D-043](./decisions.md). The last of those was `true`, which meant a switch named after the
-RapidAPI gateway silently granted a permission belonging to Cricbuzz; that is the class of bug worth
-looking for elsewhere, where one flag stands in for two parties' consent.
+and all three are off by default. Before they were split out, `AutoResolve` defaulted to `true`,
+which meant a switch named after the RapidAPI gateway silently granted a permission belonging to
+Cricbuzz; that is the class of bug worth looking for elsewhere, where one flag stands in for two
+parties' consent. Production now turns `Cricbuzz__AutoResolve` on deliberately, in `render.yaml`,
+so scorecards can be paired at all; see [D-043](./decisions.md).
 
 The crest route deserves a line of its own here, since it is the only endpoint that makes an
 outbound request on a caller's behalf. The address is never taken from the request: it is decoded

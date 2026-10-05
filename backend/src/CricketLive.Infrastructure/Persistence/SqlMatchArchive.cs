@@ -42,15 +42,17 @@ internal sealed class SqlMatchArchive(
         // Deliberately not scoped. This asks what the table holds, not what the site shows, and an
         // out-of-scope row is still a row: scoping it would make every poll try to insert the same
         // primary key again.
-        var known = await database.ArchivedMatches
+        var held = await database.ArchivedMatches
             .Where(archived => ids.Contains(archived.Id))
-            .Select(archived => archived.Id)
-            .ToListAsync(cancellationToken);
+            .ToDictionaryAsync(archived => archived.Id, cancellationToken);
+
+        var repaired = Repair(finished, held);
 
         // A finished match cannot change, so one already held is left exactly as it was written.
-        // Rewriting it would churn the table on every poll for no gain.
+        // Rewriting it would churn the table on every poll for no gain. Repair above is the one
+        // exception, and it only ever touches a row whose stored score could not have happened.
         var fresh = finished
-            .Where(match => !known.Contains(match.Id))
+            .Where(match => !held.ContainsKey(match.Id))
             .Select(match => new ArchivedMatch
             {
                 Id = match.Id,
@@ -73,7 +75,7 @@ internal sealed class SqlMatchArchive(
             })
             .ToArray();
 
-        if (fresh.Length == 0)
+        if (fresh.Length == 0 && repaired == 0)
         {
             return;
         }
@@ -81,7 +83,69 @@ internal sealed class SqlMatchArchive(
         database.ArchivedMatches.AddRange(fresh);
         await database.SaveChangesAsync(cancellationToken);
 
-        logger.LogInformation("Archived {Count} newly finished match(es)", fresh.Length);
+        if (fresh.Length > 0)
+        {
+            logger.LogInformation("Archived {Count} newly finished match(es)", fresh.Length);
+        }
+
+        if (repaired > 0)
+        {
+            logger.LogWarning("Replaced {Count} archived match(es) whose stored innings were impossible", repaired);
+        }
+    }
+
+    /// <summary>
+    /// Rewrites held rows whose innings could not have happened, when the provider now gives a
+    /// version that could.
+    /// </summary>
+    /// <remarks>
+    /// The innings mapping once put a whole chase against the side that batted first (see
+    /// <c>InningsLabel</c>), and those rows were kept forever by the rule above. "A side batted
+    /// the same innings twice" is never true of real cricket, so it is a safe test for a row
+    /// that was written wrongly rather than one the provider later changed its mind about.
+    /// </remarks>
+    private static int Repair(
+        IEnumerable<MatchDetailsDto> finished,
+        Dictionary<string, ArchivedMatch> held)
+    {
+        var repaired = 0;
+
+        foreach (var match in finished)
+        {
+            if (!held.TryGetValue(match.Id, out var row) || IsImpossible(match))
+            {
+                continue;
+            }
+
+            var stored = TryDeserialize(row.Payload);
+            if (stored is null || !IsImpossible(stored))
+            {
+                continue;
+            }
+
+            row.Payload = JsonSerializer.Serialize(match, Format);
+            repaired++;
+        }
+
+        return repaired;
+    }
+
+    internal static bool IsImpossible(MatchDetailsDto match)
+        => HasRepeatedInnings(match.Home) || HasRepeatedInnings(match.Away);
+
+    private static bool HasRepeatedInnings(TeamInningsDto side)
+        => side.Innings.GroupBy(innings => innings.Number).Any(group => group.Count() > 1);
+
+    private static MatchDetailsDto? TryDeserialize(string payload)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<MatchDetailsDto>(payload, Format);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public async Task<IReadOnlyList<MatchDto>> GetFinishedAsync(

@@ -14,6 +14,8 @@ Live scores update without a refresh, and every match has its own page with a fu
 * **Search** across matches, teams and series
 * **Outage-tolerant:** when the score provider is down, the site serves the last data it stored
   and labels how old it is
+* **Installable** as an app, with the last scores you loaded still readable offline
+* **Match link previews** on WhatsApp, X and Slack show the teams, scores and result
 * Light and dark themes
 
 Coverage is deliberately narrow: matches between ICC Full Member nations, plus India's own
@@ -112,7 +114,9 @@ These are what CI runs on every pull request.
 npm run lint
 npm run typecheck
 npm run format:check
+npm test        # unit and component tests (Vitest)
 npm run build
+npm run e2e     # phone-size browser tests (Playwright; run `npx playwright install chromium` once)
 
 # backend
 dotnet build

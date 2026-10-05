@@ -1,12 +1,13 @@
 {
+  "id": "/",
   "name": "Cricket Live",
   "short_name": "Cricket Live",
   "description": "Live cricket scores, fixtures, results and series standings, updated while play continues.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#059669",
+  "background_color": "#060a16",
+  "theme_color": "#060a16",
   "icons": [
     {
       "src": "/icon-192.png",

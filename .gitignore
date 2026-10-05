@@ -4,6 +4,8 @@ dist/
 dist-ssr/
 test-results/
 playwright-report/
+lighthouse-report/
+.lighthouseci/
 *.local
 npm-debug.log*
 yarn-debug.log*

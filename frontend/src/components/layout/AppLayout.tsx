@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/common/Skeleton'
 import { Container } from '@/components/layout/Container'
 import { Footer } from '@/components/layout/Footer'
 import { Header } from '@/components/layout/Header'
+import { OfflineNotice } from '@/components/layout/OfflineNotice'
 import { RouteAnnouncer } from '@/components/layout/RouteAnnouncer'
 
 export function AppLayout() {
@@ -33,6 +34,7 @@ export function AppLayout() {
       <RouteAnnouncer />
 
       <Header />
+      <OfflineNotice />
 
       {/*
         `tabIndex={-1}` so the skip link and the route announcer can both put focus here. It makes

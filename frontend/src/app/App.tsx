@@ -1,3 +1,4 @@
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import { RouterProvider } from 'react-router-dom'
 
 import { ErrorBoundary } from '@/app/ErrorBoundary'
@@ -10,6 +11,8 @@ export default function App() {
       <ErrorBoundary>
         <RouterProvider router={router} />
       </ErrorBoundary>
+      {/* Served from the site's own /_vercel path in production, so the CSP needs no new host. */}
+      <SpeedInsights />
     </AppProviders>
   )
 }

@@ -1,4 +1,4 @@
-import { Menu, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 
@@ -19,7 +19,7 @@ const navItems = [
 
 function navLinkClasses({ isActive }: { isActive: boolean }) {
   return cn(
-    'flex min-h-11 items-center rounded-card px-3 text-sm font-medium transition-colors sm:min-h-10',
+    'flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-card px-3 text-sm font-medium transition-colors sm:min-h-10',
     focusRing,
     isActive
       ? 'bg-brand-soft text-brand-strong'
@@ -28,13 +28,13 @@ function navLinkClasses({ isActive }: { isActive: boolean }) {
 }
 
 export function Header() {
-  const isMobileNavOpen = useUiStore((state) => state.isMobileNavOpen)
-  const setMobileNavOpen = useUiStore((state) => state.setMobileNavOpen)
+  const isMobileSearchOpen = useUiStore((state) => state.isMobileSearchOpen)
+  const setMobileSearchOpen = useUiStore((state) => state.setMobileSearchOpen)
   const { pathname } = useLocation()
 
   useEffect(() => {
-    setMobileNavOpen(false)
-  }, [pathname, setMobileNavOpen])
+    setMobileSearchOpen(false)
+  }, [pathname, setMobileSearchOpen])
 
   return (
     /* `bg-chrome` rather than a translucent panel colour: content scrolls under this, and blurring
@@ -56,12 +56,6 @@ export function Header() {
           ))}
         </nav>
 
-        {/*
-          One group for everything on the right, so `justify-between` has two children to separate
-          rather than four to spread. The search box is the only member that hides on narrow
-          screens — it reappears inside the menu — while the theme toggle stays out where it can be
-          reached in one tap.
-        */}
         <div className="ml-auto flex items-center gap-1">
           <div className="hidden sm:block">
             <SearchBox />
@@ -71,39 +65,41 @@ export function Header() {
 
           <button
             type="button"
-            onClick={() => setMobileNavOpen(!isMobileNavOpen)}
-            aria-expanded={isMobileNavOpen}
-            aria-controls="mobile-nav"
-            aria-label={isMobileNavOpen ? 'Close menu' : 'Open menu'}
+            onClick={() => setMobileSearchOpen(!isMobileSearchOpen)}
+            aria-expanded={isMobileSearchOpen}
+            aria-controls="mobile-search"
+            aria-label={isMobileSearchOpen ? 'Close search' : 'Search'}
             className={cn(
               'inline-flex size-11 items-center justify-center rounded-card text-ink-muted hover:bg-surface-muted sm:hidden',
               focusRing,
             )}
           >
-            {isMobileNavOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            {isMobileSearchOpen ? <X className="size-5" /> : <Search className="size-5" />}
           </button>
         </div>
       </Container>
 
-      {isMobileNavOpen && (
-        <nav
-          id="mobile-nav"
-          aria-label="Mobile"
-          className="animate-drop border-t border-line sm:hidden"
-        >
-          <Container className="flex flex-col gap-1 py-2">
-            <div className="px-1 pb-1">
-              <SearchBox onNavigate={() => setMobileNavOpen(false)} />
-            </div>
-
-            {navItems.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClasses}>
-                {item.label}
-              </NavLink>
-            ))}
+      {isMobileSearchOpen && (
+        <div id="mobile-search" className="animate-drop border-t border-line sm:hidden">
+          <Container className="py-2">
+            <SearchBox onNavigate={() => setMobileSearchOpen(false)} />
           </Container>
-        </nav>
+        </div>
       )}
+
+      {/*
+        Always on screen rather than behind a menu button, so every section is one tap away. It
+        scrolls sideways once there are more sections than fit across a phone.
+      */}
+      <nav aria-label="Main" className="border-t border-line sm:hidden">
+        <Container className="flex gap-1 overflow-x-auto py-1.5">
+          {navItems.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClasses}>
+              {item.label}
+            </NavLink>
+          ))}
+        </Container>
+      </nav>
     </header>
   )
 }

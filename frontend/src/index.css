@@ -86,6 +86,14 @@
   --color-danger-soft: rgb(251 113 133 / 0.16);
   --color-danger-line: rgb(251 113 133 / 0.36);
 
+  /* Amber, and deliberately not danger's red. The one thing wearing this is the notice that says
+     scores are from a while ago, which is a caveat and not a failure — the fixtures under it are
+     perfectly correct. Red there would be alarm about nothing, and neutral grey would be missed by
+     exactly the reader who needs to see it. */
+  --color-warn: #fbbf24;
+  --color-warn-soft: rgb(251 191 36 / 0.14);
+  --color-warn-line: rgb(251 191 36 / 0.32);
+
   /* Rounder than before. A tighter radius reads as a bordered box; this reads as a pane. */
   --radius-card: 1rem;
   --radius-panel: 1.25rem;
@@ -191,6 +199,12 @@ html.theme-light {
   --color-danger: #b91c1c;
   --color-danger-soft: #fef2f2;
   --color-danger-line: #fecaca;
+
+  /* Much darker than the dark theme's amber. #fbbf24 on a white panel is the one colour on this
+     palette that fails contrast outright, and a caveat nobody can read is not a caveat. */
+  --color-warn: #92400e;
+  --color-warn-soft: #fffbeb;
+  --color-warn-line: #fde68a;
 
   --shadow-card: 0 1px 2px 0 rgb(11 18 32 / 0.06);
   --shadow-lift: 0 6px 16px -6px rgb(11 18 32 / 0.14);

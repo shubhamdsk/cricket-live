@@ -76,18 +76,34 @@ public static class DependencyInjection
 
         // Registered as the decorator, so nothing that asks for cricket data has to know that
         // finished matches are being kept on the way past.
-        // Two decorators, and the order is the decision. Archiving sits inside, so it keeps every
-        // finished match the provider sends, including ones the site does not cover; the scope
-        // filter sits outside it, so callers only ever see cricket we cover. Reversed, the archive
-        // would hold only what today's policy allows and widening it later would mean re-earning
-        // history at six provider pages a day.
+        // Three decorators, and the order is the decision rather than an accident of writing them.
+        //
+        // Archiving is innermost, so it keeps every finished match the provider sends, including
+        // ones the site does not cover. Reversed, the archive would hold only what today's policy
+        // allows and widening it later would mean re-earning history three provider pages at a day.
+        //
+        // Snapshotting is next, so the window it stores is what a caller would have been given —
+        // crests already rewritten, scores already mapped — and so it is still the provider's whole
+        // window rather than our filtered view of it.
+        //
+        // The scope filter is outermost, so callers only ever see cricket we cover, whether the
+        // window came from the provider a second ago or from the snapshot after an outage.
         services.AddScoped<CricketDataProvider>();
         services.AddScoped<ICricketDataProvider>(provider => new ScopedCricketDataProvider(
-            new ArchivingCricketDataProvider(
-                provider.GetRequiredService<CricketDataProvider>(),
-                provider.GetRequiredService<IMatchArchive>(),
-                provider.GetRequiredService<ILogger<ArchivingCricketDataProvider>>()),
+            new SnapshottingCricketDataProvider(
+                new ArchivingCricketDataProvider(
+                    provider.GetRequiredService<CricketDataProvider>(),
+                    provider.GetRequiredService<IMatchArchive>(),
+                    provider.GetRequiredService<ILogger<ArchivingCricketDataProvider>>()),
+                provider.GetRequiredService<IWindowSnapshotStore>(),
+                provider.GetRequiredService<WindowFreshness>(),
+                provider.GetRequiredService<TimeProvider>(),
+                provider.GetRequiredService<ILogger<SnapshottingCricketDataProvider>>()),
             provider.GetRequiredService<ILogger<ScopedCricketDataProvider>>()));
+
+        // Scoped, because it is a note about one request. A singleton would have one request's
+        // outage labelling the next request's fresh data.
+        services.AddScoped<WindowFreshness>();
 
         // Not behind the archiving decorator. The two series sources return series rather than the
         // live window, so the archive has no opinion about them; the match index returns matches
@@ -174,6 +190,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IMatchArchive, SqlMatchArchive>();
+        services.AddScoped<IWindowSnapshotStore, SqlWindowSnapshotStore>();
     }
 
     /// <summary>

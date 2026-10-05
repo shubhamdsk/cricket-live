@@ -19,6 +19,8 @@ internal sealed class CricketLiveDbContext(DbContextOptions<CricketLiveDbContext
 
     public DbSet<BackfillState> BackfillState => Set<BackfillState>();
 
+    public DbSet<WindowSnapshotRow> WindowSnapshots => Set<WindowSnapshotRow>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         // SQLite's NOCASE only folds ASCII, and this one folds by Unicode rules, so a series name
@@ -100,5 +102,13 @@ internal sealed class CricketLiveDbContext(DbContextOptions<CricketLiveDbContext
         backfill.Property(entity => entity.Id).ValueGeneratedNever();
         // Unindexed, and correctly so. One row is read once every tick of a background loop and
         // never as part of answering a request.
+
+        var snapshot = builder.Entity<WindowSnapshotRow>();
+
+        snapshot.ToTable("window_snapshot");
+        snapshot.HasKey(entity => entity.Id);
+        snapshot.Property(entity => entity.Id).ValueGeneratedNever();
+        // Also unindexed, and for a stronger reason than the row above: there is only ever one of
+        // them, and it is read by its own primary key.
     }
 }

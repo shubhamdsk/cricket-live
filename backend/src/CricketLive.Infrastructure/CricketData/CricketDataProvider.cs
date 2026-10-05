@@ -21,8 +21,13 @@ internal sealed class CricketDataProvider(
     ILogger<CricketDataProvider> logger) : ICricketDataProvider
 {
     private const string CurrentMatchesKey = "cricket-data:current-matches";
-    private const string LastKnownGoodKey = "cricket-data:current-matches:last-known-good";
     private static readonly SemaphoreSlim RefreshGate = new(1, 1);
+
+    // There was a second cache entry here holding the last good window, so an outage had something
+    // to serve. It is gone, and not because the idea was wrong: IMemoryCache dies with the process
+    // and this host rebuilds the container whenever it has been idle, so the copy was missing on
+    // the one morning it was needed. SnapshottingCricketDataProvider keeps it in the database
+    // instead, and — unlike this — can say when it was captured. See IWindowSnapshotStore.
 
     public async Task<IReadOnlyList<MatchDetailsDto>> GetCurrentMatchesAsync(CancellationToken cancellationToken)
         => await GetCurrentDetailsAsync(cancellationToken);
@@ -134,22 +139,7 @@ internal sealed class CricketDataProvider(
                 (IReadOnlyList<MatchDetailsDto>)matches,
                 TimeSpan.FromSeconds(options.Value.CurrentMatchesCacheSeconds));
 
-            // Kept far longer than the live entry, purely so an outage has something to fall back on.
-            cache.Set(
-                LastKnownGoodKey,
-                (IReadOnlyList<MatchDetailsDto>)matches,
-                TimeSpan.FromHours(options.Value.FinishedMatchCacheHours));
-
             return matches;
-        }
-        catch (CricketDataUnavailableException) when (
-            cache.TryGetValue(LastKnownGoodKey, out IReadOnlyList<MatchDetailsDto>? stale) && stale is not null)
-        {
-            logger.LogWarning(
-                "Serving {Count} cricket matches from the last known good response because the provider is unavailable",
-                stale.Count);
-
-            return stale;
         }
         finally
         {

@@ -5,6 +5,77 @@ what it costs. An entry is only revised by adding a new one that explains the ch
 
 ---
 
+## D-042 — When the provider is down, serve what we kept — and say when we kept it
+
+**Status:** accepted. Follows a day the home page showed two error cards above a working results
+list, and a match detail that 503'd while search and results both found the same match.
+
+### Context
+
+Three separate failures showed up at once, and only one of them was missing code.
+
+1. **The daily allowance ran out.** `/api/health/ready` went `Degraded`, live and upcoming returned
+   503, and the site looked broken on the panels readers open first.
+2. **The window fallback did not survive a restart.** `CricketDataProvider` already kept a
+   last-known-good copy in `IMemoryCache`, but Render rebuilds the container when it idles, so an
+   outage that outlasted a deploy found an empty cache. The mechanism existed; the storage did not
+   match the host.
+3. **Match detail fell back on `null` but not on an exception.** During an outage the provider
+   throws; `ArchivingCricketDataProvider` only tried the archive when the inner call returned
+   `null`. Every result on the page linked to a 503 while `/api/matches/recent` answered 200 for
+   the same slug — exactly what [api.md](./api.md) had already labelled a bug.
+
+The user asked for all three fixes plus a cut to the standing daily burn, and to **leave**
+`CricbuzzApi__Enabled` on in production while reconciling the docs with that choice.
+
+### Decision
+
+**Persist the last good window, not just remember it.** A single-row `window_snapshot` table holds
+the serialised window and a `CapturedAtUtc`. `SnapshottingCricketDataProvider` writes after every
+successful read and serves the row when `CricketDataUnavailableException` is thrown, up to
+`WindowSnapshotMaxAgeHours` (twelve). The in-memory last-known-good layer was removed on purpose:
+a decorator cannot tell a fresh fetch from an inner cache hit, so keeping both would have re-stamped
+recovered data as current. Archiving stays inside snapshotting; the scope filter stays outside, so
+what is stored is the provider's whole window and what is served is our covered slice.
+
+**Label stale window data in the envelope.** `ApiResponse<T>` gains optional `asOfUtc`, set only when
+the live or upcoming endpoint recovered a stored window. A scoped `WindowFreshness` holder carries
+the capture time sideways so `ICricketDataProvider` and five services do not need new return types.
+The frontend shows an amber notice above those lists: "Scores last updated … ago."
+
+**Archive fallback on exception for match detail.** `GetMatchAsync` catches
+`CricketDataUnavailableException`, tries `archive.GetAsync`, returns the held copy when there is
+one, and rethrows when there is not — a 404 would claim the match does not exist when we simply
+cannot tell.
+
+**Cut the daily burn** (defaults in `CricketDataOptions`):
+
+| Setting | Was | Now | Effect |
+| --- | ---: | ---: | --- |
+| `SeriesIndexCacheHours` | 6 | 24 | ~16 series-index calls/day → ~4 |
+| `ReservedHits` | 10 | 20 | More headroom for page loads after the poller eats the day |
+| `MatchBackfillPagesPerDay` | 6 | 3 | History refetch halved; a full lap of default depth takes ~two weeks |
+
+### What this costs
+
+- **Live scores during an outage are still stale past a point.** Twelve hours is a compromise: fixture
+  lists stay truthful longer than ball-by-ball scores do. Past the bound the endpoint 503s rather
+  than pass an old score off as live without the reader noticing.
+- **One extra write per successful window read.** Failures are swallowed so a snapshot write never
+  breaks a good response.
+- **Slower history fill.** Three backfill pages a day instead of six; nobody waiting on June's Tests
+  notices a fortnight instead of a week.
+
+### Cricbuzz in production
+
+[D-031](./decisions.md) and [deployment.md](./deployment.md) had recommended leaving
+`CricbuzzApi__Enabled` unset on a public site. **`render.yaml` sets it to `true`**, because the main
+provider's free plan carries no player-level data and a match page without a scorecard is thin. That
+trade — attribution unresolved, monthly cap, press-to-load on the frontend — was accepted explicitly
+rather than turning the source off and pretending the docs matched production.
+
+---
+
 ## D-041 — The site covers Full Member internationals and India's own competitions, and filters at the sources
 
 **Status:** accepted. Narrows what [D-033](#d-033) through [D-036](#d-036) widened, and that is the

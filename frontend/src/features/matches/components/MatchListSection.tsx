@@ -11,15 +11,20 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { focusRing } from '@/components/common/focusRing'
 import { MatchCard } from '@/components/match/MatchCard'
 import { MatchCardSkeleton } from '@/components/match/MatchCardSkeleton'
-import type { Match, Paged } from '@/features/matches/types'
+import type { DatedMatches, Match, Paged } from '@/features/matches/types'
+import { formatAsOf } from '@/features/matches/utils/format'
 import { cn } from '@/utils/cn'
 
 /**
- * Results are paged and the other lists are not, so the section accepts either. Flattening here
- * rather than at each call site keeps the four pages that render lists identical to read.
+ * Three shapes, because the three lists genuinely differ. Results are paged; live and upcoming
+ * carry a capture time for when the API had to answer from a stored window; series and team
+ * fixtures are a plain array. Unwrapping all three here rather than at each call site keeps the
+ * pages that render lists identical to read.
  */
 type MatchListQuery =
-  UseQueryResult<Match[], Error> | UseInfiniteQueryResult<InfiniteData<Paged<Match>>, Error>
+  | UseQueryResult<Match[], Error>
+  | UseQueryResult<DatedMatches, Error>
+  | UseInfiniteQueryResult<InfiniteData<Paged<Match>>, Error>
 
 interface MatchListSectionProps {
   title: string
@@ -33,11 +38,19 @@ interface MatchListSectionProps {
 }
 
 function matchesOf(data: MatchListQuery['data']): Match[] | undefined {
-  if (data === undefined) {
+  if (data == null) {
     return undefined
   }
 
-  return Array.isArray(data) ? data : data.pages.flatMap((page) => page.items)
+  if (Array.isArray(data)) {
+    return data
+  }
+
+  return 'matches' in data ? data.matches : data.pages.flatMap((page) => page.items)
+}
+
+function asOfOf(data: MatchListQuery['data']): string | undefined {
+  return data != null && !Array.isArray(data) && 'asOfUtc' in data ? data.asOfUtc : undefined
 }
 
 const gridClasses = 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'
@@ -61,6 +74,7 @@ export function MatchListSection({
   footer,
 }: MatchListSectionProps) {
   const matches = matchesOf(query.data)
+  const asOf = asOfOf(query.data)
 
   return (
     <section className="space-y-3">
@@ -78,6 +92,23 @@ export function MatchListSection({
           </Link>
         )}
       </div>
+
+      {/*
+        Above the cards, not below them, because it changes how everything under it should be read.
+        Stated as a fact about our records rather than as a warning: the same score unlabelled would
+        be a lie told to someone watching a match, and a red banner over a correct fixture list
+        would be alarm about nothing. `role="status"` so a screen reader is told once, politely,
+        rather than having it announced as an error.
+      */}
+      {asOf !== undefined && (
+        <p
+          role="status"
+          className="rounded-md border border-warn-line bg-warn-soft px-3 py-2 text-sm text-ink-muted"
+        >
+          Scores last updated {formatAsOf(asOf)}. The score provider is unavailable, so this is
+          the most recent data we have.
+        </p>
+      )}
 
       {query.isPending && (
         <div className={gridClasses}>

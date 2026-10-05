@@ -17,6 +17,11 @@ Last updated: Sprint 3.
 { "success": true, "data": { }, "message": "Success" }
 ```
 
+When live or upcoming has recovered a stored window because the provider is unavailable, a successful
+response may also carry **`asOfUtc`** — an ISO instant for when that window was last read from the
+provider. The field is omitted when the data is current; its presence is the signal that scores may
+be behind. See [D-042](./decisions.md).
+
 One route is exempt, because its caller is an `<img>` rather than our client: `/api/crests/...`
 returns image bytes or a bare 404. See [Crests](#crests).
 
@@ -42,11 +47,11 @@ decision entry and a pass over [security.md](./security.md).
 did nothing wrong, so the frontend can say "scores are temporarily unavailable" instead of showing
 a generic failure.
 
-**Only the live and upcoming lists return it.** Every other endpoint has our archive behind it and
-answers from that during an outage, so a 503 anywhere else is a bug — it used to be the behaviour,
-and [D-037](./decisions.md) is why it no longer is. The trade is that those endpoints can be
-quietly thinner than usual rather than saying so; nothing in the envelope yet carries "this answer
-is partial".
+**Live and upcoming return it when there is nothing to serve.** They may still answer **200** with
+`asOfUtc` set when a stored window copy exists and is recent enough ([D-042](./decisions.md)); the
+frontend labels that case. Every other endpoint has our archive or a stored window behind it during
+an outage, so a 503 on match detail, results, series or teams is a bug — [D-037](./decisions.md)
+fixed match detail for the `null` path; [D-042](./decisions.md) fixed the exception path.
 
 **Coverage.** Every endpoint here answers about a deliberately narrow slice of cricket: matches
 between two **ICC Full Member** national sides, and India's own competitions — the IPL, the WPL and

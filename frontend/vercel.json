@@ -15,7 +15,7 @@
       ],
       "destination": "/api/preview?slug=:slug"
     },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],
   "headers": [
     {

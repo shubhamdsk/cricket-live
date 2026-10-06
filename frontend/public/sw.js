@@ -10,7 +10,7 @@
  *
  * Bump VERSION to drop every cache on the next visit.
  */
-const VERSION = 'v1'
+const VERSION = 'v2'
 const SHELL = `shell-${VERSION}`
 const ASSETS = `assets-${VERSION}`
 const API = `api-${VERSION}`
@@ -82,7 +82,10 @@ async function asset(request) {
   if (cached) return cached
 
   const response = await fetch(request)
-  if (response.ok) {
+  // An HTML answer to an asset URL is a page, not the asset, and saving it would serve that page
+  // in place of the script for as long as the cache lives.
+  const isHtml = response.headers.get('content-type')?.includes('text/html')
+  if (response.ok && !isHtml) {
     const cache = await caches.open(ASSETS)
     await cache.put(request, response.clone())
   }

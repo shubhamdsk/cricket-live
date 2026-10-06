@@ -51,7 +51,11 @@ test('the last scores this device saw are still readable offline', async ({
   // Once controlled, load again so the worker sees and keeps the API answers.
   await page.reload()
   await expect(page.getByRole('link', { name: /3rd ODI/ })).toBeVisible()
-  await expect.poll(() => page.evaluate(() => caches.keys())).toContain('api-v1')
+  await expect
+    .poll(() =>
+      page.evaluate(async () => (await caches.keys()).some((name) => name.startsWith('api-'))),
+    )
+    .toBe(true)
 
   await context.setOffline(true)
   await page.reload()

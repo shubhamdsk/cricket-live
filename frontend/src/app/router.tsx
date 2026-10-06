@@ -4,9 +4,9 @@
 // later. The rule's real warning is that fast refresh is degraded for this file, which is true and
 // costs nothing, because editing the route table is not an inner-loop activity.
 
-import { lazy } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
 
+import { lazyPage } from '@/app/lazyPage'
 import { rewriteLegacyHashRoute } from '@/app/legacyHashRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { HomePage } from '@/pages/Home/HomePage'
@@ -22,41 +22,33 @@ import { HomePage } from '@/pages/Home/HomePage'
  * The suspense fallback lives in `AppLayout`, so the header and footer stay put while a page
  * arrives rather than the whole shell flashing.
  */
-const LivePage = lazy(async () => ({
-  default: (await import('@/pages/Live/LivePage')).LivePage,
-}))
+const LivePage = lazyPage(async () => (await import('@/pages/Live/LivePage')).LivePage)
 
-const MatchesPage = lazy(async () => ({
-  default: (await import('@/pages/Matches/MatchesPage')).MatchesPage,
-}))
+const MatchesPage = lazyPage(
+  async () => (await import('@/pages/Matches/MatchesPage')).MatchesPage,
+)
 
-const MatchDetailsPage = lazy(async () => ({
-  default: (await import('@/pages/MatchDetails/MatchDetailsPage')).MatchDetailsPage,
-}))
+const MatchDetailsPage = lazyPage(
+  async () => (await import('@/pages/MatchDetails/MatchDetailsPage')).MatchDetailsPage,
+)
 
-const SeriesPage = lazy(async () => ({
-  default: (await import('@/pages/Series/SeriesPage')).SeriesPage,
-}))
+const SeriesPage = lazyPage(async () => (await import('@/pages/Series/SeriesPage')).SeriesPage)
 
-const SeriesDetailsPage = lazy(async () => ({
-  default: (await import('@/pages/Series/SeriesDetailsPage')).SeriesDetailsPage,
-}))
+const SeriesDetailsPage = lazyPage(
+  async () => (await import('@/pages/Series/SeriesDetailsPage')).SeriesDetailsPage,
+)
 
-const TeamsPage = lazy(async () => ({
-  default: (await import('@/pages/Teams/TeamsPage')).TeamsPage,
-}))
+const TeamsPage = lazyPage(async () => (await import('@/pages/Teams/TeamsPage')).TeamsPage)
 
-const TeamDetailsPage = lazy(async () => ({
-  default: (await import('@/pages/Teams/TeamDetailsPage')).TeamDetailsPage,
-}))
+const TeamDetailsPage = lazyPage(
+  async () => (await import('@/pages/Teams/TeamDetailsPage')).TeamDetailsPage,
+)
 
-const SearchPage = lazy(async () => ({
-  default: (await import('@/pages/Search/SearchPage')).SearchPage,
-}))
+const SearchPage = lazyPage(async () => (await import('@/pages/Search/SearchPage')).SearchPage)
 
-const NotFoundPage = lazy(async () => ({
-  default: (await import('@/pages/NotFound/NotFoundPage')).NotFoundPage,
-}))
+const NotFoundPage = lazyPage(
+  async () => (await import('@/pages/NotFound/NotFoundPage')).NotFoundPage,
+)
 
 /**
  * Paths, not fragments.
